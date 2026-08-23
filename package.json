@@ -26,7 +26,8 @@
     "check:extraction": "node db/checks/extraction-contract.mjs",
     "translate": "node db/jobs/translate-listings.mjs",
     "translate:check": "node db/jobs/translate-listings.mjs --dry-run",
-    "check:translation": "node db/checks/translation.mjs"
+    "check:translation": "node db/checks/translation.mjs",
+    "check:seo": "node db/checks/seo-landing.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

@@ -278,5 +278,23 @@
     "audit_exported": "Log exported",
     "audit_purged": "Log purged",
     "translation_reviewed": "Translation reviewed"
+  },
+  "landing": {
+    "forSaleIn": "{type} for sale in {area}",
+    "forRentIn": "{type} for rent in {area}",
+    "allForSaleIn": "Property for sale in {area}",
+    "allForRentIn": "Property for rent in {area}",
+    "intro": "{count} verified properties, offered by {agencies} agencies. Median price {median}{perMonth}.",
+    "perSqm": "That is about {price} per sqm.",
+    "typical": "Median size {area} sqm, most often {beds} bedrooms.",
+    "foreignShare": "{n} of these are open to a foreign buyer.",
+    "freshness": "{n} confirmed by their agency within the last 30 days.",
+    "otherTypes": "Other types in this area",
+    "nearbyAreas": "Nearby areas",
+    "seeAll": "See all {n} properties",
+    "thin": "Few properties here for now. This page stays out of the index while the inventory is thin.",
+    "emptyTitle": "No property for this search",
+    "backToArea": "All property in {area}",
+    "metaDescription": "{count} properties {txn} in {area}, Cambodia. Median price {median}. One page per property, with every agency offering it."
   }
 }

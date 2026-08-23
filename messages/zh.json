@@ -278,5 +278,23 @@
     "audit_exported": "日志已导出",
     "audit_purged": "日志已清理",
     "translation_reviewed": "翻译已校对"
+  },
+  "landing": {
+    "forSaleIn": "{area}{type}出售",
+    "forRentIn": "{area}{type}出租",
+    "allForSaleIn": "{area}房产出售",
+    "allForRentIn": "{area}房产出租",
+    "intro": "{count} 套已核实房产，由 {agencies} 家代理机构提供。价格中位数 {median}{perMonth}。",
+    "perSqm": "约合每平方米 {price}。",
+    "typical": "面积中位数 {area} 平方米，多为 {beds} 房。",
+    "foreignShare": "其中 {n} 套外籍人士可购买。",
+    "freshness": "{n} 套在过去 30 天内经代理确认。",
+    "otherTypes": "该区域的其他类型",
+    "nearbyAreas": "邻近区域",
+    "seeAll": "查看全部 {n} 套",
+    "thin": "该区域目前房源较少。房源充足前，此页面不会被收录。",
+    "emptyTitle": "没有符合条件的房源",
+    "backToArea": "{area}全部房源",
+    "metaDescription": "柬埔寨{area} {count} 套房产{txn}。价格中位数 {median}。一房一页，列出所有在售代理机构。"
   }
 }

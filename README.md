@@ -1,10 +1,11 @@
 # Portail immobilier Cambodge — implémentation
 
-Mise en œuvre du brief `roadmap-portail-immobilier-cambodge.md`. La **phase 1
-(MVP consultable)** est complète ; la **phase 2 (ingestion à l'échelle)** l'est
-également, à une réserve près : les deux composants qui appellent un modèle —
-extraction du bot et traduction — n'ont jamais tourné contre l'API réelle,
-faute de clé.
+Mise en œuvre du brief `roadmap-portail-immobilier-cambodge.md`. Les **phases
+1 (MVP consultable)** et **2 (ingestion à l'échelle)** sont complètes, à une
+réserve près : les deux composants qui appellent un modèle — extraction du bot
+et traduction — n'ont jamais tourné contre l'API réelle, faute de clé. La
+**phase 3 (acquisition et revenus)** est engagée : les pages SEO par quartier ×
+type × langue sont en place.
 
 Le produit tient en une phrase : **un bien = une fiche**. Le portail affiche
 une fiche unique par bien physique, avec la liste des agences qui le proposent
@@ -90,7 +91,7 @@ bien sans pin), unicité d'une annonce active par (bien, agence, transaction),
 
 ### L'internationalisation (§4)
 
-Quatre locales complètes (`fr`, `en`, `zh`, `km`), 247 clés chacune, parité
+Quatre locales complètes (`fr`, `en`, `zh`, `km`), 264 clés chacune, parité
 vérifiée. URLs préfixées, `hreflang` complet plus `x-default`, sitemap avec
 alternates par langue, négociation `Accept-Language` au premier passage puis
 cookie.
@@ -500,6 +501,74 @@ agences différentes. À l'import du second, le moteur fusionne (score 0,90 :
 même immeuble, même étage, mêmes chambres, surface identique à 2 %) et la fiche
 publique affiche « 2 agences proposent ce bien, de 182 500 $ à 185 000 $ ».
 
+## Phase 3 — acquisition et revenus
+
+| Élément de la phase 3 | État |
+|---|---|
+| Pages SEO par quartier × type × langue | **fait** |
+| Alertes email et Telegram sur critères sauvegardés | à faire |
+| Facturation des abonnements, gestion des quotas | à faire |
+| Mise en avant payante | partiel — `listings.featured` existe et remonte au tri |
+| Tableau de bord agence | à faire |
+| Vérification des agences (badge) | partiel — l'état existe et s'affiche, le circuit non |
+| Évaluation du mini-programme WeChat | à faire |
+| Pages promoteurs / projets neufs | à faire |
+
+### Les pages d'atterrissage, et le piège de la combinatoire
+
+`/{locale}/{buy|rent}/{quartier}[/{type}]` — par exemple `/fr/buy/bkk1/condo`.
+
+Le SEO multilingue est le canal d'acquisition majeur du portail (principe n°5),
+mais la combinatoire est un piège : 77 quartiers × 8 types × 2 transactions ×
+4 langues font **4 928 URLs**. Sur l'inventaire actuel, seules 14 combinaisons
+portent au moins cinq biens et 143 n'en portent qu'un seul. Générer les 4 928
+produirait des milliers de pages quasi vides et quasi identiques — contenu
+mince, budget d'exploration gaspillé, et un risque de dévaluation qui
+retomberait sur tout le site.
+
+**D'où la règle : une page n'est indexable qu'au-dessus d'un seuil
+d'inventaire** (cinq biens). En dessous, elle reste consultable — un visiteur
+qui suit un lien doit trouver quelque chose — mais porte `noindex, follow` et
+sort du sitemap. Le seuil se franchit tout seul à mesure que l'offre grossit :
+à l'objectif de 3 000 biens de la phase 2, la plupart des combinaisons utiles
+l'auront passé. Aujourd'hui, le sitemap annonce 57 pages d'atterrissage sur
+4 928 possibles.
+
+L'invariant qui compte : **le sitemap et la balise `robots` portent sur
+exactement le même ensemble**, tous deux dérivés de la même requête. Annoncer
+une page qu'on demande par ailleurs à Google d'ignorer coûte du budget
+d'exploration et de la crédibilité. C'est vérifié, pas supposé.
+
+### Ce qui rend ces pages non dupliquées
+
+Le texte est écrit depuis les chiffres réels de la combinaison — nombre de
+biens, nombre d'agences, prix médian, prix au m², surface médiane, nombre de
+chambres le plus fréquent, part de biens accessibles aux étrangers, part
+confirmée depuis moins de 30 jours. Deux quartiers ne produisent donc pas la
+même page :
+
+> BKK1 — 17 biens vérifiés, proposés par 6 agences. Prix médian 296 000 $.
+> Chroy Changvar — 6 biens vérifiés, proposés par 4 agences. Prix médian 549 000 $.
+
+S'y ajoutent un maillage interne latéral (autres types du quartier, quartiers
+voisins de même type), des données structurées `BreadcrumbList` + `ItemList`,
+un canonical par langue et des `hreflang` complets avec `x-default`.
+
+### Un choix assumé sur les URLs
+
+Les segments de chemin restent en latin (`buy`, `rent`, `condo`) dans les
+quatre langues. Des segments localisés seraient meilleurs pour le référencement
+français, mais le khmer et le chinois ne se romanisent pas proprement, et le
+percent-encoding produit des URLs illisibles. Le gain est marginal face au
+titre, au H1, au contenu et aux `hreflang`, qui eux sont bien localisés — la
+page chinoise s'intitule « BKK1公寓（Condo）出售 », pas une traduction
+approximative.
+
+`npm run check:seo` vérifie l'ensemble contre un serveur lancé : cohérence
+sitemap ↔ `robots`, page mince consultable mais désindexée, page fournie
+indexée, canonical et `hreflang` par langue, variance du contenu, maillage
+interne, et non-masquage des routes existantes.
+
 ## Tâches planifiées
 
 Deux tâches tournent en dehors de l'application, sur un socle commun
@@ -652,17 +721,19 @@ db/
   checks/bot-conversation.mjs Conversation complète, sans jeton
   checks/extraction-contract.mjs  Contrat de requête, sans appel
   checks/translation.mjs      Contrat + file de traduction, sans appel
+  checks/seo-landing.mjs      Cohérence sitemap ↔ robots, balises, contenu
   fixtures/                   Flux d'exemple XML et CSV
   checks/dedup-merge.mjs      Vérification de la fusion (transaction annulée)
 ops/
   lib/job-runner.sh           Socle commun : verrou, environnement, node, journal
   expire-listings.sh          Lanceur — expiration des annonces
   audit-retention.sh          Lanceur — rétention du journal d'audit
-messages/                     fr · en · zh · km — 247 clés, parité vérifiée
+messages/                     fr · en · zh · km — 264 clés, parité vérifiée
 src/lib/
   search.ts                   Filtres, requêtes, résolution d'alias, fiche bien
   i18n.ts                     Locales, traducteur, négociation, champs JSONB
   map-provider.ts             Couche d'abstraction cartographique
+  seo.ts                      Pages d'atterrissage : seuil, stats, maillage
   auth.ts                     Mots de passe, sessions, gardes de rôle
   audit.ts                    Écriture du journal, filtres, flux d'export
   format.ts                   USD par défaut, KHR secondaire, fraîcheur
@@ -683,8 +754,7 @@ Hors périmètre de la phase 1, conformément à la roadmap :
   établir ;
 - **transcription des messages vocaux** — le brief les mentionne (§6.1) ; le
   bot demande aujourd'hui du texte ;
-- **pages SEO par quartier × type × langue**, alertes, facturation, tableau de
-  bord agence, WeChat (phase 3) ;
+- **alertes, facturation, tableau de bord agence, WeChat** (phase 3) ;
 - **gestion des comptes** — l'authentification et le journal d'audit sont en
   place, mais les comptes ne se créent qu'au seed : ni inscription, ni
   réinitialisation de mot de passe, ni second facteur. Les mots de passe du

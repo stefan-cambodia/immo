@@ -278,5 +278,23 @@
     "audit_exported": "Journal exporté",
     "audit_purged": "Journal purgé",
     "translation_reviewed": "Traduction relue"
+  },
+  "landing": {
+    "forSaleIn": "{type} à vendre à {area}",
+    "forRentIn": "{type} à louer à {area}",
+    "allForSaleIn": "Biens à vendre à {area}",
+    "allForRentIn": "Biens à louer à {area}",
+    "intro": "{count} biens vérifiés, proposés par {agencies} agences. Prix médian {median}{perMonth}.",
+    "perSqm": "Soit environ {price} le m².",
+    "typical": "Surface médiane {area} m², le plus souvent {beds} chambres.",
+    "foreignShare": "{n} de ces biens sont accessibles à un acheteur étranger.",
+    "freshness": "{n} confirmés par leur agence depuis moins de 30 jours.",
+    "otherTypes": "Autres types dans ce quartier",
+    "nearbyAreas": "Quartiers voisins",
+    "seeAll": "Voir les {n} biens",
+    "thin": "Peu de biens ici pour l'instant. Cette page n'est pas indexée tant que l'offre reste mince.",
+    "emptyTitle": "Aucun bien pour cette recherche",
+    "backToArea": "Tous les biens à {area}",
+    "metaDescription": "{count} biens {txn} à {area}, Cambodge. Prix médian {median}. Une fiche par bien, avec toutes les agences qui le proposent."
   }
 }
