@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { getTranslator, i18nField, isLocale, HTML_LANG, type Locale } from "@/lib/i18n";
 import { daysSince, daysUntil, formatDate, formatKhr, formatNumber, formatUsd } from "@/lib/format";
 import { getProperty, similarProperties } from "@/lib/search";
+import { pricePosition } from "@/lib/estimate";
 import { getMapProvider } from "@/lib/map-provider";
 import { Gallery } from "@/components/Gallery";
 import { PriceHistory } from "@/components/PriceHistory";
@@ -62,6 +63,10 @@ export default async function PropertyPage({
   const area = p.indoorArea ?? p.landArea;
   const similar = await similarProperties(p.id, 4);
   const provider = getMapProvider();
+  // Position du prix par rapport à la médiane du secteur (phase 4) — muette
+  // sous MIN_SAMPLE comparables plutôt que faussement précise.
+  const position = await pricePosition(
+    p.locationSlug, p.propertyType, transaction, min, Number(area) || 0);
 
   // Pourquoi le bien est — ou n'est pas — accessible à un acheteur étranger (§5.3).
   const foreignReason = p.foreignEligible
@@ -181,6 +186,32 @@ export default async function PropertyPage({
                   spread: formatUsd(max - min, locale),
                 })}`}
               </span>
+              {position && (
+                <span style={{ display: "block", fontSize: "0.8125rem", marginTop: "0.375rem" }}>
+                  <strong style={{
+                    color: position.deltaPct > 5 ? "var(--color-danger)"
+                      : position.deltaPct < -5 ? "var(--color-fresh)" : "var(--color-ink-soft)",
+                  }}>
+                    {position.deltaPct > 0
+                      ? t("estimate.aboveMedian", { pct: position.deltaPct })
+                      : position.deltaPct < 0
+                        ? t("estimate.belowMedian", { pct: Math.abs(position.deltaPct) })
+                        : t("estimate.atMedian")}
+                  </strong>
+                  <span style={{ color: "var(--color-ink-soft)" }}>
+                    {" "}· {t("estimate.positionNote", {
+                      n: position.n,
+                      area: position.usedName ? i18nField(position.usedName, locale) : "",
+                    })}
+                  </span>
+                  {" · "}
+                  <Link href={`/${locale}/estimate?area=${p.locationSlug}&type=${p.propertyType}`
+                    + `${transaction === "rent" ? "&txn=rent" : ""}&sqm=${Math.round(Number(area))}`}
+                        style={{ color: "var(--color-brand)", fontWeight: 600 }}>
+                    {t("estimate.title")} →
+                  </Link>
+                </span>
+              )}
             </div>
           </header>
 

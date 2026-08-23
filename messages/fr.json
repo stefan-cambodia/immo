@@ -43,7 +43,8 @@
     "foreignEligible": "Éligible étranger",
     "areas": "Quartiers",
     "backoffice": "Back-office",
-    "projects": "Projets neufs"
+    "projects": "Projets neufs",
+    "estimate": "Estimation"
   },
   "home": {
     "heroTitle": "Tout l'immobilier du Cambodge, sans les doublons",
@@ -458,5 +459,39 @@
     "unitsShort": "Unités",
     "deliveryShort": "Livraison",
     "agenciesShort": "Agences"
+  },
+  "estimate": {
+    "title": "Estimation de prix",
+    "subtitle": "Que vaut un bien dans un quartier donné ? Médiane du prix au m² des biens comparables, avec la fourchette et la taille de l'échantillon — jamais un chiffre sans sa provenance.",
+    "formArea": "Quartier",
+    "formType": "Type de bien",
+    "formSqm": "Surface (m²)",
+    "submit": "Estimer",
+    "resultSale": "Valeur estimée",
+    "resultRent": "Loyer mensuel estimé",
+    "range": "Fourchette probable",
+    "perSqm": "{price} / m² en médiane",
+    "comparables": "{n} biens comparables",
+    "scope": "sur {area}",
+    "scopeCountry": "sur tout le pays",
+    "fallback": "Trop peu de comparables à {requested} — l'estimation s'élargit à {used}.",
+    "fallbackCountry": "Trop peu de comparables à {requested} — l'estimation porte sur tout le pays.",
+    "confidence_high": "Bon échantillon",
+    "confidence_medium": "Indicatif",
+    "confidence_low": "Ordre de grandeur",
+    "trendTitle": "Prix au m², 12 derniers mois",
+    "trendUp": "▲ {pct} % sur la période",
+    "trendDown": "▼ {pct} % sur la période",
+    "trendFlat": "Stable sur la période",
+    "trendThin": "Pas assez d'observations de prix pour une tendance.",
+    "method": "Comment c'est calculé",
+    "methodText": "Médiane du prix au m² des biens de même type et même transaction, en annonce aujourd'hui ou dans les 6 derniers mois, multipliée par votre surface. La fourchette va du 25e au 75e centile. Quand un quartier compte moins de {min} comparables, l'estimation s'élargit au district puis à la province, et le dit. C'est une indication, pas une expertise.",
+    "seeComparables": "Voir les biens comparables",
+    "noData": "Pas encore assez de données pour estimer cette combinaison.",
+    "aboveMedian": "{pct} % au-dessus de la médiane du secteur",
+    "belowMedian": "{pct} % en dessous de la médiane du secteur",
+    "atMedian": "Dans la médiane du secteur",
+    "positionNote": "vs {n} comparables sur {area}",
+    "estimateThis": "Estimer un bien ici"
   }
 }

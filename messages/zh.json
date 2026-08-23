@@ -43,7 +43,8 @@
     "foreignEligible": "外籍可购",
     "areas": "区域",
     "backoffice": "后台",
-    "projects": "新楼盘"
+    "projects": "新楼盘",
+    "estimate": "估价"
   },
   "home": {
     "heroTitle": "柬埔寨全境房源，去除重复",
@@ -458,5 +459,39 @@
     "unitsShort": "套数",
     "deliveryShort": "交付",
     "agenciesShort": "中介"
+  },
+  "estimate": {
+    "title": "房价估算",
+    "subtitle": "某个片区的房产值多少钱?基于可比房源的每平方米中位价,附价格区间与样本量——绝不给出没有出处的数字。",
+    "formArea": "片区",
+    "formType": "房产类型",
+    "formSqm": "面积(平方米)",
+    "submit": "估算",
+    "resultSale": "估算价值",
+    "resultRent": "估算月租金",
+    "range": "可能区间",
+    "perSqm": "每平方米中位价 {price}",
+    "comparables": "{n} 套可比房源",
+    "scope": "范围:{area}",
+    "scopeCountry": "范围:全国",
+    "fallback": "{requested} 的可比房源太少——估算范围扩大到 {used}。",
+    "fallbackCountry": "{requested} 的可比房源太少——估算基于全国数据。",
+    "confidence_high": "样本充足",
+    "confidence_medium": "供参考",
+    "confidence_low": "仅供大致参考",
+    "trendTitle": "近 12 个月每平方米价格",
+    "trendUp": "▲ 期间上涨 {pct} %",
+    "trendDown": "▼ 期间下跌 {pct} %",
+    "trendFlat": "期间基本持平",
+    "trendThin": "价格观测数据不足,暂无趋势。",
+    "method": "计算方法",
+    "methodText": "取同类型、同交易方式、当前在售在租或近 6 个月内下架房源的每平方米中位价,乘以您的面积。区间为第 25 至第 75 百分位。当片区可比房源少于 {min} 套时,估算会扩大到区、再到省,并明确说明。这是参考指标,不是正式评估。",
+    "seeComparables": "查看可比房源",
+    "noData": "该组合的数据还不足以估算。",
+    "aboveMedian": "高于片区中位价 {pct} %",
+    "belowMedian": "低于片区中位价 {pct} %",
+    "atMedian": "处于片区中位价",
+    "positionNote": "对比 {area} 的 {n} 套可比房源",
+    "estimateThis": "估算此处的房产"
   }
 }

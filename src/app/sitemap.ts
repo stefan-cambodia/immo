@@ -60,6 +60,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
       alternates: alt("/projects"),
     },
+    {
+      url: `${SITE}/en/estimate`,
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+      alternates: alt("/estimate"),
+    },
     ...projects.map((b) => ({
       url: `${SITE}/en/project/${b.slug}`,
       changeFrequency: "weekly" as const,

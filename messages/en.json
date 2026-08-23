@@ -43,7 +43,8 @@
     "foreignEligible": "Foreign-eligible",
     "areas": "Areas",
     "backoffice": "Back office",
-    "projects": "New projects"
+    "projects": "New projects",
+    "estimate": "Estimate"
   },
   "home": {
     "heroTitle": "All Cambodian property, without the duplicates",
@@ -458,5 +459,39 @@
     "unitsShort": "Units",
     "deliveryShort": "Delivery",
     "agenciesShort": "Agencies"
+  },
+  "estimate": {
+    "title": "Price estimate",
+    "subtitle": "What is a property worth in a given neighbourhood? Median price per sqm of comparable listings, with the range and the sample size — never a number without its provenance.",
+    "formArea": "Neighbourhood",
+    "formType": "Property type",
+    "formSqm": "Surface (sqm)",
+    "submit": "Estimate",
+    "resultSale": "Estimated value",
+    "resultRent": "Estimated monthly rent",
+    "range": "Likely range",
+    "perSqm": "{price} / sqm median",
+    "comparables": "{n} comparable properties",
+    "scope": "within {area}",
+    "scopeCountry": "across the whole country",
+    "fallback": "Too few comparables in {requested} — the estimate widens to {used}.",
+    "fallbackCountry": "Too few comparables in {requested} — the estimate uses the whole country.",
+    "confidence_high": "Good sample",
+    "confidence_medium": "Indicative",
+    "confidence_low": "Rough guide",
+    "trendTitle": "Price per sqm, last 12 months",
+    "trendUp": "▲ {pct} % over the period",
+    "trendDown": "▼ {pct} % over the period",
+    "trendFlat": "Stable over the period",
+    "trendThin": "Not enough price observations for a trend.",
+    "method": "How it is computed",
+    "methodText": "Median price per sqm of properties of the same type and transaction, listed now or in the last 6 months, multiplied by your surface. The range spans the 25th to 75th percentile. When a neighbourhood has fewer than {min} comparables, the estimate widens to the district, then the province, and says so. It is an indication, not a valuation.",
+    "seeComparables": "See the comparable listings",
+    "noData": "Not enough data to estimate this combination yet.",
+    "aboveMedian": "{pct} % above the area median",
+    "belowMedian": "{pct} % below the area median",
+    "atMedian": "At the area median",
+    "positionNote": "vs. {n} comparables in {area}",
+    "estimateThis": "Estimate a property here"
   }
 }
