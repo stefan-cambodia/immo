@@ -114,12 +114,14 @@ export async function createProperty(form: FormData) {
       // produites à l'ingestion, pas à l'affichage (§4.1).
       const { rows: listingRows } = await client.query(
         `INSERT INTO listings(property_id, agency_id, agent_id, transaction_type, price_usd,
-           price_period, status, source, description_i18n, description_source_lang, machine_translated)
-         VALUES ($1,$2,$3,$4,$5,$6,'active','backoffice',$7,$8,false)
+           price_period, status, source, description_i18n, description_source_lang,
+           translation_status)
+         VALUES ($1,$2,$3,$4,$5,$6,'active','backoffice',$7,$8,
+                 CASE WHEN $9::text = '' THEN 'not_needed' ELSE 'pending' END::translation_status)
          RETURNING id`,
         [propertyId, agent.agency_id, agent.id, transaction, price,
          transaction === "rent" ? "monthly" : "total",
-         JSON.stringify({ [sourceLang]: description }), sourceLang]
+         JSON.stringify({ [sourceLang]: description }), sourceLang, description.trim()]
       );
 
       await recordAudit(client, actorFromUser(user), {
@@ -375,4 +377,38 @@ export async function pinSubmission(form: FormData) {
   revalidatePath("/[locale]/backoffice", "page");
   if (reference) redirect(`/${locale}/property/${reference}`);
   fail(locale, "invalid_input");
+}
+
+/**
+ * Valide une traduction machine (§4.1 : relecture humaine des annonces
+ * premium). La fiche publique cesse alors d'afficher le marqueur
+ * « traduction automatique », puisque celui-ci découle de l'état.
+ */
+export async function approveTranslation(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const listingId = String(form.get("listing_id") ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(listingId)) return;
+
+  await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `UPDATE listings SET translation_status = 'human_reviewed'
+       WHERE id = $1 AND translation_status = 'machine'
+       RETURNING property_id`, [listingId]);
+    if (rows.length === 0) return;
+
+    const { rows: prop } = await client.query(
+      `SELECT reference FROM properties WHERE id = $1`, [rows[0].property_id]);
+
+    await recordAudit(client, actorFromUser(user), {
+      action: "translation_reviewed",
+      targetType: "listing",
+      targetId: listingId,
+      targetLabel: prop[0]?.reference ?? null,
+      details: {},
+    });
+  });
+
+  revalidatePath("/[locale]/backoffice", "page");
 }

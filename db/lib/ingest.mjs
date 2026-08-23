@@ -135,16 +135,18 @@ async function createProperty(client, input, n) {
 
 async function createListing(client, input, n, propertyId) {
   const lang = n.descriptionLang ?? "en";
-  // La traduction automatique à l'ingestion (§4.1) n'est pas branchée : la
-  // description reste dans sa langue source, non marquée comme traduite. Les
-  // champs structurés, eux, sont déjà traduits par les tables de référence.
+  // La description entre dans sa seule langue source. Elle est publiée
+  // immédiatement ; le worker de traduction (§4.1) la complétera dans les
+  // trois autres langues. Les champs structurés, eux, sont déjà traduits par
+  // les tables de référence — c'est le principe n°3 qui limite le volume.
   const description = n.description ? { [lang]: n.description } : {};
+  const translationStatus = n.description ? "pending" : "not_needed";
 
   const { rows } = await client.query(
     `INSERT INTO listings(property_id, agency_id, agent_id, transaction_type, price_usd,
        price_period, negotiable, status, source, description_i18n,
-       description_source_lang, machine_translated)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,'active',$8,$9,$10,false)
+       description_source_lang, translation_status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'active',$8,$9,$10,$11::translation_status)
      ON CONFLICT (property_id, agency_id, transaction_type)
        WHERE status = 'active'
      DO UPDATE SET price_usd = EXCLUDED.price_usd,
@@ -154,7 +156,7 @@ async function createListing(client, input, n, propertyId) {
      RETURNING id`,
     [propertyId, input.agencyId, input.agentId, n.transactionType, n.priceUsd,
      n.transactionType === "rent" ? "monthly" : "total", n.negotiable ?? true,
-     input.source, JSON.stringify(description), lang]
+     input.source, JSON.stringify(description), lang, translationStatus]
   );
   return rows[0].id;
 }

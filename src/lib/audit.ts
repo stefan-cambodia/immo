@@ -5,7 +5,7 @@ import type { SessionUser } from "./auth";
 
 export const AUDIT_ACTIONS = [
   "sign_in", "sign_out", "property_created", "listing_confirmed",
-  "dedup_merged", "dedup_distinct", "alias_added",
+  "dedup_merged", "dedup_distinct", "alias_added", "translation_reviewed",
   "audit_exported", "audit_purged",
 ] as const;
 

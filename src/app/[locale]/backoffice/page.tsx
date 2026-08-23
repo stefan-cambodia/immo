@@ -8,10 +8,12 @@ import { PROPERTY_TYPES, TITLE_TYPES } from "@/lib/search";
 import { PinPicker } from "@/components/PinPicker";
 import { AuditPanel } from "@/components/AuditPanel";
 import { SubmissionQueue, type PendingSubmission } from "@/components/SubmissionQueue";
+import { TranslationReview, type PendingTranslation } from "@/components/TranslationReview";
 import { auditSpan, countAudit, listAudit, parseAuditFilters } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/auth";
 import { signOut } from "../login/actions";
-import { createProperty, resolveDedup, addAlias, confirmListing, pinSubmission } from "./actions";
+import { createProperty, resolveDedup, addAlias, confirmListing, pinSubmission,
+         approveTranslation } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +42,7 @@ export default async function BackofficePage({
   const scope = isAdmin ? null : user.agencyId;
 
   const [locations, agents, dedup, misses, expiring, reuse, leadStats,
-         audit, auditTotal, span, pending] = await Promise.all([
+         audit, auditTotal, span, pending, translations] = await Promise.all([
     query<{ slug: string; name: Record<string, string>; parent: Record<string, string> | null }>(
       `SELECT l.slug, l.name_i18n AS name, p.name_i18n AS parent
        FROM locations l LEFT JOIN locations p ON p.id = l.parent_id
@@ -127,6 +129,17 @@ export default async function BackofficePage({
        WHERE s.status = 'needs_pin'
          AND ($1::uuid IS NULL OR s.agency_id = $1::uuid)
        ORDER BY s.created_at LIMIT 10`, [scope]),
+    // §4.1 : seules les annonces premium partent en relecture humaine.
+    isAdmin ? query<PendingTranslation>(
+      `SELECT l.id, p.reference, a.name AS agency,
+              l.description_source_lang::text AS "sourceLang",
+              l.description_i18n AS description, l.translated_at AS "translatedAt"
+       FROM listings l
+       JOIN properties p ON p.id = l.property_id
+       JOIN agencies a ON a.id = l.agency_id
+       WHERE l.translation_status = 'machine'
+         AND a.subscription_tier = 'premium'
+       ORDER BY l.translated_at DESC NULLS LAST LIMIT 8`) : [],
   ]);
 
   const Panel = ({ title, hint, children }: {
@@ -302,6 +315,15 @@ export default async function BackofficePage({
           <SubmissionQueue items={pending} locale={locale} t={t}
                            provider={provider} action={pinSubmission} />
         </Panel>
+
+        {/* ------- Relecture des traductions — premium uniquement ------- */}
+        {isAdmin && (
+        <Panel title={`${t("backoffice.translations")} (${translations.length})`}
+               hint={t("backoffice.translationsHint")}>
+          <TranslationReview items={translations} locale={locale} t={t}
+                             action={approveTranslation} />
+        </Panel>
+        )}
 
         {/* File de déduplication — modération uniquement */}
         {isAdmin && (

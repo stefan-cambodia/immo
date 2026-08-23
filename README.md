@@ -1,9 +1,10 @@
 # Portail immobilier Cambodge — implémentation
 
 Mise en œuvre du brief `roadmap-portail-immobilier-cambodge.md`. La **phase 1
-(MVP consultable)** est complète ; la **phase 2 (ingestion à l'échelle)** est
-engagée — socle d'ingestion, moteur de déduplication, hash perceptuel réel et
-import XML/CSV sont en place.
+(MVP consultable)** est complète ; la **phase 2 (ingestion à l'échelle)** l'est
+également, à une réserve près : les deux composants qui appellent un modèle —
+extraction du bot et traduction — n'ont jamais tourné contre l'API réelle,
+faute de clé.
 
 Le produit tient en une phrase : **un bien = une fiche**. Le portail affiche
 une fiche unique par bien physique, avec la liste des agences qui le proposent
@@ -89,7 +90,7 @@ bien sans pin), unicité d'une annonce active par (bien, agence, transaction),
 
 ### L'internationalisation (§4)
 
-Quatre locales complètes (`fr`, `en`, `zh`, `km`), 242 clés chacune, parité
+Quatre locales complètes (`fr`, `en`, `zh`, `km`), 247 clés chacune, parité
 vérifiée. URLs préfixées, `hreflang` complet plus `x-default`, sitemap avec
 alternates par langue, négociation `Accept-Language` au premier passage puis
 cookie.
@@ -302,7 +303,7 @@ Objectif du brief : « l'offre s'alimente sans intervention interne ».
 | Extension SR / SHV / Kampot / Battambang | fait (données) |
 | Bot Telegram + extraction LLM | **écrit** — jamais exécuté contre l'API réelle (aucune clé disponible) |
 | Relances automatiques J-7 | **fait** |
-| Traduction automatique à l'ingestion | à faire — nécessite une clé d'API |
+| Traduction automatique à l'ingestion | **écrit** — jamais exécuté contre l'API réelle |
 
 ### L'entonnoir commun
 
@@ -432,6 +433,55 @@ Aucune clé d'API n'était disponible, le code n'a donc jamais tourné contre
 l'API. Le contrat est conforme à la documentation du SDK ; la première
 exécution réelle reste à faire, et c'est là qu'on verra si le prompt tient
 face à un message d'agent en khmer translittéré.
+
+### La traduction à l'ingestion
+
+Le brief est précis sur le *quand* : les traductions sont générées à
+l'ingestion, « pas à l'affichage — coût et latence ». Une fiche consultée mille
+fois ne doit pas déclencher mille traductions.
+
+**Un worker, pas un appel dans la transaction d'ingestion.** Traduire prend
+plusieurs secondes ; le faire à l'intérieur de la transaction reviendrait à
+tenir un verrou de base ouvert pendant un appel réseau, et à faire échouer la
+publication d'une annonce parce qu'une API est indisponible. L'annonce est
+publiée immédiatement dans sa langue source ; la traduction la rattrape. C'est
+toujours « à l'ingestion » au sens du brief : une fois par annonce.
+
+```bash
+npm run translate:check     # ce qui serait traduit, sans rien appeler
+npm run translate           # traite la file
+npm run translate -- --retry --limit 50
+```
+
+Le volume est faible par construction : le principe n°3 pousse tout ce qui peut
+l'être dans des champs typés, déjà traduits par les tables de référence. Ne
+reste que la phrase libre de l'agent.
+
+Le prompt interdit d'embellir — pas de « spacieux » ou « idéalement situé »
+inventés, pas de fait retiré, chiffres et surfaces recopiés à l'identique. Les
+termes de marché (borey, hard title, soft title, strata, flat, shophouse) ne
+sont pas traduits : ils sont compris tels quels au Cambodge. La langue source
+conserve le texte de l'agent mot pour mot plutôt qu'une reformulation.
+
+L'effort est réglé bas : traduire n'est pas une tâche de raisonnement, et le
+volume, lui, sera élevé.
+
+**`machine_translated` est devenue une colonne générée** depuis
+`translation_status`. L'état de traduction n'existe qu'à un seul endroit, et le
+marqueur « traduction automatique » de la fiche publique ne peut pas diverger
+de la réalité — vérifié de bout en bout : valider une traduction en
+back-office fait disparaître le marqueur de la fiche.
+
+**La relecture humaine ne concerne que les annonces premium**, comme le
+demande §4.1. Elles passent devant dans la file — ce sont les seules où le
+délai coûte deux fois — et le back-office les présente dans les quatre langues
+côte à côte, la source repérée : ce qu'on relit est la fidélité, pas le style.
+La validation est journalisée comme action de modération, puisqu'elle engage le
+portail sur le contenu.
+
+Les échecs sont marqués `failed` avec leur cause et ne sont **pas** repris
+automatiquement : une annonce empoisonnée ne doit pas consommer la file à
+chaque passage. `--retry` les reprend explicitement.
 
 ### Import de flux
 
@@ -595,17 +645,20 @@ db/
   lib/telegram.mjs            Transport Telegram + double en mémoire
   lib/bot.mjs                 Machine à états de la conversation
   lib/extract.mjs             Extraction LLM (outil strict)
+  lib/translate.mjs           Traduction + file (§4.1)
+  jobs/translate-listings.mjs Worker de traduction
   jobs/telegram-bot.mjs       Worker long polling
   jobs/send-reminders.mjs     Relances J-7
   checks/bot-conversation.mjs Conversation complète, sans jeton
   checks/extraction-contract.mjs  Contrat de requête, sans appel
+  checks/translation.mjs      Contrat + file de traduction, sans appel
   fixtures/                   Flux d'exemple XML et CSV
   checks/dedup-merge.mjs      Vérification de la fusion (transaction annulée)
 ops/
   lib/job-runner.sh           Socle commun : verrou, environnement, node, journal
   expire-listings.sh          Lanceur — expiration des annonces
   audit-retention.sh          Lanceur — rétention du journal d'audit
-messages/                     fr · en · zh · km — 242 clés, parité vérifiée
+messages/                     fr · en · zh · km — 247 clés, parité vérifiée
 src/lib/
   search.ts                   Filtres, requêtes, résolution d'alias, fiche bien
   i18n.ts                     Locales, traducteur, négociation, champs JSONB
@@ -624,9 +677,10 @@ src/app/api/                  suggest · map · leads · photo · audit/export
 
 Hors périmètre de la phase 1, conformément à la roadmap :
 
-- **première exécution réelle du bot** — le code est écrit et sa logique
-  vérifiée hors ligne, mais il n'a jamais parlé à Telegram ni à l'API ;
-- **traduction machine à l'ingestion** — nécessite une clé d'API ;
+- **première exécution réelle du bot et de la traduction** — le code est écrit
+  et sa logique vérifiée hors ligne, mais il n'a jamais parlé à Telegram ni à
+  l'API Anthropic. La qualité de l'extraction et des traductions reste à
+  établir ;
 - **transcription des messages vocaux** — le brief les mentionne (§6.1) ; le
   bot demande aujourd'hui du texte ;
 - **pages SEO par quartier × type × langue**, alertes, facturation, tableau de

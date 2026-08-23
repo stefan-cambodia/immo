@@ -23,7 +23,10 @@
     "bot:once": "node db/jobs/telegram-bot.mjs --once",
     "bot:reminders": "node db/jobs/send-reminders.mjs",
     "check:bot": "node db/checks/bot-conversation.mjs",
-    "check:extraction": "node db/checks/extraction-contract.mjs"
+    "check:extraction": "node db/checks/extraction-contract.mjs",
+    "translate": "node db/jobs/translate-listings.mjs",
+    "translate:check": "node db/jobs/translate-listings.mjs --dry-run",
+    "check:translation": "node db/checks/translation.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

@@ -228,7 +228,12 @@
     "submissionsHint": "Listings received from a feed or the bot with everything but a location. Blocking step: no property is created until the pin is placed.",
     "submissionsEmpty": "No submissions pending.",
     "submissionPin": "Place the pin and publish",
-    "submissionSource": "Channel"
+    "submissionSource": "Channel",
+    "translations": "Translations to review",
+    "translationsHint": "Only premium agencies' listings go to human review (§4.1). The rest stay flagged as machine-translated on the public page.",
+    "translationsEmpty": "No translations awaiting review.",
+    "translationApprove": "Approve translation",
+    "translationSource": "Agent's text"
   },
   "footer": {
     "about": "About",
@@ -271,6 +276,7 @@
     "dedup_distinct": "Marked as distinct",
     "alias_added": "Alias added",
     "audit_exported": "Log exported",
-    "audit_purged": "Log purged"
+    "audit_purged": "Log purged",
+    "translation_reviewed": "Translation reviewed"
   }
 }

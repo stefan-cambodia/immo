@@ -401,13 +401,15 @@ for (let i = 0; i < TARGET; i++) {
     const { rows: lr } = await db.query(
       `INSERT INTO listings(property_id, agency_id, agent_id, transaction_type, price_usd,
          price_period, negotiable, status, source, featured, expires_at, last_confirmed_at,
-         description_i18n, description_source_lang, machine_translated, created_at)
+         description_i18n, description_source_lang, translation_status, created_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
       [propertyId, agency.id, pick(agency.agents), txn, price,
        txn === "rent" ? "monthly" : "total", chance(0.7), status,
        pick(["backoffice", "backoffice", "backoffice", "csv", "xml_feed"]),
        agency.tier === "premium" && chance(0.12), expires, confirmed,
-       describe(prop, meta.names, txn), srcLang, srcLang !== "en" || chance(0.6), created]);
+       // describe() produit déjà les quatre langues : ces annonces sont
+       // dans l'état où le worker de traduction les aurait laissées.
+       describe(prop, meta.names, txn), srcLang, 'machine', created]);
 
     // Historique de prix : les prix bougent, les acheteurs négocient (§6.3).
     if (chance(0.35)) {

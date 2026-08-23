@@ -228,7 +228,12 @@
     "submissionsHint": "来自数据源或机器人的房源，除位置外信息齐全。必填步骤：未标注位置前不会创建房产。",
     "submissionsEmpty": "没有待处理的提交。",
     "submissionPin": "标注位置并发布",
-    "submissionSource": "渠道"
+    "submissionSource": "渠道",
+    "translations": "待校对的翻译",
+    "translationsHint": "仅高级代理机构的房源进入人工校对（§4.1）。其余房源在公开页面上保留「机器翻译」标记。",
+    "translationsEmpty": "没有待校对的翻译。",
+    "translationApprove": "通过翻译",
+    "translationSource": "代理原文"
   },
   "footer": {
     "about": "关于我们",
@@ -271,6 +276,7 @@
     "dedup_distinct": "判定为不同房产",
     "alias_added": "新增别名",
     "audit_exported": "日志已导出",
-    "audit_purged": "日志已清理"
+    "audit_purged": "日志已清理",
+    "translation_reviewed": "翻译已校对"
   }
 }

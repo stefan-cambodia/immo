@@ -228,7 +228,12 @@
     "submissionsHint": "Annonces reçues d'un flux ou du bot dont tout est prêt sauf la position. Étape bloquante : aucun bien n'est créé tant que le pin n'est pas posé.",
     "submissionsEmpty": "Aucune soumission en attente.",
     "submissionPin": "Poser le pin et publier",
-    "submissionSource": "Canal"
+    "submissionSource": "Canal",
+    "translations": "Traductions à relire",
+    "translationsHint": "Seules les annonces des agences premium partent en relecture humaine (§4.1). Les autres restent marquées « traduction automatique » sur la fiche publique.",
+    "translationsEmpty": "Aucune traduction en attente de relecture.",
+    "translationApprove": "Valider la traduction",
+    "translationSource": "Texte de l'agent"
   },
   "footer": {
     "about": "À propos",
@@ -271,6 +276,7 @@
     "dedup_distinct": "Biens jugés distincts",
     "alias_added": "Alias ajouté",
     "audit_exported": "Journal exporté",
-    "audit_purged": "Journal purgé"
+    "audit_purged": "Journal purgé",
+    "translation_reviewed": "Traduction relue"
   }
 }
