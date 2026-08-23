@@ -234,7 +234,9 @@
     "translationsHint": "仅高级代理机构的房源进入人工校对（§4.1）。其余房源在公开页面上保留「机器翻译」标记。",
     "translationsEmpty": "没有待校对的翻译。",
     "translationApprove": "通过翻译",
-    "translationSource": "代理原文"
+    "translationSource": "代理原文",
+    "verification": "中介认证",
+    "verificationHint": "「已认证」徽章只能在此处授予。待审核的申请排在最前，每次变更都会记录操作人。"
   },
   "footer": {
     "about": "关于我们",
@@ -284,7 +286,8 @@
     "invoice_paid": "账单已支付",
     "invoice_voided": "账单已作废",
     "listing_featured": "房源已置顶",
-    "listing_unfeatured": "已取消置顶"
+    "listing_unfeatured": "已取消置顶",
+    "verification_changed": "认证状态变更"
   },
   "landing": {
     "forSaleIn": "{area}{type}出售",

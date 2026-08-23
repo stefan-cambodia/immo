@@ -8,7 +8,7 @@ export const AUDIT_ACTIONS = [
   "dedup_merged", "dedup_distinct", "alias_added", "translation_reviewed",
   "audit_exported", "audit_purged",
   "tier_changed", "invoice_issued", "invoice_paid", "invoice_voided",
-  "listing_featured", "listing_unfeatured",
+  "listing_featured", "listing_unfeatured", "verification_changed",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

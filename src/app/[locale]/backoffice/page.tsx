@@ -15,7 +15,7 @@ import { billingOverview, listPlans, openInvoices } from "@/lib/billing";
 import { signOut } from "../login/actions";
 import { createProperty, resolveDedup, addAlias, confirmListing, pinSubmission,
          approveTranslation, changeTier, issueInvoice, markInvoicePaid,
-         voidInvoice } from "./actions";
+         voidInvoice, setVerification } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +60,7 @@ export default async function BackofficePage({
 
   const [locations, agents, dedup, misses, expiring, reuse, leadStats,
          audit, auditTotal, span, pending, translations,
-         billingRows, invoicesOpen, plans] = await Promise.all([
+         billingRows, invoicesOpen, plans, verifRows] = await Promise.all([
     query<{ slug: string; name: Record<string, string>; parent: Record<string, string> | null }>(
       `SELECT l.slug, l.name_i18n AS name, p.name_i18n AS parent
        FROM locations l LEFT JOIN locations p ON p.id = l.parent_id
@@ -163,6 +163,15 @@ export default async function BackofficePage({
     isAdmin ? billingOverview() : [],
     isAdmin ? openInvoices() : [],
     isAdmin ? listPlans() : [],
+    // Vérification des agences : le badge est attribué ici, et nulle part
+    // ailleurs. Les dossiers en cours d'examen remontent en tête.
+    isAdmin ? query<{ id: string; name: string; slug: string; status: string; active: string }>(
+      `SELECT a.id, a.name, a.slug, a.verification_status::text AS status,
+              (SELECT count(*) FROM listings l
+                WHERE l.agency_id = a.id AND l.status = 'active') AS active
+       FROM agencies a
+       ORDER BY a.verification_status = 'documents_received' DESC,
+                a.verification_status = 'unverified' DESC, a.name`) : [],
   ]);
 
   return (
@@ -603,6 +612,50 @@ export default async function BackofficePage({
               ))}
             </div>
           )}
+        </Panel>
+        )}
+
+        {/* -------- Vérification des agences — modération uniquement -------- */}
+        {isAdmin && (
+        <Panel title={t("backoffice.verification")} hint={t("backoffice.verificationHint")}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {verifRows.map((a) => (
+              <form key={a.id} action={setVerification} style={{
+                display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap",
+                borderBottom: "1px solid var(--color-line-soft)", paddingBottom: "0.5rem",
+              }}>
+                <input type="hidden" name="locale" value={locale} />
+                <input type="hidden" name="agency_id" value={a.id} />
+                <Link href={`/${locale}/agency/${a.slug}`}
+                      style={{ fontWeight: 600, fontSize: "0.875rem", flex: "1 1 10rem", minWidth: 0 }}>
+                  {a.name}
+                </Link>
+                <span style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)" }}>
+                  {t("agency.listingsCount", { n: formatNumber(a.active, locale) })}
+                </span>
+                <span className="chip" style={{
+                  background: a.status === "verified" ? "var(--color-fresh-soft)"
+                    : a.status === "documents_received" ? "var(--color-gold-soft)"
+                    : "var(--color-surface-alt)",
+                  color: a.status === "verified" ? "var(--color-fresh)"
+                    : a.status === "documents_received" ? "var(--color-gold)"
+                    : "var(--color-ink-soft)",
+                }}>
+                  {t(`agency.${a.status}`)}
+                </span>
+                <select className="field" name="status" defaultValue={a.status}
+                        aria-label={t("backoffice.verification")}
+                        style={{ fontSize: "0.75rem", padding: "0.1875rem 0.375rem" }}>
+                  {["unverified", "documents_received", "verified"].map((s) => (
+                    <option key={s} value={s}>{t(`agency.${s}`)}</option>
+                  ))}
+                </select>
+                <button className="btn btn-outline" style={{ padding: "0.1875rem 0.5rem", fontSize: "0.75rem" }}>
+                  ✓
+                </button>
+              </form>
+            ))}
+          </div>
         </Panel>
         )}
 

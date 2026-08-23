@@ -234,7 +234,9 @@
     "translationsHint": "Only premium agencies' listings go to human review (§4.1). The rest stay flagged as machine-translated on the public page.",
     "translationsEmpty": "No translations awaiting review.",
     "translationApprove": "Approve translation",
-    "translationSource": "Agent's text"
+    "translationSource": "Agent's text",
+    "verification": "Agency verification",
+    "verificationHint": "The verified badge is granted here and nowhere else. Files under review come first; every change is logged with its author."
   },
   "footer": {
     "about": "About",
@@ -284,7 +286,8 @@
     "invoice_paid": "Invoice paid",
     "invoice_voided": "Invoice voided",
     "listing_featured": "Listing featured",
-    "listing_unfeatured": "Featuring removed"
+    "listing_unfeatured": "Featuring removed",
+    "verification_changed": "Verification changed"
   },
   "landing": {
     "forSaleIn": "{type} for sale in {area}",

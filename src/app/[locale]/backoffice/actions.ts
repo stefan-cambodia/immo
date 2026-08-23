@@ -675,3 +675,45 @@ export async function toggleFeatured(form: FormData) {
   revalidatePath("/[locale]/dashboard", "page");
   redirect(back);
 }
+
+const VERIFICATIONS = ["unverified", "documents_received", "verified"] as const;
+
+/**
+ * Change le statut de vérification d'une agence (phase 3).
+ *
+ * Le badge « agence vérifiée » n'a de valeur que si son attribution est
+ * traçable : le passage par les trois états (non vérifiée → documents reçus →
+ * vérifiée) est journalisé avec l'auteur, comme tout ce qui touche à la
+ * confiance affichée aux visiteurs.
+ */
+export async function setVerification(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const agencyId = String(form.get("agency_id") ?? "");
+  const status = String(form.get("status") ?? "");
+  if (!UUID.test(agencyId) || !(VERIFICATIONS as readonly string[]).includes(status)) {
+    fail(locale, "invalid_input");
+  }
+
+  await withTransaction(async (client) => {
+    const { rows: before } = await client.query(
+      `SELECT name, verification_status::text AS status FROM agencies
+       WHERE id = $1 FOR UPDATE`, [agencyId]);
+    if (before.length === 0 || before[0].status === status) return;
+
+    await client.query(
+      `UPDATE agencies SET verification_status = $2::verification_status WHERE id = $1`,
+      [agencyId, status]);
+
+    await recordAudit(client, actorFromUser(user), {
+      action: "verification_changed",
+      targetType: "agency",
+      targetId: agencyId,
+      targetLabel: before[0].name,
+      details: { from: before[0].status, to: status },
+    });
+  });
+
+  revalidatePath("/[locale]/backoffice", "page");
+}

@@ -234,7 +234,9 @@
     "translationsHint": "Seules les annonces des agences premium partent en relecture humaine (§4.1). Les autres restent marquées « traduction automatique » sur la fiche publique.",
     "translationsEmpty": "Aucune traduction en attente de relecture.",
     "translationApprove": "Valider la traduction",
-    "translationSource": "Texte de l'agent"
+    "translationSource": "Texte de l'agent",
+    "verification": "Vérification des agences",
+    "verificationHint": "Le badge « vérifiée » s'attribue ici et nulle part ailleurs. Les dossiers en cours d'examen remontent en tête ; chaque changement est journalisé avec son auteur."
   },
   "footer": {
     "about": "À propos",
@@ -284,7 +286,8 @@
     "invoice_paid": "Facture payée",
     "invoice_voided": "Facture annulée",
     "listing_featured": "Annonce mise en avant",
-    "listing_unfeatured": "Mise en avant retirée"
+    "listing_unfeatured": "Mise en avant retirée",
+    "verification_changed": "Vérification modifiée"
   },
   "landing": {
     "forSaleIn": "{type} à vendre à {area}",
