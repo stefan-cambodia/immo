@@ -1,5 +1,7 @@
 import { ingest } from "./ingest.mjs";
 import { askLocationKeyboard, inlineKeyboard, removeKeyboard } from "./telegram.mjs";
+import { linkTelegram, listChatAlerts, unsubscribeChat } from "./alerts.mjs";
+import { getTranslator } from "./messages.mjs";
 
 /**
  * Machine à états de la conversation d'ingestion (§6.1).
@@ -114,6 +116,13 @@ export async function handleUpdate(deps, update) {
   if (!msg) return { action: "ignored" };
 
   const chatId = msg.chat.id;
+  const text = (msg.text ?? msg.caption ?? "").trim();
+
+  // Alertes du public (phase 3) : ces commandes viennent de visiteurs, pas
+  // d'agents, et passent donc avant le contrôle du compte.
+  const alertOutcome = await handleAlertCommand(deps, chatId, text);
+  if (alertOutcome) return alertOutcome;
+
   const session = await loadSession(db, chatId);
   const agent = await findAgent(db, chatId);
 
@@ -121,8 +130,6 @@ export async function handleUpdate(deps, update) {
     await tg.sendMessage(chatId, T.unknownAgent);
     return { action: "unknown_agent" };
   }
-
-  const text = (msg.text ?? msg.caption ?? "").trim();
 
   if (text === "/start" || text === "/cancel") {
     await saveSession(db, chatId, "idle", {});
@@ -195,6 +202,40 @@ export async function handleUpdate(deps, update) {
     inlineKeyboard([["✅ Oui", "draft:accept"], ["✏️ Corriger", "draft:edit"],
                     ["✖️ Annuler", "draft:cancel"]]));
   return { action: "awaiting_confirmation", fields };
+}
+
+/**
+ * Commandes d'alerte : `/start al_<jeton>` rattache le chat à une alerte créée
+ * sur le site et vaut confirmation ; `/stop` coupe toutes les alertes du chat ;
+ * `/alerts` les liste. Les réponses sont dans la langue de l'alerte — celle
+ * dans laquelle le visiteur naviguait — et non dans celle du bot agent.
+ */
+async function handleAlertCommand({ db, tg }, chatId, text) {
+  const start = text.match(/^\/start\s+al_([A-Za-z0-9_-]{16,})$/);
+  if (start) {
+    const alert = await linkTelegram(db, chatId, start[1]);
+    const t = await getTranslator(alert?.locale ?? "en");
+    await tg.sendMessage(chatId,
+      alert ? t("alerts.telegramLinked", { label: alert.label }) : t("alerts.telegramLinkFailed"),
+      removeKeyboard);
+    return { action: alert ? "alert_linked" : "alert_link_failed", alertId: alert?.id ?? null };
+  }
+  if (text === "/stop") {
+    const stopped = await unsubscribeChat(db, chatId);
+    const t = await getTranslator(stopped[0]?.locale ?? "en");
+    await tg.sendMessage(chatId,
+      stopped.length ? t("alerts.telegramStopped", { n: stopped.length }) : t("alerts.telegramNone"));
+    return { action: "alerts_stopped", count: stopped.length };
+  }
+  if (text === "/alerts") {
+    const alerts = await listChatAlerts(db, chatId);
+    const t = await getTranslator(alerts[0]?.locale ?? "en");
+    await tg.sendMessage(chatId, alerts.length
+      ? `${t("alerts.telegramList")}\n${alerts.map((a) => `• ${a.label}`).join("\n")}\n\n<i>${t("alerts.telegramStopHint")}</i>`
+      : t("alerts.telegramNone"));
+    return { action: "alerts_listed", count: alerts.length };
+  }
+  return null;
 }
 
 async function handleCallback(deps, cb) {

@@ -129,6 +129,21 @@ export default async function SearchPage({
           </div>
 
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+            {/* Alerte sur ces critères (phase 3). Le lien porte les filtres
+                résolus — le quartier, pas le texte tapé. Il est absent quand
+                la saisie n'a rien donné : une alerte sur rien n'a pas de sens. */}
+            {!unresolved && (
+              <Link href={`/${locale}/alerts${filtersToQueryString({ ...f, page: 1, sort: "relevance" })}`}
+                    className="btn btn-outline"
+                    style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem",
+                             color: "var(--color-brand)", borderColor: "var(--color-brand)" }}>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+                  <path d="M8 2a4 4 0 0 0-4 4v3l-1.5 2h11L12 9V6a4 4 0 0 0-4-4ZM6.5 13a1.5 1.5 0 0 0 3 0"
+                        stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                </svg>
+                {t("alerts.createButton")}
+              </Link>
+            )}
             <div className="view-toggle" style={{ gap: "0.25rem" }}>
               <Link href={link({ view: "list" })} className="btn btn-outline"
                     style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}>

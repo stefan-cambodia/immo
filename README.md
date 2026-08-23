@@ -4,8 +4,9 @@ Mise en œuvre du brief `roadmap-portail-immobilier-cambodge.md`. Les **phases
 1 (MVP consultable)** et **2 (ingestion à l'échelle)** sont complètes, à une
 réserve près : les deux composants qui appellent un modèle — extraction du bot
 et traduction — n'ont jamais tourné contre l'API réelle, faute de clé. La
-**phase 3 (acquisition et revenus)** est engagée : les pages SEO par quartier ×
-type × langue sont en place.
+**phase 3 (acquisition et revenus)** est engagée : pages SEO par quartier ×
+type × langue, tableau de bord agence, et alertes email / Telegram sur
+critères sauvegardés.
 
 Le produit tient en une phrase : **un bien = une fiche**. Le portail affiche
 une fiche unique par bien physique, avec la liste des agences qui le proposent
@@ -91,7 +92,7 @@ bien sans pin), unicité d'une annonce active par (bien, agence, transaction),
 
 ### L'internationalisation (§4)
 
-Quatre locales complètes (`fr`, `en`, `zh`, `km`), 291 clés chacune, parité
+Quatre locales complètes (`fr`, `en`, `zh`, `km`), 349 clés chacune, parité
 vérifiée. URLs préfixées, `hreflang` complet plus `x-default`, sitemap avec
 alternates par langue, négociation `Accept-Language` au premier passage puis
 cookie.
@@ -506,7 +507,7 @@ publique affiche « 2 agences proposent ce bien, de 182 500 $ à 185 000 $ ».
 | Élément de la phase 3 | État |
 |---|---|
 | Pages SEO par quartier × type × langue | **fait** |
-| Alertes email et Telegram sur critères sauvegardés | à faire |
+| Alertes email et Telegram sur critères sauvegardés | **fait** |
 | Facturation des abonnements, gestion des quotas | à faire |
 | Mise en avant payante | partiel — `listings.featured` existe et remonte au tri |
 | Tableau de bord agence | **fait** |
@@ -627,26 +628,87 @@ sitemap ↔ `robots`, page mince consultable mais désindexée, page fournie
 indexée, canonical et `hreflang` par langue, variance du contenu, maillage
 interne, et non-masquage des routes existantes.
 
+### Les alertes sur critères sauvegardés
+
+`/{locale}/alerts?…` — le bouton « Créer une alerte » de la page de résultats y
+mène avec les filtres courants. Le visiteur choisit un canal (email ou
+Telegram) et une cadence (dès que possible, ou un résumé quotidien), et reçoit
+ensuite les biens qui apparaissent sur ses critères. Pas de compte : une
+alerte, c'est une adresse ou un chat, des critères, et deux jetons.
+
+C'est le levier de fidélité le moins cher d'un portail, et celui qui alimente
+les agences en contacts déjà qualifiés par leurs propres critères (§8).
+
+**Une seule définition de « correspond ».** La page de recherche construit son
+`WHERE` en TypeScript ; le job d'envoi tourne en Node, sans l'application.
+Deux implémentations des filtres auraient dérivé — et un visiteur prévenu d'un
+bien qu'il ne retrouve pas sur le site, ou pas prévenu d'un bien qu'il y
+verrait, cesse de faire confiance à l'alerte. La sémantique des critères vit
+donc dans une fonction SQL, `search_filter_matches(filters, since)`, et
+`npm run check:alerts` confronte ses résultats à ceux de `/api/map` sur huit
+combinaisons de filtres (quartier avec descente récursive, immeuble, types,
+budget, chambres, surface, étage, titre, éligibilité étranger, équipements,
+rectangle et polygone). La parité est vérifiée, pas supposée.
+
+**Ce qui est « nouveau ».** Une annonce créée après l'inscription, sur un bien
+correspondant. Une reconfirmation ou une baisse de prix ne redéclenche rien,
+et un bien n'est signalé qu'une fois par alerte, même si une seconde agence le
+met en ligne : la règle est une clé primaire (`alert_deliveries`), pas une
+variable du job. Un redémarrage ne fait rien perdre ni rien répéter.
+
+**Double opt-in.** On n'écrit jamais à une adresse qui n'a pas cliqué. Par
+email, le lien de confirmation ; par Telegram, un lien profond
+`t.me/<bot>?start=al_<jeton>` — c'est le `/start` dans le bot qui rattache le
+chat et vaut confirmation. Le bot accepte aussi `/alerts` et `/stop`, et ces
+commandes passent avant le contrôle du compte agent : elles viennent du
+public. Chaque message porte un lien d'arrêt en un clic et un en-tête
+`List-Unsubscribe`. Le jeton de confirmation est stocké sous forme
+d'empreinte ; le jeton d'arrêt en clair, parce qu'il doit être réinséré dans
+chaque message et que le pire qu'on puisse en faire est d'arrêter une alerte.
+
+**Le transport email est une couche d'abstraction**, sur le modèle de la
+cartographie : `MAIL_PROVIDER=file | resend | postmark`. Le mode `file`
+n'envoie rien et ajoute chaque message à `var/mail-outbox.jsonl` — c'est le
+mode de développement, où l'on relit le lien de confirmation dans le fichier,
+et celui sur lequel s'appuie la vérification de bout en bout. Aucune
+dépendance ajoutée : les deux fournisseurs s'appellent par leur API HTTP.
+
+Le formulaire fonctionne sans JavaScript, comme le reste du site ; les
+critères voyagent en champs cachés sous la même grammaire que l'URL de
+recherche et sont relus par `parseFilters`. Un champ piège et trois plafonds
+(alertes vivantes par adresse, créations par adresse et par IP et par heure)
+tiennent les robots à distance ; une inscription dont le mail ne part pas est
+supprimée plutôt que laissée en attente ; une inscription jamais confirmée est
+purgée au bout de sept jours.
+
+`npm run check:alerts` parcourt les soixante-trois points du circuit :
+parité, forme canonique des critères, inscription, confirmation, déclenchement
+par une nouvelle annonce, non-répétition, cadence quotidienne, rattachement
+Telegram, `/stop`, garde-fous, et les pages.
+
 ## Tâches planifiées
 
-Deux tâches tournent en dehors de l'application, sur un socle commun
+Trois tâches tournent en dehors de l'application, sur un socle commun
 (`ops/lib/job-runner.sh`) :
 
 | Tâche | Cadence visée | Rôle |
 |---|---|---|
+| `ops/send-alerts.sh` | **toutes les 15 minutes** | Envoie les alertes dues ; purge les inscriptions non confirmées |
 | `ops/expire-listings.sh` | **horaire** | Bascule à `expired` les annonces passé 45 jours (§6.3) |
 | `ops/audit-retention.sh` | **hebdomadaire** | Archive puis purge le journal d'audit, et vérifie l'archive |
 
-Aucun ordonnanceur n'est fourni : les deux tâches s'exécutent à la demande, ou
+Aucun ordonnanceur n'est fourni : les tâches s'exécutent à la demande, ou
 depuis l'ordonnanceur de votre choix (unité systemd, `/etc/cron.d`,
 ordonnanceur de la plateforme d'hébergement). Elles ne supposent rien de leur
 appelant — ni répertoire courant, ni `PATH`, ni environnement de shell de
 connexion — ce qui est précisément le rôle du socle décrit plus bas.
 
 ```bash
+npm run alerts:send              # ops/send-alerts.sh
 npm run listings:expire          # ops/expire-listings.sh
 npm run audit:retention          # archive puis purge
 
+npm run alerts:send-check        # simulation, aucune modification
 npm run listings:expire-check    # simulation, aucune modification
 npm run audit:retention-check    # simulation, aucune modification
 ```
@@ -776,6 +838,12 @@ db/
   jobs/translate-listings.mjs Worker de traduction
   jobs/telegram-bot.mjs       Worker long polling
   jobs/send-reminders.mjs     Relances J-7
+  migrations/012_alerts.sql   Alertes : tables, search_filter_matches(), purge
+  lib/alerts.mjs              Alertes : inscription, confirmation, envoi, rendu
+  lib/mail.mjs                Transport email (file | resend | postmark) + double
+  lib/messages.mjs            Messages traduits depuis les jobs Node
+  jobs/send-alerts.mjs        Envoi des alertes dues
+  checks/alerts.mjs           Parité SQL ↔ page, circuit complet, pages
   checks/bot-conversation.mjs Conversation complète, sans jeton
   checks/extraction-contract.mjs  Contrat de requête, sans appel
   checks/translation.mjs      Contrat + file de traduction, sans appel
@@ -785,20 +853,22 @@ db/
   checks/dedup-merge.mjs      Vérification de la fusion (transaction annulée)
 ops/
   lib/job-runner.sh           Socle commun : verrou, environnement, node, journal
+  send-alerts.sh              Lanceur — envoi des alertes
   expire-listings.sh          Lanceur — expiration des annonces
   audit-retention.sh          Lanceur — rétention du journal d'audit
-messages/                     fr · en · zh · km — 291 clés, parité vérifiée
+messages/                     fr · en · zh · km — 349 clés, parité vérifiée
 src/lib/
   search.ts                   Filtres, requêtes, résolution d'alias, fiche bien
   i18n.ts                     Locales, traducteur, négociation, champs JSONB
   map-provider.ts             Couche d'abstraction cartographique
   seo.ts                      Pages d'atterrissage : seuil, stats, maillage
   dashboard.ts                Mesures du tableau de bord agence
+  alerts.ts                   Alertes : branchement de l'application sur lib/alerts.mjs
   auth.ts                     Mots de passe, sessions, gardes de rôle
   audit.ts                    Écriture du journal, filtres, flux d'export
   format.ts                   USD par défaut, KHR secondaire, fraîcheur
 src/components/               Carte, filtres, fiches, badges, pin bloquant
-src/app/[locale]/             Accueil · recherche · fiche · agence · connexion · back-office
+src/app/[locale]/             Accueil · recherche · fiche · agence · alertes · connexion · back-office
 src/app/api/                  suggest · map · leads · photo · audit/export
 ```
 
@@ -814,7 +884,11 @@ Hors périmètre de la phase 1, conformément à la roadmap :
   établir ;
 - **transcription des messages vocaux** — le brief les mentionne (§6.1) ; le
   bot demande aujourd'hui du texte ;
-- **alertes, facturation des abonnements, WeChat** (phase 3) ;
+- **facturation des abonnements, WeChat** (phase 3) ;
+- **alertes : premier envoi réel** — le circuit est vérifié de bout en bout avec
+  le transport `file` et le double Telegram ; Resend et Postmark n'ont pas
+  encore été appelés avec une clé réelle, et la délivrabilité (SPF, DKIM,
+  domaine d'envoi) reste à établir sur l'hébergement ;
 - **gestion des comptes** — l'authentification et le journal d'audit sont en
   place, mais les comptes ne se créent qu'au seed : ni inscription, ni
   réinitialisation de mot de passe, ni second facteur. Les mots de passe du
