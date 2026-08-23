@@ -1,0 +1,40 @@
+{
+  "name": "cambodia-immo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:up": "docker compose up -d db && node db/wait-for-db.mjs",
+    "db:down": "docker compose down",
+    "db:migrate": "node db/migrate.mjs",
+    "db:seed": "node db/seed/seed.mjs",
+    "db:reset": "node db/migrate.mjs --reset && node db/seed/seed.mjs",
+    "setup": "npm run db:up && npm run db:migrate && npm run db:seed",
+    "audit:retention": "node db/jobs/audit-retention.mjs",
+    "audit:verify": "node db/jobs/audit-verify.mjs",
+    "listings:expire": "ops/expire-listings.sh",
+    "listings:expire-check": "ops/expire-listings.sh --dry-run",
+    "audit:retention-check": "ops/audit-retention.sh --dry-run"
+  },
+  "dependencies": {
+    "maplibre-gl": "^5.9.0",
+    "next": "^15.5.4",
+    "pg": "^8.16.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.14",
+    "@types/node": "^24.7.0",
+    "@types/pg": "^8.15.5",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.1",
+    "tailwindcss": "^4.1.14",
+    "typescript": "^5.9.3"
+  }
+}

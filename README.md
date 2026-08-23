@@ -1,0 +1,467 @@
+# Portail immobilier Cambodge — implémentation
+
+Mise en œuvre du brief `roadmap-portail-immobilier-cambodge.md`, au périmètre
+de la **phase 1 (MVP consultable)**.
+
+Le produit tient en une phrase : **un bien = une fiche**. Le portail affiche
+une fiche unique par bien physique, avec la liste des agences qui le proposent
+et leurs prix respectifs, la date de dernière confirmation de chaque annonce,
+et un filtre « éligible étranger » qui applique les règles de propriété
+cambodgiennes.
+
+---
+
+## Démarrage
+
+Prérequis : Node ≥ 20, Docker.
+
+```bash
+npm install
+cp .env.example .env.local     # déjà fait si le dépôt est intact
+npm run setup                  # démarre PostGIS, migre, et charge le jeu de données
+npm run dev                    # http://localhost:3000
+```
+
+`npm run setup` enchaîne :
+
+| Commande | Effet |
+|---|---|
+| `npm run db:up` | Démarre PostgreSQL 17 + PostGIS 3.5 (port hôte **5433**) |
+| `npm run db:migrate` | Applique `db/migrations/*.sql` (suivi dans `schema_migrations`) |
+| `npm run db:seed` | Charge 77 localités, 361 alias, 22 immeubles, 12 agences, 500 biens, ~1 200 annonces actives |
+| `npm run db:reset` | Repart de zéro (schéma + données) |
+
+Le jeu de données est **déterministe** : un même seed rejoué produit
+exactement la même base.
+
+Le seed crée aussi les comptes du back-office et les affiche en fin
+d'exécution. Mot de passe commun en développement : `cambodia-dev`.
+
+| Compte | Rôle | Portée |
+|---|---|---|
+| `admin@khmerestate.kh` | `admin` | Modération : tout le back-office |
+| `ips@khmerestate.kh` (et 3 autres) | `agency` | Uniquement les données de son agence |
+
+---
+
+## Ce qui est implémenté
+
+### Le modèle (§3)
+
+Séparation stricte `Property` / `Listing` — décision verrouillée n°1. Tout le
+reste en découle : la fiche publique agrège les annonces, l'utilisateur ne voit
+jamais une liste de `Listing`.
+
+- `properties` — le bien physique, avec `foreign_eligible` en **colonne
+  générée** : `title_type = 'strata' AND COALESCE(floor,0) >= 1`. La règle §5.3
+  ne peut pas diverger entre le filtre, la fiche et le back-office puisqu'elle
+  n'existe qu'à un seul endroit.
+- `listings` — l'annonce d'une agence, avec `expires_at` à 45 jours,
+  `last_confirmed_at`, `description_i18n` (JSONB) et la langue source.
+- `price_history` — alimenté par déclencheur à chaque changement de prix.
+- `locations` — arbre province → district → commune → quartier, avec
+  `aliases[]`, le point le plus critique du produit.
+- `media` avec `perceptual_hash`, `leads`, `search_misses`, `dedup_candidates`.
+
+Contraintes qui font respecter les principes : `geo_point NOT NULL` (pas de
+bien sans pin), unicité d'une annonce active par (bien, agence, transaction),
+`transaction_type = 'rent'` impose `price_period = 'monthly'`.
+
+### La recherche (§5)
+
+- **Alias de romanisation** — `bkk one`, `kampong som`, `西港`, `សៀមរាប`,
+  `toul kok`, `russian market`, `TK`, `diamond island` résolvent tous
+  correctement. Le score combine égalité exacte, préfixe, sous-chaîne et
+  similarité trigramme sur l'union des alias, du slug et des quatre libellés.
+- **Recherches sans résultat journalisées** dans `search_misses` — c'est le
+  meilleur indicateur de santé de la table d'alias (§10), et le back-office
+  permet de transformer un terme non résolu en alias en un clic.
+- **Filtres** : prix, type, chambres, salles de bain, surface, étage, type de
+  titre, éligible étranger, meublé, équipements, fraîcheur, immeuble. Le
+  formulaire de filtres est un **`<form method="get">` sans JavaScript** :
+  sur Android d'entrée de gamme et réseau contraint, les filtres fonctionnent
+  avant même que le JS ne soit arrivé.
+- **Carte** : clustering, « rechercher dans cette zone », recherche
+  automatique au déplacement (optionnelle), et **dessin de polygone** — les
+  acheteurs raisonnent en « autour de BKK1 », pas en rayon kilométrique.
+
+### L'internationalisation (§4)
+
+Quatre locales complètes (`fr`, `en`, `zh`, `km`), 237 clés chacune, parité
+vérifiée. URLs préfixées, `hreflang` complet plus `x-default`, sitemap avec
+alternates par langue, négociation `Accept-Language` au premier passage puis
+cookie.
+
+Le khmer est traité comme un cas de première classe, pas comme un ajout :
+
+- `line-height: 1.75` — les diacritiques débordent verticalement ;
+- `word-break: normal` + `line-break: normal` — le khmer ne sépare pas les mots
+  par des espaces, la coupure par défaut casse les syllabes ;
+- aucune largeur fixe dans les composants — le khmer occupe 30 à 40 % de place
+  en plus que l'anglais ;
+- police Kantumruy Pro, sous-ensemble khmer chargé séparément, `display: swap`.
+
+Les descriptions d'annonces sont stockées dans les quatre langues avec la
+langue source, et **marquées visuellement** quand la traduction est machine.
+
+### L'ingestion (§6) — ce qui est en place en phase 1
+
+Le back-office (`/[locale]/backoffice`) applique les mêmes règles que le futur
+bot Telegram :
+
+- **le pin est une étape bloquante** — le bouton d'enregistrement est désactivé
+  tant qu'aucun pin n'est posé, le contrôle est refait côté serveur, et la base
+  refuse un bien sans coordonnées. Aucun géocodage d'adresse, nulle part ;
+- **file de validation de déduplication** — signature composite
+  `building + étage + surface + chambres`, jamais de fusion automatique sur cas
+  ambigu ;
+- **recherches sans résultat** à traiter en alias ;
+- **relance J-7** — « toujours disponible ? » en un clic, qui repousse
+  `expires_at` de 45 jours ;
+- **photos réutilisées** — biens non liés partageant un hash perceptuel.
+
+### L'authentification du back-office
+
+Le back-office mélange deux publics — l'équipe de modération et les agences
+partenaires — qui ne doivent pas voir la même chose. Deux rôles :
+
+| | `admin` | `agency` |
+|---|---|---|
+| Saisie d'un bien | oui | oui, sous sa propre agence uniquement |
+| Relance des annonces | toutes | les siennes uniquement |
+| Leads | tous | les siens uniquement |
+| File de déduplication | oui | **non** — fusionner touche les annonces d'agences tierces |
+| Recherches sans résultat, photos réutilisées | oui | **non** |
+| Journal d'audit, export, rétention | oui | **non** |
+
+Choix de mise en œuvre :
+
+- **Sessions en base plutôt que jetons signés.** Une session doit pouvoir être
+  révoquée immédiatement — agent qui quitte une agence, poste compromis. La
+  base est déjà là, et le coût d'une requête par rendu est négligeable devant
+  cette propriété.
+- **Le jeton n'est jamais stocké.** La table `sessions` ne garde que son
+  SHA-256 : une fuite de la base ne permet pas d'usurper une session en cours.
+- **scrypt** pour les mots de passe (sel aléatoire de 16 octets, clé de 64,
+  comparaison à temps constant), sans dépendance supplémentaire.
+- **Pas d'énumération de comptes.** Une adresse inconnue déclenche quand même
+  une vérification contre un haché factice : même temps de réponse, même
+  message d'erreur qu'un mot de passe faux.
+- **Limitation des tentatives** : 5 échecs par adresse en 15 minutes, 20 par IP.
+  Le blocage s'applique aussi à un mot de passe correct pendant la fenêtre.
+
+Trois niveaux de contrôle, avec des rôles distincts qu'il ne faut pas
+confondre :
+
+1. **Le middleware** redirige vers la connexion quand aucun cookie de session
+   n'est présent. C'est du confort, pas de la sécurité : il tourne sur le
+   runtime edge, ne peut pas interroger la base, et ne sait donc pas si le
+   jeton est valide.
+2. **Le layout du back-office** vérifie la session en base avant tout rendu.
+   Il empêche l'affichage, pas l'exécution.
+3. **Chaque action serveur** vérifie la session elle-même. C'est le point
+   important : une action est un point d'entrée POST autonome, atteignable par
+   quiconque connaît son identifiant, indépendamment de la page qui la
+   contient. Une garde de layout ne la protège pas.
+
+Le cloisonnement par agence est porté par les requêtes SQL, pas appliqué après
+coup sur des données déjà chargées : `confirmListing` porte la condition
+`agency_id = $2` dans son `UPDATE`, sans lecture préalable, donc sans fenêtre
+entre la vérification et l'écriture.
+
+La protection CSRF est celle de Next (contrôle de l'en-tête `Origin` sur les
+actions serveur), complétée par un cookie `SameSite=Lax`, `HttpOnly`, et
+`Secure` en production.
+
+### Le journal d'audit
+
+Toute action de modération est tracée dans `audit_log` : création de bien,
+reconfirmation d'annonce, fusion de doublons, décision « biens distincts »,
+ajout d'alias, connexion et déconnexion.
+
+Deux propriétés font la différence entre un journal d'audit et une simple
+table de logs :
+
+**L'entrée est écrite dans la même transaction que la mutation.** Un journal
+écrit après coup, au mieux, ne prouve rien : la fusion réussie dont la trace a
+échoué est exactement le cas qu'on cherche à couvrir. Les actions passent donc
+par `withTransaction`, et l'écriture du journal partage le sort de la
+mutation. Vérifié en faisant échouer volontairement l'écriture du journal
+pendant une fusion : le bien supprimé est revenu, les annonces aussi, le cas
+est resté à trancher.
+
+**La table est en ajout seul**, imposé par un déclencheur qui refuse `UPDATE`
+et `DELETE`. La contrainte est dans la base plutôt que confiée à la discipline
+du code applicatif — une entrée corrigeable après coup ne prouve rien non
+plus. (Le seed contourne cela par un `TRUNCATE` explicite : remettre à zéro un
+environnement de développement doit rester un geste conscient.)
+
+L'auteur est conservé deux fois : par référence vers `users`, et par
+instantané (`actor_email`, `actor_role`, `actor_agency`). Si le compte est
+supprimé, on sait encore qui a agi. Même logique pour `target_label` : la
+référence du bien supprimé lors d'une fusion n'est plus lisible nulle part
+ailleurs.
+
+Le détail est adapté à ce qui sera contesté. Une fusion enregistre le bien
+conservé, le bien supprimé, le nombre d'annonces déplacées **et les annonces
+détruites** — agence, type de transaction, prix. Une fusion supprime en effet
+les annonces du doublon qui entrent en collision avec une annonce existante
+(même agence, même type de transaction) ; c'est le comportement voulu, mais
+c'est précisément ce qu'une agence viendra contester, donc le journal le
+nomme.
+
+Le journal est visible dans le back-office, réservé à la modération : un
+compte d'agence ne doit pas savoir ce que fait une agence concurrente. Il s'y
+filtre par action, par période et par auteur.
+
+#### Export
+
+`/api/audit/export?format=csv|jsonl` — réservé à la modération, et journalisé :
+exporter un journal d'audit sort de la base des adresses, des adresses IP et
+l'activité de toutes les agences, ce qui est en soi une action sensible.
+
+L'export reprend exactement le filtre affiché, pas seulement les lignes
+visibles. Il est produit en flux, par lots de 500, et figé sur un instantané
+d'identifiants pris avant que l'export ne se journalise — sans quoi le fichier
+contiendrait l'entrée décrivant sa propre production, et le nombre de lignes
+annoncé ne correspondrait plus au contenu.
+
+Le CSV porte un BOM UTF-8, sans lequel Excel abîme le khmer et le chinois, et
+préfixe d'une apostrophe toute cellule commençant par `= + - @`. Ce n'est pas
+de la cosmétique : les termes de recherche des visiteurs entrent dans le
+journal par la file `search_misses`, et un tableur exécute une cellule qui
+commence par `=`.
+
+#### Rétention
+
+```bash
+npm run audit:retention -- --dry-run          # ce qui serait archivé, rien d'écrit
+npm run audit:retention                        # archive puis purge
+npm run audit:verify -- var/audit-archive/…    # l'archive correspond-elle au journal ?
+```
+
+Rétention par défaut : **730 jours** (`AUDIT_RETENTION_DAYS`). Archives dans
+`var/audit-archive` (`AUDIT_ARCHIVE_DIR`).
+
+L'ordre archive → purge n'est pas négociable, et il est imposé à trois
+niveaux :
+
+1. **Le job** écrit le fichier, le **relit depuis le disque** et calcule
+   l'empreinte SHA-256 sur les octets réellement écrits, pas sur la chaîne
+   qu'il croit avoir produite. Il vérifie que le nombre de lignes correspond
+   avant d'aller plus loin.
+2. **La base** n'accepte de suppression qu'à travers `purge_audit_log()`, qui
+   pose un drapeau local à la transaction — un `DELETE` ordinaire reste refusé,
+   et un `UPDATE` l'est toujours. La fonction refuse sans nom d'archive ni
+   empreinte, refuse les entrées encore sous rétention, et refuse de purger les
+   entrées `audit_purged` : c'est leur chaîne qui atteste la continuité du
+   journal là où des entrées ont disparu.
+3. **La purge se journalise elle-même**, dans la transaction qui supprime :
+   nombre d'entrées, période couverte, seuil appliqué, nom d'archive et
+   empreinte.
+
+`audit:verify` referme la boucle en recalculant l'empreinte d'une archive et en
+la confrontant à ce que le journal déclare. Une archive absente, tronquée ou
+retouchée d'une seule ligne ressort en échec avec un code de sortie non nul.
+
+Limite à connaître : la base ne peut pas lire le système de fichiers. Elle
+impose qu'une archive soit **nommée et empreinte**, pas qu'elle existe ni
+qu'elle soit fidèle. C'est `audit:verify` qui l'établit, et c'est pourquoi il
+doit tourner après chaque purge — ce que le lanceur planifié fait
+automatiquement.
+
+#### Planification
+
+Voir la section **Tâches planifiées** plus bas : la rétention y est décrite
+avec l'expiration des annonces, les deux partageant le même socle.
+
+
+### La monétisation (§8)
+
+Le **tracking des leads existe dès la v1**, comme demandé : chaque révélation
+de numéro, appel, message Telegram ou WeChat est enregistré avec le bien,
+l'annonce, l'agence, l'agent, la langue et l'horodatage. Sans cela rien n'est
+facturable ni démontrable.
+
+---
+
+## Tâches planifiées
+
+Deux tâches tournent en dehors de l'application, sur un socle commun
+(`ops/lib/job-runner.sh`) :
+
+| Tâche | Cadence visée | Rôle |
+|---|---|---|
+| `ops/expire-listings.sh` | **horaire** | Bascule à `expired` les annonces passé 45 jours (§6.3) |
+| `ops/audit-retention.sh` | **hebdomadaire** | Archive puis purge le journal d'audit, et vérifie l'archive |
+
+Aucun ordonnanceur n'est fourni : les deux tâches s'exécutent à la demande, ou
+depuis l'ordonnanceur de votre choix (unité systemd, `/etc/cron.d`,
+ordonnanceur de la plateforme d'hébergement). Elles ne supposent rien de leur
+appelant — ni répertoire courant, ni `PATH`, ni environnement de shell de
+connexion — ce qui est précisément le rôle du socle décrit plus bas.
+
+```bash
+npm run listings:expire          # ops/expire-listings.sh
+npm run audit:retention          # archive puis purge
+
+npm run listings:expire-check    # simulation, aucune modification
+npm run audit:retention-check    # simulation, aucune modification
+```
+
+Les unités systemd sont préférables : `Persistent=true` rattrape une exécution
+manquée pendant un arrêt de la machine, ce que cron ne fait pas. Un fichier
+`/etc/cron.d` reste préférable à un crontab utilisateur — versionnable,
+relisible en revue, utilisateur d'exécution nommé — et `CRON_TZ` y est posé,
+sans quoi l'heure dépend de la configuration de l'hôte.
+
+Vérification avant mise en service, dans l'environnement réel du serveur :
+
+```bash
+npm run listings:expire-check    # ops/expire-listings.sh --dry-run
+npm run audit:retention-check  # ops/audit-retention.sh --dry-run
+```
+
+### Pourquoi l'expiration tourne toutes les heures
+
+Le portail affiche publiquement la date de dernière confirmation de chaque
+annonce, et c'est son deuxième différenciateur (§1.3). Une annonce périmée qui
+reste visible une journée entière abîme précisément la promesse qui distingue
+le site de ses concurrents — §1.2 : « les portails existants conservent en
+ligne des annonces vendues depuis plus d'un an ». La requête est un `UPDATE`
+sur index partiel : son coût est négligeable, la cadence n'a donc pas à être
+négociée contre lui.
+
+La règle des 45 jours vit dans `expire_stale_listings()`, côté base. La tâche
+ne fait que l'appeler : la règle ne doit pas exister en deux exemplaires.
+
+Cette tâche **n'écrit pas dans le journal d'audit**. Celui-ci trace des
+décisions humaines de modération ; une expiration est déterministe et
+entièrement reconstituable à partir de `expires_at` et `last_confirmed_at`,
+tous deux conservés. Y déverser des milliers de lignes automatiques noierait ce
+qu'on y cherche.
+
+Elle rapporte en revanche le nombre d'annonces entrant dans la fenêtre de
+relance à J-7. C'est une observation, pas une action : le canal de relance
+automatique est le bot Telegram, prévu en phase 2. En attendant, le back-office
+propose la relance à la main et ce compteur dit combien de cas l'y attendent.
+
+### Ce que le socle prend en charge
+
+Ce sont les manières habituelles dont un cron échoue en silence :
+
+- **Verrou `flock` par tâche** — deux exécutions simultanées se marcheraient
+  dessus. Un chevauchement se termine avec le code 0 et une ligne de journal :
+  l'exécution précédente fait déjà le travail, ce n'est pas une erreur. Les
+  deux tâches ont des verrous distincts et ne se bloquent pas l'une l'autre.
+- **Résolution explicite de `node`** — cron n'hérite pas du `PATH` d'un shell
+  de connexion, donc nvm, asdf et volta sont invisibles. Le binaire est cherché
+  via `NODE_BIN`, puis le `PATH`, puis les emplacements standard.
+- **Chargement de `.env.local` sans `source`** — le fichier d'environnement est
+  lu comme une liste de variables, pas exécuté comme un script. Une variable
+  déjà définie l'emporte, ce qui permet à l'unité systemd de surcharger.
+- **Répertoire de travail, horodatage, journal par tâche** — chaque ligne est
+  datée, préfixée du nom de la tâche, et ajoutée à `var/log/<tâche>.log`.
+- **Échec bruyant** — code de sortie 1 et message explicite. Sous systemd il
+  apparaît dans `systemctl status` ; sous cron, le `MAILTO` reçoit la sortie.
+  Attention au piège : sous bash, le trap `ERR` se déclenche **même** avec
+  `set +e`, et masque le message d'erreur voulu par un « interrompu ligne N ».
+  Les lanceurs utilisent `commande || status=$?`, forme qu'errexit et le trap
+  ignorent tous deux.
+
+## Décisions prises sur les points ouverts (§13)
+
+Ces choix sont des **valeurs par défaut argumentées**, pas des arbitrages
+définitifs — ils restent à confirmer avec les chiffres réels.
+
+1. **Cartographie** — MapLibre GL avec fonds OpenStreetMap par défaut, derrière
+   une couche d'abstraction (`src/lib/map-provider.ts`). Basculer vers MapTiler,
+   Protomaps ou Google ne demande que deux variables d'environnement ; le champ
+   `renderer` documente explicitement que Google exigerait un second moteur de
+   rendu. Aucun composant ne connaît le fournisseur.
+2. **Périmètre v1** — Phnom Penh + Siem Reap + Sihanoukville, avec Kampot,
+   Battambang, Kep et Ta Khmau amorcés. Le modèle couvre déjà les 25 provinces.
+3. **Location incluse dès la v1** — le modèle et l'interface gèrent vente et
+   location ; la retirer serait un filtre à poser, pas une refonte.
+4. **Traduction automatique** — non branchée. Les descriptions sont produites
+   depuis les champs structurés dans les quatre langues, ce qui reflète le
+   principe n°3 (plus de champs typés, moins de texte libre). Le back-office
+   stocke la description dans sa langue source et marque les traductions
+   manquantes ; le worker de traduction est un travail de phase 2.
+5. **Accès aux annonces** — tout public, coordonnées agent derrière un clic
+   (« afficher le numéro ») qui alimente le tracking des leads.
+
+---
+
+## Budget de performance (§7)
+
+Mesuré sur la construction de production, réponses gzippées :
+
+| Mesure | Valeur | Budget |
+|---|---|---|
+| JS initial, page de résultats | ~150 ko (dont 40 ko de polyfills non exécutés par les navigateurs modernes) | < 200 ko |
+| HTML page d'accueil | 11 ko | — |
+| HTML page de résultats | 43–50 ko | — |
+| MapLibre dans le bundle initial | **absent** — importé à la demande | — |
+
+Le LCP sur 4G réelle depuis le Cambodge reste à mesurer sur l'hébergement
+cible (Singapour) ; les chiffres locaux ne le prédisent pas.
+
+---
+
+## Structure
+
+```
+db/
+  migrations/001_schema.sql   Schéma complet, contraintes, vues, déclencheurs
+  migrations/002_auth.sql     Comptes, sessions, limitation des tentatives
+  migrations/003_audit.sql    Journal d'audit en ajout seul
+  migrations/004_audit_retention.sql  Purge encadrée, valeurs d'énumération
+  migrations/005_audit_purge_fn.sql   purge_audit_log() : unique voie de suppression
+  seed/locations.mjs          Hiérarchie administrative + 361 alias
+  seed/seed.mjs               Générateur déterministe du jeu de données
+  jobs/expire-listings.mjs    Expiration à 45 jours (appelle la fonction SQL)
+  jobs/audit-retention.mjs    Archivage puis purge du journal d'audit
+  jobs/audit-verify.mjs       Confrontation archive ↔ journal
+  checks/dedup-merge.mjs      Vérification de la fusion (transaction annulée)
+ops/
+  lib/job-runner.sh           Socle commun : verrou, environnement, node, journal
+  expire-listings.sh          Lanceur — expiration des annonces
+  audit-retention.sh          Lanceur — rétention du journal d'audit
+messages/                     fr · en · zh · km — 237 clés, parité vérifiée
+src/lib/
+  search.ts                   Filtres, requêtes, résolution d'alias, fiche bien
+  i18n.ts                     Locales, traducteur, négociation, champs JSONB
+  map-provider.ts             Couche d'abstraction cartographique
+  auth.ts                     Mots de passe, sessions, gardes de rôle
+  audit.ts                    Écriture du journal, filtres, flux d'export
+  format.ts                   USD par défaut, KHR secondaire, fraîcheur
+src/components/               Carte, filtres, fiches, badges, pin bloquant
+src/app/[locale]/             Accueil · recherche · fiche · agence · connexion · back-office
+src/app/api/                  suggest · map · leads · photo · audit/export
+```
+
+---
+
+## Ce qui n'est pas fait
+
+Hors périmètre de la phase 1, conformément à la roadmap :
+
+- **bot Telegram** et import XML/CSV (phase 2) — le modèle les prévoit
+  (`listings.source`), rien ne les branche ;
+- **traduction machine à l'ingestion** (phase 2) ;
+- **hash perceptuel réel** — les hashes du jeu de données sont simulés ; la
+  détection de réutilisation et son écran de modération, eux, fonctionnent ;
+- **pages SEO par quartier × type × langue**, alertes, facturation, tableau de
+  bord agence, WeChat (phase 3) ;
+- **gestion des comptes** — l'authentification et le journal d'audit sont en
+  place, mais les comptes ne se créent qu'au seed : ni inscription, ni
+  réinitialisation de mot de passe, ni second facteur. Les mots de passe du
+  seed sont des mots de passe de développement.
+- **expiration des annonces** — `expire_stale_listings()` n'est toujours
+  déclenchée par rien. Le lanceur `ops/audit-retention.sh` donne le modèle à
+  reprendre : même verrou, même résolution de `node`, même journalisation.
+- **stockage des archives** — les archives restent sur le disque local, sans
+  copie hors site ni chiffrement au repos.
+- **médias réels** — les visuels sont générés par `/api/photo/[seed]` ; le
+  stockage S3 + CDN avec variantes WebP/AVIF est à brancher.

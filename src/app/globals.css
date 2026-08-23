@@ -1,0 +1,195 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #14181d;
+  --color-ink-soft: #4a5560;
+  --color-ink-faint: #78838f;
+  --color-line: #e2e6ea;
+  --color-line-soft: #eff2f5;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f6f8fa;
+  --color-brand: #0f6a5f;
+  --color-brand-dark: #0a4f47;
+  --color-brand-soft: #e6f2f0;
+  --color-gold: #b8852a;
+  --color-gold-soft: #fbf3e3;
+  --color-danger: #a8352c;
+  --color-danger-soft: #fbeceb;
+  --color-fresh: #1c7a4b;
+  --color-fresh-soft: #e6f4ec;
+  --color-stale: #9a6a12;
+  --color-stale-soft: #fdf3e0;
+
+  /* Les familles réelles viennent de next/font (noms générés), exposées par
+     les variables --font-inter et --font-kantumruy posées sur <html>.
+     Les polices chinoises sont laissées au système : un sous-ensemble Noto
+     Sans SC pèse plusieurs mégaoctets, incompatible avec le budget réseau. */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-khmer: var(--font-kantumruy), "Noto Sans Khmer", "Khmer OS Battambang",
+                "Khmer OS", sans-serif;
+  --font-cjk: var(--font-inter), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+              "Noto Sans SC", sans-serif;
+
+  --radius-card: 0.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-ink: #eef1f4;
+    --color-ink-soft: #a8b3bd;
+    --color-ink-faint: #7c8892;
+    --color-line: #2a3138;
+    --color-line-soft: #1f252b;
+    --color-surface: #14181d;
+    --color-surface-alt: #1a1f25;
+    --color-brand: #3fb3a2;
+    --color-brand-dark: #2d8c7e;
+    --color-brand-soft: #12312d;
+    --color-gold: #d5a44a;
+    --color-gold-soft: #2e2415;
+    --color-danger: #e07067;
+    --color-danger-soft: #331b19;
+    --color-fresh: #4cbd84;
+    --color-fresh-soft: #12291e;
+    --color-stale: #d5a44a;
+    --color-stale-soft: #2b2314;
+  }
+}
+
+html { color-scheme: light dark; }
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* -------------------------------------------------------------------------
+   §4.2 — typographie khmère.
+   Le khmer ne sépare pas les mots par des espaces : la coupure de ligne par
+   défaut casse les syllabes. Les diacritiques débordent verticalement, d'où
+   l'interlignage majoré. Le texte occupe 30 à 40 % de place en plus qu'en
+   anglais : aucune largeur n'est figée dans les composants.
+   ------------------------------------------------------------------------- */
+:lang(km),
+[lang="km"] {
+  font-family: var(--font-khmer);
+  line-height: 1.75;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-break: normal;
+  letter-spacing: 0;
+}
+
+:lang(km) h1, [lang="km"] h1,
+:lang(km) h2, [lang="km"] h2,
+:lang(km) h3, [lang="km"] h3 {
+  line-height: 1.6;
+}
+
+:lang(zh), [lang="zh-Hans"] {
+  font-family: var(--font-cjk);
+  line-height: 1.7;
+}
+
+/* Boutons et étiquettes : jamais de largeur fixe, le khmer déborderait. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  padding: 0.625rem 1rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1.3;
+  transition: background-color 120ms ease, border-color 120ms ease;
+  cursor: pointer;
+}
+.btn-primary { background: var(--color-brand); color: #fff; }
+.btn-primary:hover { background: var(--color-brand-dark); }
+.btn-outline {
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+.btn-outline:hover { border-color: var(--color-ink-faint); }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 999px;
+  padding: 0.1875rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.field {
+  width: 100%;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9375rem;
+}
+.field:focus {
+  outline: 2px solid var(--color-brand);
+  outline-offset: -1px;
+  border-color: transparent;
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+/* Squelette d'image : évite le décalage de mise en page (budget LCP §7). */
+.ph { background: var(--color-surface-alt); }
+
+.maplibregl-map { font-family: var(--font-sans); }
+.maplibregl-ctrl-attrib { font-size: 10px; }
+
+/* -------------------------------------------------------------------------
+   Mise en page de la recherche. En dessous de 1100 px, liste et carte ne
+   cohabitent pas : on bascule de l'une à l'autre par un paramètre d'URL,
+   sans JavaScript.
+   ------------------------------------------------------------------------- */
+.search-shell {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  max-width: 96rem;
+  margin: 0 auto;
+  padding: 1rem clamp(0.75rem, 3vw, 1.5rem) 2rem;
+}
+.search-filters { min-width: 0; }
+.search-main { min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
+.search-map {
+  position: relative;
+  min-height: 60vh;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+}
+.view-toggle { display: flex; }
+
+@media (min-width: 900px) {
+  .search-shell { grid-template-columns: 16rem minmax(0, 1fr); }
+  .search-filters { align-self: start; position: sticky; top: 4.5rem; max-height: calc(100vh - 5.5rem); overflow-y: auto; padding-inline-end: 0.25rem; }
+  .search-filters summary { display: none; }
+  .search-filters details > div { display: block !important; }
+}
+
+@media (min-width: 1180px) {
+  .search-shell { grid-template-columns: 15rem minmax(0, 1fr) minmax(20rem, 30rem); }
+  .search-map { position: sticky; top: 4.5rem; height: calc(100vh - 5.5rem); min-height: 0; }
+  .view-toggle { display: none; }
+  .search-main, .search-map { display: flex !important; }
+}
