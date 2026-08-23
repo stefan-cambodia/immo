@@ -11,6 +11,7 @@ import { ContactAgent } from "@/components/ContactAgent";
 import { MapPanel } from "@/components/MapPanel";
 import { AgencyCountBadge, ForeignEligibleBadge, FreshnessBadge, TitleBadge } from "@/components/Badges";
 import { PropertyGrid } from "@/components/PropertyCard";
+import { ViewBeacon } from "@/components/ViewBeacon";
 
 export const revalidate = 120;
 
@@ -109,6 +110,8 @@ export default async function PropertyPage({
     <>
       <script type="application/ld+json"
               dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      {/* Mesure d'audience : côté client, la fiche étant servie en ISR. */}
+      <ViewBeacon propertyId={p.id} locale={locale} />
 
       <div style={{ maxWidth: "72rem", margin: "0 auto", padding: "1rem clamp(0.75rem, 3vw, 1.5rem) 3rem" }}>
         <nav aria-label="breadcrumb" style={{

@@ -91,7 +91,7 @@ bien sans pin), unicité d'une annonce active par (bien, agence, transaction),
 
 ### L'internationalisation (§4)
 
-Quatre locales complètes (`fr`, `en`, `zh`, `km`), 264 clés chacune, parité
+Quatre locales complètes (`fr`, `en`, `zh`, `km`), 291 clés chacune, parité
 vérifiée. URLs préfixées, `hreflang` complet plus `x-default`, sitemap avec
 alternates par langue, négociation `Accept-Language` au premier passage puis
 cookie.
@@ -509,10 +509,68 @@ publique affiche « 2 agences proposent ce bien, de 182 500 $ à 185 000 $ ».
 | Alertes email et Telegram sur critères sauvegardés | à faire |
 | Facturation des abonnements, gestion des quotas | à faire |
 | Mise en avant payante | partiel — `listings.featured` existe et remonte au tri |
-| Tableau de bord agence | à faire |
+| Tableau de bord agence | **fait** |
 | Vérification des agences (badge) | partiel — l'état existe et s'affiche, le circuit non |
 | Évaluation du mini-programme WeChat | à faire |
 | Pages promoteurs / projets neufs | à faire |
+
+### Le tableau de bord agence
+
+`/{locale}/dashboard` — ce que l'agence obtient pour son abonnement, et donc
+l'argument de vente des paliers (§8).
+
+Les leads étaient tracés depuis la v1. Il manquait le **dénominateur** :
+combien de personnes ont vu la fiche pour qu'un contact se produise. D'où
+`property_views`, et trois principes qui décident de la crédibilité du chiffre.
+
+**Une vue porte sur un bien, pas sur une annonce.** Plusieurs agences peuvent
+proposer le même bien et bénéficient toutes de la même page ; l'attribution se
+fait à la lecture, via les annonces actives. C'est cohérent avec « un bien =
+une fiche », et le tableau montre d'ailleurs combien d'agences se partagent
+chaque bien.
+
+**Le comptage est dédoublonné par session et par heure**, via un index unique
+sur un `hour_bucket` généré. Un visiteur qui recharge dix fois ne vaut pas dix
+vues. Les robots sont écartés sur l'agent utilisateur : ils consultent
+beaucoup et ne contactent jamais, donc les compter écraserait le taux de
+contact que les agences regardent. Un compteur qui gonfle est pire qu'une
+absence de compteur — il fausse la décision d'achat dans le sens qui arrange
+le vendeur.
+
+**La mesure ne stocke ni adresse IP ni agent utilisateur**, et seulement
+l'*hôte* du référent, jamais l'URL complète : ce qui est utile à une agence
+c'est « depuis Google », pas la requête nominative d'un visiteur. Vérifié en
+inspectant le schéma, pas seulement le code d'écriture.
+
+Le comptage se fait côté client, par `sendBeacon` : la fiche est servie en ISR
+avec revalidation, donc un rendu ne correspond pas à une visite.
+
+Ce que le tableau montre, dans cet ordre : combien de gens ont vu mes biens,
+combien m'ont contacté, et qu'est-ce qui cloche. Chaque mesure est comparée à
+la période précédente — un chiffre brut ne dit pas si la situation s'améliore
+— et le taux de contact est affiché à côté de celui du portail, parce qu'une
+agence veut savoir si son résultat vient d'elle ou du marché :
+
+> IPS Cambodia — 2 748 vues, 40 contacts, taux 1,5 %. Portail : 2,8 %.
+
+S'y ajoutent l'origine des visites (le SEO travaille-t-il ?), les canaux et
+langues de contact (où et en quelle langue répondre), la performance annonce
+par annonce, et une liste « à traiter » qui remonte ce qui expire ou dort. Le
+quota du forfait est affiché en rouge lorsqu'il est atteint — c'est le point de
+bascule vers le palier supérieur.
+
+La courbe est en SVG pur, sans bibliothèque : le budget de bundle est de 200 ko
+(§7) et deux séries se dessinent en quelques lignes. Les contacts ont leur
+propre échelle, sans quoi une courbe à 2 % serait collée à l'axe.
+
+Un compte d'agence ne voit que la sienne ; la modération peut consulter
+n'importe laquelle, ce qui sert à instruire une réclamation du type « je ne
+reçois aucun contact ».
+
+`npm run check:views` vérifie les treize points qui rendent ces chiffres
+défendables : dédoublonnage, filtrage des robots, rejets de payload, absence
+d'IP et d'agent utilisateur au schéma, réduction du référent à son hôte,
+plausibilité du taux, et partage d'une vue entre agences co-listantes.
 
 ### Les pages d'atterrissage, et le piège de la combinatoire
 
@@ -722,18 +780,20 @@ db/
   checks/extraction-contract.mjs  Contrat de requête, sans appel
   checks/translation.mjs      Contrat + file de traduction, sans appel
   checks/seo-landing.mjs      Cohérence sitemap ↔ robots, balises, contenu
+  checks/view-tracking.mjs    Dédoublonnage, robots, vie privée, cohérence
   fixtures/                   Flux d'exemple XML et CSV
   checks/dedup-merge.mjs      Vérification de la fusion (transaction annulée)
 ops/
   lib/job-runner.sh           Socle commun : verrou, environnement, node, journal
   expire-listings.sh          Lanceur — expiration des annonces
   audit-retention.sh          Lanceur — rétention du journal d'audit
-messages/                     fr · en · zh · km — 264 clés, parité vérifiée
+messages/                     fr · en · zh · km — 291 clés, parité vérifiée
 src/lib/
   search.ts                   Filtres, requêtes, résolution d'alias, fiche bien
   i18n.ts                     Locales, traducteur, négociation, champs JSONB
   map-provider.ts             Couche d'abstraction cartographique
   seo.ts                      Pages d'atterrissage : seuil, stats, maillage
+  dashboard.ts                Mesures du tableau de bord agence
   auth.ts                     Mots de passe, sessions, gardes de rôle
   audit.ts                    Écriture du journal, filtres, flux d'export
   format.ts                   USD par défaut, KHR secondaire, fraîcheur
@@ -754,7 +814,7 @@ Hors périmètre de la phase 1, conformément à la roadmap :
   établir ;
 - **transcription des messages vocaux** — le brief les mentionne (§6.1) ; le
   bot demande aujourd'hui du texte ;
-- **alertes, facturation, tableau de bord agence, WeChat** (phase 3) ;
+- **alertes, facturation des abonnements, WeChat** (phase 3) ;
 - **gestion des comptes** — l'authentification et le journal d'audit sont en
   place, mais les comptes ne se créent qu'au seed : ni inscription, ni
   réinitialisation de mot de passe, ni second facteur. Les mots de passe du

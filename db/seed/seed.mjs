@@ -33,7 +33,7 @@ const jitter = (v, d) => v + (rnd() - 0.5) * d;
 console.log("Nettoyage des tables de données…");
 await db.query(`TRUNCATE leads, price_history, media, listings, properties, buildings,
   agents, agencies, developers, locations, search_misses, dedup_candidates,
-  sessions, users, login_attempts, submissions RESTART IDENTITY CASCADE`);
+  sessions, users, login_attempts, submissions, property_views RESTART IDENTITY CASCADE`);
 // Le journal d'audit est en ajout seul : le déclencheur refuse un DELETE, et
 // TRUNCATE le contournerait silencieusement. La table est vidée explicitement,
 // pour que la remise à zéro d'un environnement de développement reste un geste
@@ -421,6 +421,59 @@ for (let i = 0; i < TARGET; i++) {
     listingCount++;
   }
 }
+
+// ------------------------------------------------------ Audience et contacts
+// Le tableau de bord agence n'a de sens qu'avec du trafic à montrer. La
+// distribution imite ce qu'on observe : quelques fiches captent l'essentiel
+// des vues, et le contact reste rare — un ordre de grandeur de 2 à 6 %.
+const { rows: viewable } = await db.query(
+  `SELECT p.id, p.reference,
+          (SELECT count(*) FROM listings l WHERE l.property_id = p.id AND l.status='active')::int AS n
+   FROM properties p WHERE EXISTS (
+     SELECT 1 FROM listings l WHERE l.property_id = p.id AND l.status='active')`);
+
+let viewCount = 0, leadCount = 0;
+for (const prop of viewable) {
+  // Loi très inégale : la plupart des fiches font peu de vues, quelques-unes
+  // beaucoup. Un tirage exponentiel approché suffit à le rendre.
+  const base = Math.round(Math.exp(rnd() * 4.2)) + int(0, 5);
+  const views = Math.min(400, base * (1 + prop.n * 0.25));
+
+  for (let v = 0; v < views; v++) {
+    const daysAgo = int(0, 59);
+    const at = new Date(now - daysAgo * 86400000 - int(0, 23) * 3600000 - int(0, 59) * 60000);
+    await db.query(
+      `INSERT INTO property_views(property_id, session_id, locale, referrer_host, created_at)
+       VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,
+      [prop.id, `s${int(1, 40000)}`,
+       pick(["en", "en", "en", "km", "zh", "fr"]),
+       pick(["www.google.com", "www.google.com", "www.google.com.kh", "www.facebook.com",
+             "t.me", null, null, "www.baidu.com"]),
+       at]);
+    viewCount++;
+  }
+
+  // Contacts : une fraction des vues, sur les annonces actives du bien.
+  const { rows: offers } = await db.query(
+    `SELECT id, agency_id, agent_id FROM listings
+     WHERE property_id = $1 AND status = 'active'`, [prop.id]);
+  const leads = Math.floor(views * (0.02 + rnd() * 0.04));
+  for (let k = 0; k < leads && offers.length; k++) {
+    const offer = pick(offers);
+    const daysAgo = int(0, 59);
+    await db.query(
+      `INSERT INTO leads(listing_id, property_id, agency_id, agent_id, channel,
+                         action_type, locale, session_id, referrer, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [offer.id, prop.id, offer.agency_id, offer.agent_id,
+       pick(["phone", "phone", "phone", "telegram", "wechat", "form"]),
+       pick(["reveal_phone", "reveal_phone", "call", "message"]),
+       pick(["en", "en", "km", "zh", "fr"]), `s${int(1, 40000)}`, null,
+       new Date(now - daysAgo * 86400000 - int(0, 23) * 3600000)]);
+    leadCount++;
+  }
+}
+console.log(`  ${viewCount} vues, ${leadCount} contacts`);
 
 // Les compteurs dénormalisés utilisés par la page d'accueil et les filtres.
 await db.query(`

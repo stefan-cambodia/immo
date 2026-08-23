@@ -109,6 +109,11 @@ export default async function LocaleLayout({
             </div>
 
             <div style={{ marginInlineStart: "auto", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <Link href={`/${locale}/dashboard`} style={{
+                fontSize: "0.8125rem", color: "var(--color-ink-faint)", whiteSpace: "nowrap",
+              }}>
+                {t("dashboard.title")}
+              </Link>
               <Link href={`/${locale}/backoffice`} style={{
                 fontSize: "0.8125rem", color: "var(--color-ink-faint)", whiteSpace: "nowrap",
               }}>

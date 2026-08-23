@@ -27,7 +27,8 @@
     "translate": "node db/jobs/translate-listings.mjs",
     "translate:check": "node db/jobs/translate-listings.mjs --dry-run",
     "check:translation": "node db/checks/translation.mjs",
-    "check:seo": "node db/checks/seo-landing.mjs"
+    "check:seo": "node db/checks/seo-landing.mjs",
+    "check:views": "node db/checks/view-tracking.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
