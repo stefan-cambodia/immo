@@ -300,9 +300,9 @@ Objectif du brief : « l'offre s'alimente sans intervention interne ».
 | Historique de prix | fait (phase 1) |
 | Dessin de polygone | fait (phase 1) |
 | Extension SR / SHV / Kampot / Battambang | fait (données) |
-| Bot Telegram + extraction LLM | à faire — nécessite un jeton de bot et une clé d'API |
+| Bot Telegram + extraction LLM | **écrit** — jamais exécuté contre l'API réelle (aucune clé disponible) |
+| Relances automatiques J-7 | **fait** |
 | Traduction automatique à l'ingestion | à faire — nécessite une clé d'API |
-| Relances automatiques | à faire — dépend du bot |
 
 ### L'entonnoir commun
 
@@ -373,6 +373,65 @@ grossière. Deux photos réellement différentes mais de composition très proch
 deux studios identiques du même immeuble, pris au même endroit — tombent à une
 distance nulle. Le hash est donc une **corroboration, jamais une preuve** : le
 moteur ne fusionne jamais sur ce seul signal.
+
+### Le bot Telegram
+
+C'est le canal que le brief désigne comme déterminant du volume (§6.1) : les
+agents travaillent depuis Telegram sur leur téléphone, pas depuis un
+back-office web.
+
+```
+idle ──texte/photos──► confirming ──✅──► awaiting_pin ──position──► publiée
+                           │                                  │
+                           └──✏️ corriger──► collecting ───────┘
+```
+
+**Le partage de position de Telegram est le pin manuel du principe n°2.** C'est
+un geste de l'agent, à l'endroit du bien — pas un géocodage d'adresse. La
+conversation ne peut pas aboutir sans lui, et c'est vérifié : tant que la
+position n'est pas partagée, aucun bien n'est créé.
+
+L'extraction utilise le SDK Anthropic avec un outil déclaré `strict: true` :
+l'entrée renvoyée est garantie conforme au schéma, il n'y a donc pas de
+validateur de secours pour du JSON approximatif. Le prompt système porte ce qui
+change la lecture d'un message cambodgien — « 185k » vaut 185000, « borey » est
+un type de bien, « strata » n'est pas un synonyme de « hard », et les quartiers
+sont recopiés tels quels puisque c'est la table d'alias qui les résout.
+
+```bash
+TELEGRAM_BOT_TOKEN=… ANTHROPIC_API_KEY=… npm run bot
+npm run bot:once           # un seul cycle de long polling
+npm run bot:reminders      # relances J-7, à programmer quotidiennement
+```
+
+Le worker fait du long polling plutôt qu'un webhook : pas de domaine public ni
+de certificat, et il tourne à côté de la base sans être exposé. Le décalage de
+lecture est persisté — un redémarrage reprend où il s'est arrêté. Chaque mise à
+jour est traitée dans sa propre transaction, et une mise à jour empoisonnée
+fait quand même avancer le décalage plutôt que de bloquer la file.
+
+La relance J-7 (§6.3) ferme la boucle de l'expiration : le message porte un
+bouton dont le callback reconduit l'annonce de 45 jours sans quitter Telegram.
+Sans elle, la fraîcheur affichée se paierait en annonces perdues.
+
+#### Ce qui est vérifié, et ce qui ne l'est pas
+
+`npm run check:bot` déroule la conversation complète — transport doublé,
+extraction injectée, transaction annulée — et couvre 25 points : l'enchaînement
+des états, le caractère bloquant du pin, les champs manquants, un quartier non
+résolu, un chat non rattaché, la relance en un clic.
+
+`npm run check:extraction` vérifie la requête que l'extracteur enverrait, sans
+consommer de jeton : identifiant de modèle, outil strict, schéma fermé, outil
+forcé, réflexion adaptative, absence de `budget_tokens` et de `temperature`
+(retirés sur les modèles récents), absence de préremplissage assistant — plus
+la lecture d'une réponse, d'un refus et d'une réponse sans appel d'outil.
+
+**Ce que ces vérifications ne disent pas** : la qualité réelle de l'extraction.
+Aucune clé d'API n'était disponible, le code n'a donc jamais tourné contre
+l'API. Le contrat est conforme à la documentation du SDK ; la première
+exécution réelle reste à faire, et c'est là qu'on verra si le prompt tient
+face à un message d'agent en khmer translittéré.
 
 ### Import de flux
 
@@ -533,6 +592,13 @@ db/
   lib/ingest.mjs              Entonnoir commun aux canaux d'ingestion
   lib/dedup.mjs               Moteur de déduplication (§6.2)
   lib/phash.mjs               dHash 64 bits, seuils mesurés
+  lib/telegram.mjs            Transport Telegram + double en mémoire
+  lib/bot.mjs                 Machine à états de la conversation
+  lib/extract.mjs             Extraction LLM (outil strict)
+  jobs/telegram-bot.mjs       Worker long polling
+  jobs/send-reminders.mjs     Relances J-7
+  checks/bot-conversation.mjs Conversation complète, sans jeton
+  checks/extraction-contract.mjs  Contrat de requête, sans appel
   fixtures/                   Flux d'exemple XML et CSV
   checks/dedup-merge.mjs      Vérification de la fusion (transaction annulée)
 ops/
@@ -558,10 +624,11 @@ src/app/api/                  suggest · map · leads · photo · audit/export
 
 Hors périmètre de la phase 1, conformément à la roadmap :
 
-- **bot Telegram** (§6.1, canal déterminant du volume) — l'entonnoir
-  d'ingestion l'attend, mais il faut un jeton de bot et une clé d'API pour
-  l'extraction LLM ;
-- **traduction machine à l'ingestion** — même dépendance ;
+- **première exécution réelle du bot** — le code est écrit et sa logique
+  vérifiée hors ligne, mais il n'a jamais parlé à Telegram ni à l'API ;
+- **traduction machine à l'ingestion** — nécessite une clé d'API ;
+- **transcription des messages vocaux** — le brief les mentionne (§6.1) ; le
+  bot demande aujourd'hui du texte ;
 - **pages SEO par quartier × type × langue**, alertes, facturation, tableau de
   bord agence, WeChat (phase 3) ;
 - **gestion des comptes** — l'authentification et le journal d'audit sont en

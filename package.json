@@ -18,9 +18,15 @@
     "audit:verify": "node db/jobs/audit-verify.mjs",
     "listings:expire": "ops/expire-listings.sh",
     "listings:expire-check": "ops/expire-listings.sh --dry-run",
-    "audit:retention-check": "ops/audit-retention.sh --dry-run"
+    "audit:retention-check": "ops/audit-retention.sh --dry-run",
+    "bot": "node db/jobs/telegram-bot.mjs",
+    "bot:once": "node db/jobs/telegram-bot.mjs --once",
+    "bot:reminders": "node db/jobs/send-reminders.mjs",
+    "check:bot": "node db/checks/bot-conversation.mjs",
+    "check:extraction": "node db/checks/extraction-contract.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
     "maplibre-gl": "^5.9.0",
     "next": "^15.5.4",
     "pg": "^8.16.3",
