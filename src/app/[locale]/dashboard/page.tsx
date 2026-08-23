@@ -3,13 +3,15 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { query, queryOne } from "@/lib/db";
-import { daysSince, daysUntil, formatNumber, formatUsd } from "@/lib/format";
+import { daysSince, daysUntil, formatDate, formatNumber, formatUsd } from "@/lib/format";
 import { getTranslator, i18nField, isLocale, type Locale } from "@/lib/i18n";
 import {
   agencyTotals, benchmark, dailySeries, leadBreakdown, listingPerformance,
   needsAttention, trafficSources,
 } from "@/lib/dashboard";
+import { agencyInvoices, billingUsage } from "@/lib/billing";
 import { Sparkline } from "@/components/Sparkline";
+import { toggleFeatured } from "../backoffice/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +19,26 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 const rate = (leads: number, views: number) =>
   views > 0 ? `${((leads / views) * 100).toFixed(1)} %` : "—";
+
+const Card = ({ label, value, sub, tone }: {
+  label: string; value: string; sub?: React.ReactNode; tone?: string;
+}) => (
+  <div className="card" style={{ padding: "1rem 1.125rem" }}>
+    <div style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)" }}>{label}</div>
+    <div style={{ fontSize: "1.75rem", fontWeight: 800, letterSpacing: "-0.02em",
+                  color: tone, lineHeight: 1.2 }}>
+      {value}
+    </div>
+    {sub && <div style={{ fontSize: "0.75rem", color: "var(--color-ink-soft)", lineHeight: 1.5 }}>{sub}</div>}
+  </div>
+);
+
+const Trend = ({ d }: { d: { pct: number; up: boolean } | null }) =>
+  d === null ? null : (
+    <span style={{ color: d.up ? "var(--color-fresh)" : "var(--color-danger)", fontWeight: 600 }}>
+      {d.up ? "▲" : "▼"} {Math.abs(d.pct)} %
+    </span>
+  );
 
 export default async function DashboardPage({
   params, searchParams,
@@ -45,7 +67,8 @@ export default async function DashboardPage({
         `SELECT id, name, slug FROM agencies WHERE id = $1`, [user.agencyId]);
   if (!agency) notFound();
 
-  const [totals, series, sources, channels, perf, attention, bench, agencies] = await Promise.all([
+  const [totals, series, sources, channels, perf, attention, bench, agencies,
+         usage, invoices] = await Promise.all([
     agencyTotals(agency.id),
     dailySeries(agency.id),
     trafficSources(agency.id),
@@ -56,33 +79,17 @@ export default async function DashboardPage({
     user.role === "admin"
       ? query<{ slug: string; name: string }>(`SELECT slug, name FROM agencies ORDER BY name`)
       : [],
+    billingUsage(agency.id),
+    agencyInvoices(agency.id, 6),
   ]);
+
+  const errorCode = (Array.isArray(sp.error) ? sp.error[0] : sp.error) ?? null;
 
   const delta = (now: number, prev: number) => {
     if (prev === 0) return null;
     const pct = Math.round(((now - prev) / prev) * 100);
     return { pct, up: pct >= 0 };
   };
-
-  const Card = ({ label, value, sub, tone }: {
-    label: string; value: string; sub?: React.ReactNode; tone?: string;
-  }) => (
-    <div className="card" style={{ padding: "1rem 1.125rem" }}>
-      <div style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)" }}>{label}</div>
-      <div style={{ fontSize: "1.75rem", fontWeight: 800, letterSpacing: "-0.02em",
-                    color: tone, lineHeight: 1.2 }}>
-        {value}
-      </div>
-      {sub && <div style={{ fontSize: "0.75rem", color: "var(--color-ink-soft)", lineHeight: 1.5 }}>{sub}</div>}
-    </div>
-  );
-
-  const Trend = ({ d }: { d: { pct: number; up: boolean } | null }) =>
-    d === null ? null : (
-      <span style={{ color: d.up ? "var(--color-fresh)" : "var(--color-danger)", fontWeight: 600 }}>
-        {d.up ? "▲" : "▼"} {Math.abs(d.pct)} %
-      </span>
-    );
 
   return (
     <div style={{ maxWidth: "84rem", margin: "0 auto", padding: "1.5rem clamp(0.75rem, 3vw, 1.5rem) 3rem" }}>
@@ -105,7 +112,7 @@ export default async function DashboardPage({
             {t(`agency.${totals.verification}`)}
           </span>
           <span className="chip" style={{ background: "var(--color-gold-soft)", color: "var(--color-gold)" }}>
-            {totals.tier}
+            {t(`billing.tier_${totals.tier}`)}
           </span>
           {user.role === "admin" && agencies.length > 0 && (
             <form method="get" style={{ display: "flex", gap: "0.25rem" }}>
@@ -121,6 +128,18 @@ export default async function DashboardPage({
           )}
         </div>
       </header>
+
+      {errorCode && (
+        <p role="alert" style={{
+          marginBottom: "1.25rem", padding: "0.75rem 1rem", borderRadius: "0.625rem",
+          background: "var(--color-danger-soft)", color: "var(--color-danger)",
+          fontSize: "0.875rem", fontWeight: 600,
+        }}>
+          {errorCode === "featured_slots" ? t("billing.slotsFull")
+            : errorCode === "forbidden" ? t("auth.forbidden")
+            : String(errorCode)}
+        </p>
+      )}
 
       <section style={{ display: "grid", gap: "1rem", marginBottom: "1.5rem",
                         gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 13rem), 1fr))" }}>
@@ -216,6 +235,7 @@ export default async function DashboardPage({
                 <th style={{ textAlign: "end" }} title={t("dashboard.sharedHint")}>
                   {t("dashboard.colShared")}
                 </th>
+                <th style={{ textAlign: "end" }}>{t("billing.featuredSlots")}</th>
               </tr>
             </thead>
             <tbody>
@@ -235,6 +255,37 @@ export default async function DashboardPage({
                   </td>
                   <td style={{ textAlign: "end", color: p.agencies > 1 ? "var(--color-gold)" : "var(--color-ink-faint)" }}>
                     {p.agencies}
+                  </td>
+                  {/* Mise en avant (§8) : le choix appartient à l'agence, dans
+                      la limite des emplacements de son palier. */}
+                  <td style={{ textAlign: "end", whiteSpace: "nowrap" }}>
+                    {p.featured ? (
+                      <form action={toggleFeatured} style={{ display: "inline-flex", gap: "0.25rem", alignItems: "center" }}>
+                        <input type="hidden" name="locale" value={locale} />
+                        <input type="hidden" name="listing_id" value={p.id} />
+                        <input type="hidden" name="on" value="0" />
+                        <span className="chip"
+                              title={p.featuredUntil
+                                ? t("billing.featuredUntil", { date: formatDate(p.featuredUntil, locale) }) : undefined}
+                              style={{ background: "var(--color-gold-soft)", color: "var(--color-gold)" }}>
+                          ★
+                        </span>
+                        <button className="btn btn-outline" style={{ padding: "0.1875rem 0.5rem", fontSize: "0.75rem" }}>
+                          {t("billing.unfeature")}
+                        </button>
+                      </form>
+                    ) : (usage?.featuredQuota ?? 0) > 0 ? (
+                      <form action={toggleFeatured} style={{ display: "inline" }}>
+                        <input type="hidden" name="locale" value={locale} />
+                        <input type="hidden" name="listing_id" value={p.id} />
+                        <input type="hidden" name="on" value="1" />
+                        <button className="btn btn-outline" style={{ padding: "0.1875rem 0.5rem", fontSize: "0.75rem" }}>
+                          ☆ {t("billing.feature")}
+                        </button>
+                      </form>
+                    ) : (
+                      <span style={{ color: "var(--color-ink-faint)" }}>—</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -281,6 +332,98 @@ export default async function DashboardPage({
           </ul>
         )}
       </section>
+
+      {/* ------------------------- Abonnement et factures (§8) ------------------------- */}
+      {usage && (
+        <section className="card" style={{ padding: "1.125rem 1.25rem", marginTop: "1.5rem" }}>
+          <div style={{ display: "flex", gap: "0.75rem", alignItems: "baseline",
+                        justifyContent: "space-between", flexWrap: "wrap" }}>
+            <h2 style={{ fontSize: "1rem", fontWeight: 700 }}>{t("billing.title")}</h2>
+            <span style={{ fontSize: "0.875rem", color: "var(--color-ink-soft)" }}>
+              {t(`billing.tier_${usage.tier}`)}
+              {Number(usage.priceUsdMonth) > 0 &&
+                <> · {t("billing.perMonth", { price: formatUsd(usage.priceUsdMonth, locale) })}</>}
+            </span>
+          </div>
+
+          <div style={{ display: "grid", gap: "0.75rem", margin: "0.875rem 0",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 14rem), 1fr))" }}>
+            {([
+              [t("billing.quotaListings"), usage.activeListings, usage.listingQuota],
+              [t("billing.featuredSlots"), usage.featuredActive, usage.featuredQuota],
+            ] as const).map(([label, used, max]) => (
+              <div key={label}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8125rem",
+                              color: "var(--color-ink-soft)", marginBottom: "0.25rem" }}>
+                  <span>{label}</span>
+                  <span style={{ fontWeight: 600,
+                                 color: max > 0 && used >= max ? "var(--color-danger)" : undefined }}>
+                    {used}/{max}
+                  </span>
+                </div>
+                <div style={{ height: 6, background: "var(--color-surface-alt)",
+                              borderRadius: 999, overflow: "hidden" }}>
+                  <div style={{ width: `${max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0}%`,
+                                height: "100%",
+                                background: max > 0 && used >= max
+                                  ? "var(--color-danger)" : "var(--color-brand)" }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {usage.heldListings > 0 && (
+            <p style={{ padding: "0.625rem 0.875rem", borderRadius: "0.5rem", fontSize: "0.8125rem",
+                        background: "var(--color-stale-soft)", color: "var(--color-stale)",
+                        marginBottom: "0.875rem", lineHeight: 1.5 }}>
+              {t("billing.heldNotice", { n: usage.heldListings })}
+            </p>
+          )}
+
+          <h3 style={{ fontSize: "0.875rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+            {t("billing.invoices")}
+          </h3>
+          {invoices.length === 0 ? (
+            <p style={{ fontSize: "0.875rem", color: "var(--color-ink-soft)" }}>{t("billing.noInvoices")}</p>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", fontSize: "0.875rem", borderCollapse: "collapse", minWidth: "28rem" }}>
+                <thead>
+                  <tr style={{ fontSize: "0.6875rem", color: "var(--color-ink-faint)" }}>
+                    <th style={{ textAlign: "start", paddingBottom: "0.375rem" }}>{t("billing.colNumber")}</th>
+                    <th style={{ textAlign: "start" }}>{t("billing.colPeriod")}</th>
+                    <th style={{ textAlign: "end" }}>{t("billing.colAmount")}</th>
+                    <th style={{ textAlign: "end" }}>{t("billing.colDue")}</th>
+                    <th style={{ textAlign: "end" }} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((i) => (
+                    <tr key={i.id} style={{ borderTop: "1px solid var(--color-line-soft)" }}>
+                      <td style={{ padding: "0.4375rem 0" }}><code>{i.number}</code></td>
+                      <td style={{ color: "var(--color-ink-soft)" }}>{formatDate(i.periodStart, locale)}</td>
+                      <td style={{ textAlign: "end", fontWeight: 600 }}>{formatUsd(i.amountUsd, locale)}</td>
+                      <td style={{ textAlign: "end", color: "var(--color-ink-soft)" }}>{formatDate(i.dueAt, locale)}</td>
+                      <td style={{ textAlign: "end" }}>
+                        <span className="chip" style={{
+                          background: i.status === "paid" ? "var(--color-fresh-soft)"
+                            : i.overdue ? "var(--color-danger-soft)" : "var(--color-surface-alt)",
+                          color: i.status === "paid" ? "var(--color-fresh)"
+                            : i.overdue ? "var(--color-danger)" : "var(--color-ink-soft)",
+                        }}>
+                          {i.status === "paid" ? t("billing.statusPaid")
+                            : i.status === "void" ? t("billing.statusVoid")
+                            : i.overdue ? t("billing.overdue") : t("billing.statusIssued")}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

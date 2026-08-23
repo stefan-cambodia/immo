@@ -96,6 +96,7 @@ export interface ListingPerf {
   id: string; reference: string; propertyType: string; price: string;
   views: number; leads: number; area: Record<string, string>;
   lastConfirmed: string; expiresAt: string; agencies: number;
+  featured: boolean; featuredUntil: string | null;
 }
 
 /** Performance annonce par annonce, triée par ce qui rapporte. */
@@ -104,6 +105,7 @@ export function listingPerformance(agencyId: string, days = 30, limit = 12) {
     `SELECT l.id, p.reference, p.property_type AS "propertyType", l.price_usd AS price,
             loc.name_i18n AS area, l.last_confirmed_at AS "lastConfirmed",
             l.expires_at AS "expiresAt",
+            l.featured, l.featured_until AS "featuredUntil",
             (SELECT count(*) FROM property_views v
               WHERE v.property_id = p.id
                 AND v.created_at > now() - make_interval(days => $2::int))::int AS views,

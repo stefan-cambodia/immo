@@ -35,6 +35,8 @@ const T = {
     `✅ Publié — <b>${ref}</b>\nUn bien très proche existe déjà : notre équipe vérifie s'il s'agit du même.\n${url}`,
   confirmed: "Merci, l'annonce est reconduite pour 45 jours.",
   alreadyGone: "Cette annonce n'est plus active.",
+  held: (ref) =>
+    `⏸ Enregistré — <b>${ref}</b>\nVotre agence a atteint son quota d'annonces actives : celle-ci est en attente. Elle sera publiée automatiquement dès qu'une place se libère, ou dès un passage au palier supérieur.`,
 };
 
 const REQUIRED = { property_type: "type de bien", transaction_type: "vente ou location",
@@ -335,7 +337,10 @@ async function publish(deps, chatId, session, agent, pin) {
   }
 
   const url = siteUrl(outcome.reference);
-  const message = outcome.decision === "merge" ? T.merged(outcome.reference, url)
+  // Une annonce retenue par le quota (§8) est enregistrée mais pas visible :
+  // le dire clairement à l'agent vaut mieux qu'un « publié » mensonger.
+  const message = outcome.held ? T.held(outcome.reference)
+                : outcome.decision === "merge" ? T.merged(outcome.reference, url)
                 : outcome.decision === "review" ? T.review(outcome.reference, url)
                 : T.published(outcome.reference, url);
   await tg.sendMessage(chatId, message, removeKeyboard);

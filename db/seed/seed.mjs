@@ -143,7 +143,50 @@ for (const [name, verif, tier, quota] of agencySpecs) {
   }
   agencies.push({ id: agencyId, name, slug, tier, agents });
 }
+// Quota de mises en avant : la valeur effective suit le palier (013).
+await db.query(
+  `UPDATE agencies a SET featured_quota = p.featured_slots
+   FROM plans p WHERE p.tier = a.subscription_tier`);
 console.log(`  ${agencies.length} agences, ${agencies.reduce((a, x) => a + x.agents.length, 0)} agents`);
+
+// -------------------------------------------------------------- Factures (§8)
+// Deux mois de facturation pour les paliers payants : le mois précédent réglé
+// (sauf un retardataire, pour que la file « en attente de règlement » et le
+// chiffre « en retard » aient quelque chose à montrer), le mois courant émis.
+let invoiceCount = 0;
+let straggler = true;
+for (const agency of agencies.filter((a) => a.tier !== "free")) {
+  const { rows: [prev] } = await db.query(
+    `INSERT INTO invoices(agency_id, agency_name, tier, period_start, period_end,
+                          amount_usd, due_at, issued_at)
+     SELECT a.id, a.name, a.subscription_tier,
+            (date_trunc('month', now()) - interval '1 month')::date,
+            date_trunc('month', now())::date,
+            p.price_usd_month,
+            date_trunc('month', now()) - interval '1 month' + interval '14 days',
+            date_trunc('month', now()) - interval '1 month'
+     FROM agencies a JOIN plans p ON p.tier = a.subscription_tier
+     WHERE a.id = $1 RETURNING id`, [agency.id]);
+  if (straggler) {
+    straggler = false; // le premier reste impayé : il est en retard
+  } else {
+    await db.query(
+      `UPDATE invoices SET status = 'paid', paid_at = due_at - interval '3 days',
+              paid_note = 'ABA ' || lpad((random() * 1e9)::bigint::text, 9, '0')
+       WHERE id = $1`, [prev.id]);
+  }
+  await db.query(
+    `INSERT INTO invoices(agency_id, agency_name, tier, period_start, period_end,
+                          amount_usd, due_at)
+     SELECT a.id, a.name, a.subscription_tier,
+            date_trunc('month', now())::date,
+            (date_trunc('month', now()) + interval '1 month')::date,
+            p.price_usd_month, now() + interval '14 days'
+     FROM agencies a JOIN plans p ON p.tier = a.subscription_tier
+     WHERE a.id = $1`, [agency.id]);
+  invoiceCount += 2;
+}
+console.log(`  ${invoiceCount} factures`);
 
 // ------------------------------------------------------------ Comptes back-office
 // Mots de passe de développement, volontairement lisibles et affichés en fin de
@@ -397,16 +440,20 @@ for (let i = 0; i < TARGET; i++) {
     const expires = new Date(confirmed.getTime() + 45 * 86400000);
     const status = expires.getTime() < now ? "expired" : "active";
     const srcLang = pick(["en", "en", "en", "km", "zh", "fr"]);
+    // Une mise en avant est un achat à durée limitée (§8) : elle porte son
+    // échéance, ici alignée sur celle de l'annonce.
+    const isFeatured = agency.tier === "premium" && chance(0.12);
 
     const { rows: lr } = await db.query(
       `INSERT INTO listings(property_id, agency_id, agent_id, transaction_type, price_usd,
-         price_period, negotiable, status, source, featured, expires_at, last_confirmed_at,
+         price_period, negotiable, status, source, featured, featured_until,
+         expires_at, last_confirmed_at,
          description_i18n, description_source_lang, translation_status, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
       [propertyId, agency.id, pick(agency.agents), txn, price,
        txn === "rent" ? "monthly" : "total", chance(0.7), status,
        pick(["backoffice", "backoffice", "backoffice", "csv", "xml_feed"]),
-       agency.tier === "premium" && chance(0.12), expires, confirmed,
+       isFeatured, isFeatured ? expires : null, expires, confirmed,
        // describe() produit déjà les quatre langues : ces annonces sont
        // dans l'état où le worker de traduction les aurait laissées.
        describe(prop, meta.names, txn), srcLang, 'machine', created]);

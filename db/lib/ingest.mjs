@@ -1,4 +1,5 @@
 import { findDuplicates } from "./dedup.mjs";
+import { holdOrActive } from "./billing.mjs";
 
 /**
  * Entonnoir commun aux canaux d'ingestion (§6.1).
@@ -95,15 +96,15 @@ export async function ingest(db, input) {
       }
     }
 
-    const listingId = await createListing(client, input, n, propertyId);
+    const listing = await createListing(client, input, n, propertyId);
     await attachPhotos(client, input, propertyId);
 
     await client.query(
       `UPDATE submissions SET property_id = $2, listing_id = $3 WHERE id = $1`,
-      [submissionId, propertyId, listingId]);
+      [submissionId, propertyId, listing.id]);
 
     return { status: "accepted", decision: verdict.decision, submissionId,
-             propertyId, listingId, reference,
+             propertyId, listingId: listing.id, held: listing.held, reference,
              score: verdict.score, reasons: verdict.reasons };
   }
 }
@@ -142,11 +143,21 @@ async function createListing(client, input, n, propertyId) {
   const description = n.description ? { [lang]: n.description } : {};
   const translationStatus = n.description ? "pending" : "not_needed";
 
+  // Quota d'abonnement (§8) : une annonce qui RAFRAÎCHIT une active existante
+  // ne consomme pas de place ; seule une nouvelle publication en prend une.
+  // Au-delà du quota, l'annonce est retenue (`pending`) plutôt que refusée —
+  // la donnée envoyée par l'agence n'est jamais jetée.
+  const { rows: existing } = await client.query(
+    `SELECT 1 FROM listings WHERE property_id = $1 AND agency_id = $2
+       AND transaction_type = $3 AND status = 'active'`,
+    [propertyId, input.agencyId, n.transactionType]);
+  const status = existing.length ? "active" : await holdOrActive(client, input.agencyId);
+
   const { rows } = await client.query(
     `INSERT INTO listings(property_id, agency_id, agent_id, transaction_type, price_usd,
        price_period, negotiable, status, source, description_i18n,
        description_source_lang, translation_status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,'active',$8,$9,$10,$11::translation_status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$12::listing_status,$8,$9,$10,$11::translation_status)
      ON CONFLICT (property_id, agency_id, transaction_type)
        WHERE status = 'active'
      DO UPDATE SET price_usd = EXCLUDED.price_usd,
@@ -156,9 +167,9 @@ async function createListing(client, input, n, propertyId) {
      RETURNING id`,
     [propertyId, input.agencyId, input.agentId, n.transactionType, n.priceUsd,
      n.transactionType === "rent" ? "monthly" : "total", n.negotiable ?? true,
-     input.source, JSON.stringify(description), lang, translationStatus]
+     input.source, JSON.stringify(description), lang, translationStatus, status]
   );
-  return rows[0].id;
+  return { id: rows[0].id, held: status === "pending" };
 }
 
 async function attachPhotos(client, input, propertyId) {
@@ -240,7 +251,7 @@ export async function completeSubmission(db, submissionId, pin, actor) {
     }
   }
 
-  const listingId = await createListing(db, input, n, propertyId);
+  const listing = await createListing(db, input, n, propertyId);
 
   await db.query(
     `UPDATE submissions
@@ -248,8 +259,9 @@ export async function completeSubmission(db, submissionId, pin, actor) {
          property_id = $5, listing_id = $6, normalized = $7
      WHERE id = $1`,
     [submissionId, verdict.decision, verdict.score, verdict.reasons,
-     propertyId, listingId, JSON.stringify(n)]);
+     propertyId, listing.id, JSON.stringify(n)]);
 
   return { status: "accepted", submissionId, decision: verdict.decision,
-           propertyId, listingId, reference, score: verdict.score, reasons: verdict.reasons };
+           propertyId, listingId: listing.id, held: listing.held, reference,
+           score: verdict.score, reasons: verdict.reasons };
 }

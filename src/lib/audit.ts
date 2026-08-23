@@ -7,12 +7,15 @@ export const AUDIT_ACTIONS = [
   "sign_in", "sign_out", "property_created", "listing_confirmed",
   "dedup_merged", "dedup_distinct", "alias_added", "translation_reviewed",
   "audit_exported", "audit_purged",
+  "tier_changed", "invoice_issued", "invoice_paid", "invoice_voided",
+  "listing_featured", "listing_unfeatured",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 export type AuditTarget =
-  | "session" | "property" | "listing" | "location" | "dedup_candidate" | "audit_log";
+  | "session" | "property" | "listing" | "location" | "dedup_candidate" | "audit_log"
+  | "agency" | "invoice";
 
 export interface AuditEntry {
   action: AuditAction;

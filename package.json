@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "db:up": "docker compose up -d db && node db/wait-for-db.mjs",
     "db:down": "docker compose down",
     "db:migrate": "node db/migrate.mjs",
@@ -31,7 +31,10 @@
     "check:views": "node db/checks/view-tracking.mjs",
     "alerts:send": "ops/send-alerts.sh",
     "alerts:send-check": "ops/send-alerts.sh --dry-run",
-    "check:alerts": "node db/checks/alerts.mjs"
+    "check:alerts": "node db/checks/alerts.mjs",
+    "billing:run": "ops/billing.sh",
+    "billing:run-check": "ops/billing.sh --dry-run",
+    "check:billing": "node db/checks/billing.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
@@ -48,6 +51,8 @@
     "@types/pg": "^8.15.5",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.1",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.2",
     "tailwindcss": "^4.1.14",
     "typescript": "^5.9.3"
   }

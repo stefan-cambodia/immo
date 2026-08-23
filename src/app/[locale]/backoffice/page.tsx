@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { query } from "@/lib/db";
-import { daysSince, daysUntil, formatDate, formatNumber, formatUsd } from "@/lib/format";
+import { daysUntil, formatDate, formatNumber, formatUsd } from "@/lib/format";
 import { getTranslator, i18nField, isLocale, type Locale } from "@/lib/i18n";
 import { getMapProvider, PHNOM_PENH } from "@/lib/map-provider";
 import { PROPERTY_TYPES, TITLE_TYPES } from "@/lib/search";
@@ -11,11 +11,28 @@ import { SubmissionQueue, type PendingSubmission } from "@/components/Submission
 import { TranslationReview, type PendingTranslation } from "@/components/TranslationReview";
 import { auditSpan, countAudit, listAudit, parseAuditFilters } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/auth";
+import { billingOverview, listPlans, openInvoices } from "@/lib/billing";
 import { signOut } from "../login/actions";
 import { createProperty, resolveDedup, addAlias, confirmListing, pinSubmission,
-         approveTranslation } from "./actions";
+         approveTranslation, changeTier, issueInvoice, markInvoicePaid,
+         voidInvoice } from "./actions";
 
 export const dynamic = "force-dynamic";
+
+const Panel = ({ title, hint, children }: {
+  title: string; hint?: string; children: React.ReactNode;
+}) => (
+  <section className="card" style={{ padding: "1.125rem 1.25rem" }}>
+    <h2 style={{ fontSize: "1rem", fontWeight: 700 }}>{title}</h2>
+    {hint && (
+      <p style={{ fontSize: "0.8125rem", color: "var(--color-ink-soft)",
+                  lineHeight: 1.55, marginTop: "0.25rem", marginBottom: "0.875rem" }}>
+        {hint}
+      </p>
+    )}
+    <div style={{ marginTop: hint ? 0 : "0.875rem" }}>{children}</div>
+  </section>
+);
 
 export default async function BackofficePage({
   params, searchParams,
@@ -42,7 +59,8 @@ export default async function BackofficePage({
   const scope = isAdmin ? null : user.agencyId;
 
   const [locations, agents, dedup, misses, expiring, reuse, leadStats,
-         audit, auditTotal, span, pending, translations] = await Promise.all([
+         audit, auditTotal, span, pending, translations,
+         billingRows, invoicesOpen, plans] = await Promise.all([
     query<{ slug: string; name: Record<string, string>; parent: Record<string, string> | null }>(
       `SELECT l.slug, l.name_i18n AS name, p.name_i18n AS parent
        FROM locations l LEFT JOIN locations p ON p.id = l.parent_id
@@ -140,22 +158,12 @@ export default async function BackofficePage({
        WHERE l.translation_status = 'machine'
          AND a.subscription_tier = 'premium'
        ORDER BY l.translated_at DESC NULLS LAST LIMIT 8`) : [],
+    // Facturation : réservée à la modération, comme tout ce qui touche
+    // l'argent des autres agences.
+    isAdmin ? billingOverview() : [],
+    isAdmin ? openInvoices() : [],
+    isAdmin ? listPlans() : [],
   ]);
-
-  const Panel = ({ title, hint, children }: {
-    title: string; hint?: string; children: React.ReactNode;
-  }) => (
-    <section className="card" style={{ padding: "1.125rem 1.25rem" }}>
-      <h2 style={{ fontSize: "1rem", fontWeight: 700 }}>{title}</h2>
-      {hint && (
-        <p style={{ fontSize: "0.8125rem", color: "var(--color-ink-soft)",
-                    lineHeight: 1.55, marginTop: "0.25rem", marginBottom: "0.875rem" }}>
-          {hint}
-        </p>
-      )}
-      <div style={{ marginTop: hint ? 0 : "0.875rem" }}>{children}</div>
-    </section>
-  );
 
   return (
     <div style={{ maxWidth: "84rem", margin: "0 auto", padding: "1.5rem clamp(0.75rem, 3vw, 1.5rem) 3rem" }}>
@@ -203,7 +211,11 @@ export default async function BackofficePage({
               ? t("backoffice.pinRequiredHint")
               : error === "forbidden"
                 ? t("auth.forbidden")
-                : String(error)}
+                : error === "quota_exceeded"
+                  ? t("billing.quotaFull")
+                  : error === "invoice_not_issued"
+                    ? t("billing.invoiceNotIssued")
+                    : String(error)}
           </p>
         )}
       </header>
@@ -472,6 +484,125 @@ export default async function BackofficePage({
               </li>
             ))}
           </ul>
+        </Panel>
+        )}
+
+        {/* -------- Abonnements & facturation — modération uniquement -------- */}
+        {isAdmin && (
+        <Panel title={t("billing.title")} hint={t("billing.hint")}>
+          <div style={{ overflowX: "auto", marginBottom: "1rem" }}>
+            <table style={{ width: "100%", fontSize: "0.8125rem", borderCollapse: "collapse", minWidth: "34rem" }}>
+              <thead>
+                <tr style={{ fontSize: "0.6875rem", color: "var(--color-ink-faint)" }}>
+                  <th style={{ textAlign: "start", paddingBottom: "0.375rem" }}>{t("billing.agency")}</th>
+                  <th style={{ textAlign: "start" }}>{t("billing.changeTier")}</th>
+                  <th style={{ textAlign: "end" }}>{t("billing.quotaListings")}</th>
+                  <th style={{ textAlign: "end" }}>{t("billing.featuredSlots")}</th>
+                  <th style={{ textAlign: "end" }}>{t("billing.held")}</th>
+                  <th style={{ textAlign: "end" }}>{t("billing.invoices")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {billingRows.map((a) => (
+                  <tr key={a.id} style={{ borderTop: "1px solid var(--color-line-soft)" }}>
+                    <td style={{ padding: "0.4375rem 0", fontWeight: 600 }}>
+                      <Link href={`/${locale}/dashboard?agency=${a.slug}`}>{a.name}</Link>
+                    </td>
+                    <td>
+                      <form action={changeTier} style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
+                        <input type="hidden" name="locale" value={locale} />
+                        <input type="hidden" name="agency_id" value={a.id} />
+                        <select className="field" name="tier" defaultValue={a.tier}
+                                aria-label={t("billing.changeTier")}
+                                style={{ fontSize: "0.75rem", padding: "0.1875rem 0.375rem" }}>
+                          {plans.map((p) => (
+                            <option key={p.tier} value={p.tier}>
+                              {t(`billing.tier_${p.tier}`)} — {formatUsd(p.priceUsdMonth, locale, true)}
+                            </option>
+                          ))}
+                        </select>
+                        <button className="btn btn-outline" style={{ padding: "0.1875rem 0.5rem", fontSize: "0.75rem" }}>
+                          ✓
+                        </button>
+                      </form>
+                    </td>
+                    <td style={{ textAlign: "end",
+                                 color: a.activeListings >= a.listingQuota ? "var(--color-danger)" : undefined }}>
+                      {a.activeListings}/{a.listingQuota}
+                    </td>
+                    <td style={{ textAlign: "end" }}>{a.featuredActive}/{a.featuredQuota}</td>
+                    <td style={{ textAlign: "end",
+                                 color: a.heldListings > 0 ? "var(--color-stale)" : "var(--color-ink-faint)" }}>
+                      {a.heldListings}
+                    </td>
+                    <td style={{ textAlign: "end", whiteSpace: "nowrap" }}>
+                      {a.overdueInvoices > 0 && (
+                        <span className="chip" style={{
+                          background: "var(--color-danger-soft)", color: "var(--color-danger)",
+                          marginInlineEnd: "0.25rem",
+                        }}>
+                          {t("billing.overdue")} ×{a.overdueInvoices}
+                        </span>
+                      )}
+                      {Number(a.priceUsdMonth) > 0 && (
+                        <form action={issueInvoice} style={{ display: "inline" }}>
+                          <input type="hidden" name="locale" value={locale} />
+                          <input type="hidden" name="agency_id" value={a.id} />
+                          <button className="btn btn-outline"
+                                  title={t("billing.issueInvoice")}
+                                  style={{ padding: "0.1875rem 0.5rem", fontSize: "0.75rem" }}>
+                            + {t("billing.invoices")}
+                          </button>
+                        </form>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <h3 style={{ fontSize: "0.875rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+            {t("billing.openInvoices")} ({invoicesOpen.length})
+          </h3>
+          {invoicesOpen.length === 0 ? (
+            <p style={{ fontSize: "0.875rem", color: "var(--color-ink-soft)" }}>{t("billing.noInvoices")}</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {invoicesOpen.map((i) => (
+                <div key={i.id} style={{ display: "flex", gap: "0.5rem", alignItems: "center",
+                                         flexWrap: "wrap", fontSize: "0.8125rem",
+                                         borderTop: "1px solid var(--color-line-soft)", paddingTop: "0.5rem" }}>
+                  <code style={{ fontWeight: 600 }}>{i.number}</code>
+                  <span style={{ flex: "1 1 10rem", minWidth: 0, color: "var(--color-ink-soft)" }}>
+                    {i.agencyName} · {formatUsd(i.amountUsd, locale)} · {formatDate(i.periodStart, locale)}
+                  </span>
+                  <span className="chip" style={{
+                    background: i.overdue ? "var(--color-danger-soft)" : "var(--color-surface-alt)",
+                    color: i.overdue ? "var(--color-danger)" : "var(--color-ink-soft)",
+                  }}>
+                    {i.overdue ? t("billing.overdue") : t("billing.colDue")} — {formatDate(i.dueAt, locale)}
+                  </span>
+                  <form action={markInvoicePaid} style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
+                    <input type="hidden" name="locale" value={locale} />
+                    <input type="hidden" name="invoice_id" value={i.id} />
+                    <input className="field" name="note" placeholder={t("billing.paidRef")}
+                           style={{ fontSize: "0.75rem", padding: "0.1875rem 0.375rem", width: "9rem" }} />
+                    <button className="btn btn-primary" style={{ padding: "0.1875rem 0.5rem", fontSize: "0.75rem" }}>
+                      {t("billing.markPaid")}
+                    </button>
+                  </form>
+                  <form action={voidInvoice}>
+                    <input type="hidden" name="locale" value={locale} />
+                    <input type="hidden" name="invoice_id" value={i.id} />
+                    <button className="btn btn-outline" style={{ padding: "0.1875rem 0.5rem", fontSize: "0.75rem" }}>
+                      {t("billing.voidInvoice")}
+                    </button>
+                  </form>
+                </div>
+              ))}
+            </div>
+          )}
         </Panel>
         )}
 

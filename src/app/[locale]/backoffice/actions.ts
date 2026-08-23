@@ -8,6 +8,8 @@ import { actorFromUser, recordAudit } from "@/lib/audit";
 // Socle d'ingestion en ESM simple, partagé avec les jobs : la même logique
 // sert au flux XML, au bot et au back-office.
 import { completeSubmission } from "../../../../db/lib/ingest.mjs";
+import { FEATURED_DAYS, issueInvoiceFor, releaseHeld }
+  from "../../../../db/lib/billing.mjs";
 import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n";
 
 /** Les formulaires du back-office fonctionnent sans JavaScript : le retour
@@ -87,6 +89,17 @@ export async function createProperty(form: FormData) {
   // Un compte d'agence ne publie que sous sa propre agence, quel que soit
   // l'identifiant d'agent posté dans le formulaire.
   if (user.role !== "admin" && agent.agency_id !== user.agencyId) fail(locale, "forbidden");
+
+  // Quota d'abonnement (§8). Contrairement aux canaux automatiques — où une
+  // annonce excédentaire est retenue pour ne pas jeter la donnée reçue — une
+  // saisie interactive se refuse tout de suite : rien n'est perdu, et la
+  // personne au clavier peut réagir. La règle verrouillée est réappliquée par
+  // l'ingestion pour les autres canaux.
+  const quota = await queryOne<{ full: boolean }>(
+    `SELECT (SELECT count(*) FROM listings l
+              WHERE l.agency_id = a.id AND l.status = 'active') >= a.listing_quota AS full
+     FROM agencies a WHERE a.id = $1`, [agent.agency_id]);
+  if (quota?.full) fail(locale, "quota_exceeded");
 
   let reference: string;
   try {
@@ -411,4 +424,254 @@ export async function approveTranslation(form: FormData) {
   });
 
   revalidatePath("/[locale]/backoffice", "page");
+}
+
+// ---------------------------------------------------------------------------
+// Abonnements, factures et mise en avant (§8)
+// ---------------------------------------------------------------------------
+
+const UUID = /^[0-9a-f-]{36}$/i;
+const TIERS = ["free", "standard", "premium"] as const;
+
+/**
+ * Change le palier d'une agence. Les quotas effectifs sont réalignés sur les
+ * valeurs du nouveau palier — un accord sur mesure se règle ensuite par un
+ * ajustement direct, le palier reste la référence.
+ *
+ * À la baisse, les annonces actives excédentaires RESTENT actives : couper
+ * des annonces en ligne parce qu'un paiement a changé serait une sanction
+ * commerciale, pas une règle de quota. L'excédent bloque simplement toute
+ * nouvelle publication jusqu'à résorption. Les mises en avant excédentaires,
+ * elles, s'éteignent : c'est un produit facturé au palier.
+ */
+export async function changeTier(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const agencyId = String(form.get("agency_id") ?? "");
+  const tier = String(form.get("tier") ?? "");
+  if (!UUID.test(agencyId) || !(TIERS as readonly string[]).includes(tier)) {
+    fail(locale, "invalid_input");
+  }
+
+  await withTransaction(async (client) => {
+    const { rows: before } = await client.query(
+      `SELECT name, subscription_tier::text AS tier, listing_quota, featured_quota
+       FROM agencies WHERE id = $1 FOR UPDATE`, [agencyId]);
+    if (before.length === 0) return;
+    if (before[0].tier === tier) return;
+
+    const { rows: [plan] } = await client.query(
+      `SELECT listing_quota, featured_slots FROM plans WHERE tier = $1::subscription_tier`,
+      [tier]);
+
+    await client.query(
+      `UPDATE agencies SET subscription_tier = $2::subscription_tier,
+              listing_quota = $3, featured_quota = $4
+       WHERE id = $1`,
+      [agencyId, tier, plan.listing_quota, plan.featured_slots]);
+
+    // Mises en avant au-delà du nouveau quota : les plus proches de leur
+    // échéance s'éteignent d'abord — ce sont celles qui perdent le moins.
+    const { rows: unfeatured } = await client.query(
+      `UPDATE listings SET featured = false, updated_at = now()
+       WHERE id IN (
+         SELECT id FROM listings
+         WHERE agency_id = $1 AND status = 'active' AND featured
+         ORDER BY featured_until OFFSET $2)
+       RETURNING id`,
+      [agencyId, plan.featured_slots]);
+
+    // Une montée de palier libère des places : les annonces retenues partent
+    // tout de suite, sans attendre le passage du job quotidien.
+    const released = await releaseHeld(client, agencyId);
+
+    await recordAudit(client, actorFromUser(user), {
+      action: "tier_changed",
+      targetType: "agency",
+      targetId: agencyId,
+      targetLabel: before[0].name,
+      details: {
+        from: before[0].tier, to: tier,
+        listingQuota: plan.listing_quota, featuredQuota: plan.featured_slots,
+        released, unfeatured: unfeatured.length,
+      },
+    });
+  });
+
+  revalidatePath("/[locale]/backoffice", "page");
+}
+
+/** Émet la facture du mois courant pour une agence, hors passage du job. */
+export async function issueInvoice(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const agencyId = String(form.get("agency_id") ?? "");
+  if (!UUID.test(agencyId)) fail(locale, "invalid_input");
+
+  let issued = false;
+  await withTransaction(async (client) => {
+    const invoice = await issueInvoiceFor(client, agencyId);
+    if (!invoice) return; // palier gratuit, ou période déjà facturée
+
+    issued = true;
+    await recordAudit(client, actorFromUser(user), {
+      action: "invoice_issued",
+      targetType: "invoice",
+      targetId: invoice.id,
+      targetLabel: invoice.number,
+      details: {
+        agency: invoice.agencyName, tier: invoice.tier,
+        amountUsd: Number(invoice.amountUsd), periodStart: invoice.periodStart,
+      },
+    });
+  });
+
+  if (!issued) fail(locale, "invoice_not_issued");
+  revalidatePath("/[locale]/backoffice", "page");
+}
+
+/**
+ * Pointe une facture réglée. Le règlement arrive hors ligne (virement,
+ * espèces) : la référence saisie ici est la seule passerelle vers la trace
+ * bancaire, elle est donc conservée sur la facture ET dans le journal.
+ */
+export async function markInvoicePaid(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const invoiceId = String(form.get("invoice_id") ?? "");
+  const note = String(form.get("note") ?? "").trim().slice(0, 200) || null;
+  if (!UUID.test(invoiceId)) return;
+
+  await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `UPDATE invoices SET status = 'paid', paid_at = now(), paid_note = $2
+       WHERE id = $1 AND status = 'issued'
+       RETURNING number, agency_name, amount_usd`, [invoiceId, note]);
+    if (rows.length === 0) return;
+
+    await recordAudit(client, actorFromUser(user), {
+      action: "invoice_paid",
+      targetType: "invoice",
+      targetId: invoiceId,
+      targetLabel: rows[0].number,
+      details: { agency: rows[0].agency_name, amountUsd: Number(rows[0].amount_usd), note },
+    });
+  });
+
+  revalidatePath("/[locale]/backoffice", "page");
+}
+
+/** Annule une facture émise par erreur. Jamais de suppression : la
+ *  numérotation doit rester continue et vérifiable. */
+export async function voidInvoice(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const invoiceId = String(form.get("invoice_id") ?? "");
+  if (!UUID.test(invoiceId)) return;
+
+  await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `UPDATE invoices SET status = 'void'
+       WHERE id = $1 AND status = 'issued'
+       RETURNING number, agency_name, amount_usd`, [invoiceId]);
+    if (rows.length === 0) return;
+
+    await recordAudit(client, actorFromUser(user), {
+      action: "invoice_voided",
+      targetType: "invoice",
+      targetId: invoiceId,
+      targetLabel: rows[0].number,
+      details: { agency: rows[0].agency_name, amountUsd: Number(rows[0].amount_usd) },
+    });
+  });
+
+  revalidatePath("/[locale]/backoffice", "page");
+}
+
+/**
+ * Active ou éteint la mise en avant d'une annonce (§8), dans la limite des
+ * emplacements du palier. Accessible à l'agence depuis son tableau de bord :
+ * c'est elle qui choisit quoi pousser, pas la modération.
+ */
+export async function toggleFeatured(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale);
+
+  const listingId = String(form.get("listing_id") ?? "");
+  const on = form.get("on") === "1";
+  // Le formulaire vit sur le tableau de bord : l'erreur y retourne.
+  const back = `/${locale}/dashboard`;
+  if (!UUID.test(listingId)) redirect(back);
+
+  try {
+    await withTransaction(async (client) => {
+      const { rows } = await client.query(
+        `SELECT l.agency_id, l.status::text AS status, l.featured, p.reference,
+                a.name AS agency, a.featured_quota
+         FROM listings l
+         JOIN properties p ON p.id = l.property_id
+         JOIN agencies a ON a.id = l.agency_id
+         WHERE l.id = $1 FOR UPDATE OF l`, [listingId]);
+      if (rows.length === 0) return;
+      const listing = rows[0];
+
+      if (user.role !== "admin" && listing.agency_id !== user.agencyId) {
+        throw new AuthError("forbidden");
+      }
+
+      if (on) {
+        if (listing.status !== "active" || listing.featured) return;
+        // Le verrou d'agence sérialise deux activations concurrentes qui
+        // viseraient le dernier emplacement.
+        await client.query(`SELECT 1 FROM agencies WHERE id = $1 FOR UPDATE`,
+          [listing.agency_id]);
+        const { rows: [{ used }] } = await client.query(
+          `SELECT count(*)::int AS used FROM listings
+           WHERE agency_id = $1 AND status = 'active' AND featured`,
+          [listing.agency_id]);
+        if (used >= listing.featured_quota) throw new Error("slots_full");
+
+        const { rows: [updated] } = await client.query(
+          `UPDATE listings SET featured = true,
+                  featured_until = now() + make_interval(days => $2),
+                  updated_at = now()
+           WHERE id = $1 RETURNING featured_until`, [listingId, FEATURED_DAYS]);
+
+        await recordAudit(client, actorFromUser(user), {
+          action: "listing_featured",
+          targetType: "listing",
+          targetId: listingId,
+          targetLabel: listing.reference,
+          details: { agency: listing.agency, until: updated.featured_until, days: FEATURED_DAYS },
+        });
+      } else {
+        if (!listing.featured) return;
+        // `featured_until` est conservé : trace de ce qui a été acheté.
+        await client.query(
+          `UPDATE listings SET featured = false, updated_at = now() WHERE id = $1`,
+          [listingId]);
+
+        await recordAudit(client, actorFromUser(user), {
+          action: "listing_unfeatured",
+          targetType: "listing",
+          targetId: listingId,
+          targetLabel: listing.reference,
+          details: { agency: listing.agency },
+        });
+      }
+    });
+  } catch (err) {
+    if (err instanceof AuthError) redirect(`${back}?error=forbidden`);
+    if (err instanceof Error && err.message === "slots_full") {
+      redirect(`${back}?error=featured_slots`);
+    }
+    throw err;
+  }
+
+  revalidatePath("/[locale]/dashboard", "page");
+  redirect(back);
 }
