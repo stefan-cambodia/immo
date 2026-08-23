@@ -406,11 +406,16 @@ export default async function PropertyPage({
                     p.developerName,
                   ].filter(Boolean).join(" · ")}
                 </p>
-                <Link href={`/${locale}/search?building=${p.buildingSlug}`}
-                      style={{ fontSize: "0.875rem", color: "var(--color-brand)", fontWeight: 600,
-                               display: "inline-block", marginTop: "0.5rem" }}>
-                  {t("agency.viewListings")} →
-                </Link>
+                <span style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
+                  <Link href={`/${locale}/project/${p.buildingSlug}`}
+                        style={{ fontSize: "0.875rem", color: "var(--color-brand)", fontWeight: 600 }}>
+                    {t("projects.viewProject")} →
+                  </Link>
+                  <Link href={`/${locale}/search?building=${p.buildingSlug}`}
+                        style={{ fontSize: "0.875rem", color: "var(--color-brand)", fontWeight: 600 }}>
+                    {t("agency.viewListings")} →
+                  </Link>
+                </span>
               </div>
             )}
           </section>

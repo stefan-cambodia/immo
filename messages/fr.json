@@ -42,7 +42,8 @@
     "rentNav": "Louer",
     "foreignEligible": "Éligible étranger",
     "areas": "Quartiers",
-    "backoffice": "Back-office"
+    "backoffice": "Back-office",
+    "projects": "Projets neufs"
   },
   "home": {
     "heroTitle": "Tout l'immobilier du Cambodge, sans les doublons",
@@ -426,5 +427,33 @@
     "labelFloor": "étage {n}+",
     "labelForeign": "éligible étranger",
     "cardBeds": "{n} ch."
+  },
+  "projects": {
+    "title": "Projets neufs et résidences",
+    "subtitle": "Condominiums, boreys et résidences de standing au Cambodge : promoteur, état d'avancement et annonces actives pour chaque projet.",
+    "newProjects": "En construction et à venir",
+    "completedProjects": "Résidences livrées",
+    "developers": "Promoteurs",
+    "developerProjects": "{n} projets",
+    "unitsTotal": "{n} unités au total",
+    "activeListings": "{n} annonces actives",
+    "noListings": "Aucune annonce active dans ce projet pour le moment. Les pages de quartier ci-dessous recensent ce qui est disponible à proximité.",
+    "delivery": "Livraison {year}",
+    "status_planned": "En projet",
+    "status_under_construction": "En construction",
+    "status_completed": "Livré",
+    "byDeveloper": "Par {name}",
+    "inProject": "Annonces dans ce projet",
+    "browseArea": "Explorer le quartier",
+    "projectsBy": "Projets de {name}",
+    "allProjects": "Tous les projets",
+    "forSaleFrom": "À vendre dès {price}",
+    "forRentFrom": "À louer dès {price} / mois",
+    "agenciesListing": "{n} agences y publient",
+    "viewProject": "Fiche du projet",
+    "floorsShort": "Étages",
+    "unitsShort": "Unités",
+    "deliveryShort": "Livraison",
+    "agenciesShort": "Agences"
   }
 }

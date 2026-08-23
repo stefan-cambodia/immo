@@ -42,7 +42,8 @@
     "rentNav": "租房",
     "foreignEligible": "外籍可购",
     "areas": "区域",
-    "backoffice": "后台"
+    "backoffice": "后台",
+    "projects": "新楼盘"
   },
   "home": {
     "heroTitle": "柬埔寨全境房源，去除重复",
@@ -426,5 +427,33 @@
     "labelFloor": "{n} 层以上",
     "labelForeign": "外国人可购",
     "cardBeds": "{n} 室"
+  },
+  "projects": {
+    "title": "新楼盘与公寓项目",
+    "subtitle": "柬埔寨各地的公寓、排屋社区与高端住宅：每个项目的开发商、工程进度与在售在租房源。",
+    "newProjects": "在建与即将推出",
+    "completedProjects": "已交付项目",
+    "developers": "开发商",
+    "developerProjects": "{n} 个项目",
+    "unitsTotal": "共 {n} 套",
+    "activeListings": "{n} 条有效房源",
+    "noListings": "该项目暂无有效房源。下方的片区页面列出了附近的在售在租房源。",
+    "delivery": "{year} 年交付",
+    "status_planned": "规划中",
+    "status_under_construction": "在建",
+    "status_completed": "已交付",
+    "byDeveloper": "开发商：{name}",
+    "inProject": "该项目内的房源",
+    "browseArea": "浏览周边片区",
+    "projectsBy": "{name} 的项目",
+    "allProjects": "全部项目",
+    "forSaleFrom": "出售 {price} 起",
+    "forRentFrom": "出租 {price} / 月起",
+    "agenciesListing": "{n} 家中介在此发布",
+    "viewProject": "项目页面",
+    "floorsShort": "楼层",
+    "unitsShort": "套数",
+    "deliveryShort": "交付",
+    "agenciesShort": "中介"
   }
 }

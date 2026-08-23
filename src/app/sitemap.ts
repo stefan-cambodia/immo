@@ -23,6 +23,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   );
   const combos = await indexableCombos();
 
+  // Projets et promoteurs : peu d'URLs, contenu propre à chacune — tous
+  // indexables, sans seuil (voir src/lib/projects.ts).
+  const projects = await query<{ slug: string }>(`SELECT slug FROM buildings ORDER BY slug`);
+  const developers = await query<{ slug: string }>(
+    `SELECT d.slug FROM developers d WHERE EXISTS
+       (SELECT 1 FROM buildings b WHERE b.developer_id = d.id) ORDER BY d.slug`);
+
   const alt = (path: string) => ({
     languages: Object.fromEntries(LOCALES.map((l) => [l, `${SITE}/${l}${path}`])),
   });
@@ -47,6 +54,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         alternates: alt(path),
       };
     }),
+    {
+      url: `${SITE}/en/projects`,
+      changeFrequency: "daily" as const,
+      priority: 0.8,
+      alternates: alt("/projects"),
+    },
+    ...projects.map((b) => ({
+      url: `${SITE}/en/project/${b.slug}`,
+      changeFrequency: "weekly" as const,
+      priority: 0.6,
+      alternates: alt(`/project/${b.slug}`),
+    })),
+    ...developers.map((d) => ({
+      url: `${SITE}/en/developer/${d.slug}`,
+      changeFrequency: "weekly" as const,
+      priority: 0.5,
+      alternates: alt(`/developer/${d.slug}`),
+    })),
     ...properties.map((p) => ({
       url: `${SITE}/en/property/${p.reference}`,
       lastModified: new Date(p.updatedAt),

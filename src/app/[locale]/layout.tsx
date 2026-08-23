@@ -96,6 +96,9 @@ export default async function LocaleLayout({
               <Link href={`/${locale}/search?txn=rent`} style={{ padding: "0.375rem 0.625rem", borderRadius: "0.375rem", fontWeight: 600 }}>
                 {t("nav.rentNav")}
               </Link>
+              <Link href={`/${locale}/projects`} style={{ padding: "0.375rem 0.625rem", borderRadius: "0.375rem", fontWeight: 600 }}>
+                {t("nav.projects")}
+              </Link>
               <Link href={`/${locale}/search?foreign=1`} style={{
                 padding: "0.375rem 0.625rem", borderRadius: "0.375rem", fontWeight: 600,
                 color: "var(--color-brand)",

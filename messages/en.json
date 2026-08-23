@@ -42,7 +42,8 @@
     "rentNav": "Rent",
     "foreignEligible": "Foreign-eligible",
     "areas": "Areas",
-    "backoffice": "Back office"
+    "backoffice": "Back office",
+    "projects": "New projects"
   },
   "home": {
     "heroTitle": "All Cambodian property, without the duplicates",
@@ -426,5 +427,33 @@
     "labelFloor": "floor {n}+",
     "labelForeign": "foreign-eligible",
     "cardBeds": "{n} bd"
+  },
+  "projects": {
+    "title": "New projects & residences",
+    "subtitle": "Condominiums, boreys and branded residences across Cambodia: developer, delivery status and live listings for each project.",
+    "newProjects": "Under construction & upcoming",
+    "completedProjects": "Completed residences",
+    "developers": "Developers",
+    "developerProjects": "{n} projects",
+    "unitsTotal": "{n} units in total",
+    "activeListings": "{n} active listings",
+    "noListings": "No active listing in this project right now. The neighbourhood pages below list what is available nearby.",
+    "delivery": "Delivery {year}",
+    "status_planned": "Planned",
+    "status_under_construction": "Under construction",
+    "status_completed": "Completed",
+    "byDeveloper": "By {name}",
+    "inProject": "Listings in this project",
+    "browseArea": "Browse the neighbourhood",
+    "projectsBy": "Projects by {name}",
+    "allProjects": "All projects",
+    "forSaleFrom": "For sale from {price}",
+    "forRentFrom": "For rent from {price} / month",
+    "agenciesListing": "{n} agencies list here",
+    "viewProject": "Project page",
+    "floorsShort": "Floors",
+    "unitsShort": "Units",
+    "deliveryShort": "Delivery",
+    "agenciesShort": "Agencies"
   }
 }

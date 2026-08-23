@@ -34,7 +34,8 @@
     "check:alerts": "node db/checks/alerts.mjs",
     "billing:run": "ops/billing.sh",
     "billing:run-check": "ops/billing.sh --dry-run",
-    "check:billing": "node db/checks/billing.mjs"
+    "check:billing": "node db/checks/billing.mjs",
+    "check:projects": "node db/checks/projects.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

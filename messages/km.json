@@ -42,7 +42,8 @@
     "rentNav": "ជួល",
     "foreignEligible": "ជនបរទេសអាចទិញបាន",
     "areas": "តំបន់",
-    "backoffice": "ផ្ទាំងគ្រប់គ្រង"
+    "backoffice": "ផ្ទាំងគ្រប់គ្រង",
+    "projects": "គម្រោងថ្មី"
   },
   "home": {
     "heroTitle": "អចលនទ្រព្យទូទាំងកម្ពុជា ដោយគ្មានការចុះផ្សាយស្ទួន",
@@ -426,5 +427,33 @@
     "labelFloor": "ជាន់ទី {n}+",
     "labelForeign": "ជនបរទេសអាចទិញបាន",
     "cardBeds": "{n} បន្ទប់គេង"
+  },
+  "projects": {
+    "title": "គម្រោងថ្មី និងអគាររស់នៅ",
+    "subtitle": "ខុនដូ បុរី និងអគាររស់នៅទូទាំងកម្ពុជា៖ ក្រុមហ៊ុនអភិវឌ្ឍន៍ ស្ថានភាពសាងសង់ និងការផ្សាយលក់-ជួលសកម្មសម្រាប់គម្រោងនីមួយៗ។",
+    "newProjects": "កំពុងសាងសង់ និងគម្រោងខាងមុខ",
+    "completedProjects": "អគារដែលបានបញ្ចប់",
+    "developers": "ក្រុមហ៊ុនអភិវឌ្ឍន៍",
+    "developerProjects": "{n} គម្រោង",
+    "unitsTotal": "សរុប {n} យូនីត",
+    "activeListings": "ការផ្សាយសកម្ម {n}",
+    "noListings": "មិនទាន់មានការផ្សាយសកម្មក្នុងគម្រោងនេះទេ។ ទំព័រតំបន់ខាងក្រោមបង្ហាញអ្វីដែលមាននៅជិតៗ។",
+    "delivery": "បញ្ចប់ឆ្នាំ {year}",
+    "status_planned": "គ្រោងទុក",
+    "status_under_construction": "កំពុងសាងសង់",
+    "status_completed": "បានបញ្ចប់",
+    "byDeveloper": "ដោយ {name}",
+    "inProject": "ការផ្សាយក្នុងគម្រោងនេះ",
+    "browseArea": "រកមើលក្នុងតំបន់",
+    "projectsBy": "គម្រោងរបស់ {name}",
+    "allProjects": "គម្រោងទាំងអស់",
+    "forSaleFrom": "លក់ចាប់ពី {price}",
+    "forRentFrom": "ជួលចាប់ពី {price} / ខែ",
+    "agenciesListing": "ភ្នាក់ងារ {n} ផ្សាយនៅទីនេះ",
+    "viewProject": "ទំព័រគម្រោង",
+    "floorsShort": "ជាន់",
+    "unitsShort": "យូនីត",
+    "deliveryShort": "ការបញ្ចប់",
+    "agenciesShort": "ភ្នាក់ងារ"
   }
 }
