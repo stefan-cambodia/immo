@@ -478,9 +478,17 @@ export default async function PropertyPage({
 
           {similar.length > 0 && (
             <section>
-              <h2 style={{ fontSize: "1.0625rem", fontWeight: 700, marginBottom: "0.75rem" }}>
-                {t("property.similar")}
-              </h2>
+              <div style={{ display: "flex", gap: "0.75rem", alignItems: "baseline",
+                            justifyContent: "space-between", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+                <h2 style={{ fontSize: "1.0625rem", fontWeight: 700 }}>
+                  {t("property.similar")}
+                </h2>
+                <Link href={`/${locale}/compare?refs=${[p.reference,
+                        ...similar.slice(0, 3).map((s) => s.reference)].join(",")}`}
+                      style={{ fontSize: "0.875rem", color: "var(--color-brand)", fontWeight: 600 }}>
+                  {t("compare.similarLink")} →
+                </Link>
+              </div>
               <PropertyGrid items={similar} locale={locale} t={t} transaction={transaction} />
             </section>
           )}

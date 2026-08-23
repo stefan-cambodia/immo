@@ -498,5 +498,22 @@
     "yieldBasis": "{saleN} sale and {rentN} rental comparables",
     "yieldDisclaimer": "Gross: before fees, taxes and vacancy.",
     "yieldShort": "Gross yield"
+  },
+  "compare": {
+    "title": "Compare properties",
+    "subtitle": "Up to 4 properties side by side, with their market context: position against the area median and gross rental yield.",
+    "addByRef": "Add a property by reference",
+    "refPlaceholder": "e.g. BK-RX822",
+    "add": "Add",
+    "remove": "Remove",
+    "emptyHint": "Open any property page and choose “Compare with similar properties”, or add references above.",
+    "unknownRef": "Unknown reference: {ref}",
+    "similarLink": "Compare with similar properties",
+    "rowPrice": "Price",
+    "rowPerSqm": "Price / sqm",
+    "rowPosition": "Vs area median",
+    "rowAgencies": "Agencies offering",
+    "viewProperty": "View the listing",
+    "limitNote": "Only the first 4 references are compared."
   }
 }

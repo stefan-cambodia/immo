@@ -498,5 +498,22 @@
     "yieldBasis": "{saleN} annonces de vente et {rentN} de location",
     "yieldDisclaimer": "Brut : hors charges, impôts et vacance locative.",
     "yieldShort": "Rendement brut"
+  },
+  "compare": {
+    "title": "Comparateur de biens",
+    "subtitle": "Jusqu'à 4 biens côte à côte, avec leur contexte de marché : position sur la médiane du secteur et rendement locatif brut.",
+    "addByRef": "Ajouter un bien par référence",
+    "refPlaceholder": "ex. BK-RX822",
+    "add": "Ajouter",
+    "remove": "Retirer",
+    "emptyHint": "Ouvrez une fiche bien et choisissez « Comparer aux biens similaires », ou ajoutez des références ci-dessus.",
+    "unknownRef": "Référence inconnue : {ref}",
+    "similarLink": "Comparer aux biens similaires",
+    "rowPrice": "Prix",
+    "rowPerSqm": "Prix / m²",
+    "rowPosition": "Vs médiane du secteur",
+    "rowAgencies": "Agences qui le proposent",
+    "viewProperty": "Voir l'annonce",
+    "limitNote": "Seules les 4 premières références sont comparées."
   }
 }

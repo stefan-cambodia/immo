@@ -498,5 +498,22 @@
     "yieldBasis": "{saleN} 套在售与 {rentN} 套在租可比房源",
     "yieldDisclaimer": "毛回报:未扣除费用、税项与空置期。",
     "yieldShort": "毛回报率"
+  },
+  "compare": {
+    "title": "房源对比",
+    "subtitle": "最多 4 套房源并排对比,并附市场背景:相对片区中位价的位置与毛租金回报率。",
+    "addByRef": "按编号添加房源",
+    "refPlaceholder": "如 BK-RX822",
+    "add": "添加",
+    "remove": "移除",
+    "emptyHint": "打开任意房源页面并选择「与相似房源对比」,或在上方输入编号添加。",
+    "unknownRef": "未知编号:{ref}",
+    "similarLink": "与相似房源对比",
+    "rowPrice": "价格",
+    "rowPerSqm": "每平方米价格",
+    "rowPosition": "对比片区中位价",
+    "rowAgencies": "发布中介数",
+    "viewProperty": "查看房源",
+    "limitNote": "仅对比前 4 个编号。"
   }
 }
