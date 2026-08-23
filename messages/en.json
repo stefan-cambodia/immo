@@ -223,7 +223,12 @@
     "auditShowing": "{shown} of {total} shown",
     "auditSpanLabel": "{total} entries · {oldest} → {newest}",
     "auditPurgeCount": "{n} purge(s) on record",
-    "auditRetentionNote": "Purging always archives first: npm run audit:retention"
+    "auditRetentionNote": "Purging always archives first: npm run audit:retention",
+    "submissions": "Submissions awaiting a pin",
+    "submissionsHint": "Listings received from a feed or the bot with everything but a location. Blocking step: no property is created until the pin is placed.",
+    "submissionsEmpty": "No submissions pending.",
+    "submissionPin": "Place the pin and publish",
+    "submissionSource": "Channel"
   },
   "footer": {
     "about": "About",

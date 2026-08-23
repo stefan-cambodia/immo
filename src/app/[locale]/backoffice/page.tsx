@@ -7,10 +7,11 @@ import { getMapProvider, PHNOM_PENH } from "@/lib/map-provider";
 import { PROPERTY_TYPES, TITLE_TYPES } from "@/lib/search";
 import { PinPicker } from "@/components/PinPicker";
 import { AuditPanel } from "@/components/AuditPanel";
+import { SubmissionQueue, type PendingSubmission } from "@/components/SubmissionQueue";
 import { auditSpan, countAudit, listAudit, parseAuditFilters } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/auth";
 import { signOut } from "../login/actions";
-import { createProperty, resolveDedup, addAlias, confirmListing } from "./actions";
+import { createProperty, resolveDedup, addAlias, confirmListing, pinSubmission } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export default async function BackofficePage({
   const scope = isAdmin ? null : user.agencyId;
 
   const [locations, agents, dedup, misses, expiring, reuse, leadStats,
-         audit, auditTotal, span] = await Promise.all([
+         audit, auditTotal, span, pending] = await Promise.all([
     query<{ slug: string; name: Record<string, string>; parent: Record<string, string> | null }>(
       `SELECT l.slug, l.name_i18n AS name, p.name_i18n AS parent
        FROM locations l LEFT JOIN locations p ON p.id = l.parent_id
@@ -87,13 +88,23 @@ export default async function BackofficePage({
        WHERE l.status = 'active' AND l.expires_at < now() + interval '7 days'
          AND ($1::uuid IS NULL OR l.agency_id = $1::uuid)
        ORDER BY l.expires_at LIMIT 10`, [scope]),
+    // Les photos repiquées sont recompressées et recadrées : elles ne sont
+    // jamais identiques bit à bit. La détection porte donc sur la distance
+    // entre empreintes, pas sur leur égalité.
     isAdmin ? query<{ hash: string; n: string; refs: string }>(
-      `SELECT m.perceptual_hash AS hash, count(DISTINCT m.property_id) AS n,
-              string_agg(DISTINCT p.reference, ', ') AS refs
-       FROM media m JOIN properties p ON p.id = m.property_id
-       WHERE m.perceptual_hash IS NOT NULL
-       GROUP BY m.perceptual_hash HAVING count(DISTINCT m.property_id) > 1
-       ORDER BY count(DISTINCT m.property_id) DESC LIMIT 8`) : [],
+      `SELECT left(a.phash::text, 16) || '…' AS hash,
+              count(DISTINCT b.property_id) + 1 AS n,
+              string_agg(DISTINCT pb.reference || ' (d' || phash_distance(a.phash, b.phash) || ')',
+                         ', ' ORDER BY pb.reference || ' (d' || phash_distance(a.phash, b.phash) || ')')
+                || ' ↔ ' || max(pa.reference) AS refs
+       FROM media a
+       JOIN media b ON b.id > a.id
+                   AND b.property_id <> a.property_id
+                   AND phash_distance(a.phash, b.phash) <= 6
+       JOIN properties pa ON pa.id = a.property_id
+       JOIN properties pb ON pb.id = b.property_id
+       GROUP BY a.id, a.phash
+       ORDER BY count(DISTINCT b.property_id) DESC LIMIT 8`) : [],
     query<{ channel: string; locale: string; n: string }>(
       `SELECT channel::text, locale::text, count(*) AS n FROM leads
        WHERE created_at > now() - interval '30 days'
@@ -104,6 +115,18 @@ export default async function BackofficePage({
     isAdmin ? listAudit(auditFilters, 50) : [],
     isAdmin ? countAudit(auditFilters) : 0,
     isAdmin ? auditSpan() : { total: 0, oldest: null, newest: null, purges: 0 },
+    // Les soumissions en attente de pin sont cloisonnées comme le reste :
+    // une agence ne voit que les siennes.
+    query<PendingSubmission>(
+      `SELECT s.id, s.source::text, s.external_ref AS "externalRef",
+              a.name AS agency, s.normalized, l.name_i18n AS "locationName",
+              s.created_at AS "createdAt"
+       FROM submissions s
+       JOIN agencies a ON a.id = s.agency_id
+       LEFT JOIN locations l ON l.id = (s.normalized->>'locationId')::uuid
+       WHERE s.status = 'needs_pin'
+         AND ($1::uuid IS NULL OR s.agency_id = $1::uuid)
+       ORDER BY s.created_at LIMIT 10`, [scope]),
   ]);
 
   const Panel = ({ title, hint, children }: {
@@ -271,6 +294,13 @@ export default async function BackofficePage({
               }}
             />
           </form>
+        </Panel>
+
+        {/* --------------- Soumissions en attente de pin --------------- */}
+        <Panel title={`${t("backoffice.submissions")} (${pending.length})`}
+               hint={t("backoffice.submissionsHint")}>
+          <SubmissionQueue items={pending} locale={locale} t={t}
+                           provider={provider} action={pinSubmission} />
         </Panel>
 
         {/* File de déduplication — modération uniquement */}

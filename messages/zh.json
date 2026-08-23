@@ -223,7 +223,12 @@
     "auditShowing": "共 {total} 条，显示 {shown} 条",
     "auditSpanLabel": "{total} 条记录 · {oldest} → {newest}",
     "auditPurgeCount": "已记录 {n} 次清理",
-    "auditRetentionNote": "清理前必先归档：npm run audit:retention"
+    "auditRetentionNote": "清理前必先归档：npm run audit:retention",
+    "submissions": "待标注位置的房源",
+    "submissionsHint": "来自数据源或机器人的房源，除位置外信息齐全。必填步骤：未标注位置前不会创建房产。",
+    "submissionsEmpty": "没有待处理的提交。",
+    "submissionPin": "标注位置并发布",
+    "submissionSource": "渠道"
   },
   "footer": {
     "about": "关于我们",

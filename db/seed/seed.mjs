@@ -33,7 +33,7 @@ const jitter = (v, d) => v + (rnd() - 0.5) * d;
 console.log("Nettoyage des tables de données…");
 await db.query(`TRUNCATE leads, price_history, media, listings, properties, buildings,
   agents, agencies, developers, locations, search_misses, dedup_candidates,
-  sessions, users, login_attempts RESTART IDENTITY CASCADE`);
+  sessions, users, login_attempts, submissions RESTART IDENTITY CASCADE`);
 // Le journal d'audit est en ajout seul : le déclencheur refuse un DELETE, et
 // TRUNCATE le contournerait silencieusement. La table est vidée explicitement,
 // pour que la remise à zéro d'un environnement de développement reste un geste
@@ -168,6 +168,23 @@ for (const agency of agencies.slice(0, 4)) {
 console.log(`  ${accounts.length} comptes back-office`);
 
 // ------------------------------------------------------------------ Biens
+// Empreintes perceptuelles du jeu de démonstration. Les vraies sont calculées
+// par src/lib/phash.ts à l'ingestion ; ici on en simule la forme — 64 bits — et
+// surtout leur voisinage, puisque c'est la distance qui est intéressante.
+const randomPhash = () =>
+  Array.from({ length: 64 }, () => (rnd() < 0.5 ? "0" : "1")).join("");
+
+const flipBits = (bits, count) => {
+  const out = bits.split("");
+  for (let i = 0; i < count; i++) {
+    const at = int(0, 63);
+    out[at] = out[at] === "0" ? "1" : "0";
+  }
+  return out.join("");
+};
+
+const stolenPool = [];
+
 const AMENITIES = ["pool", "gym", "parking", "elevator", "security_24h", "generator", "balcony",
   "river_view", "sea_view", "garden", "playground", "cctv", "wifi", "pet_friendly", "aircon"];
 
@@ -330,10 +347,20 @@ for (let i = 0; i < TARGET; i++) {
   // modération doit remonter (§6.3).
   const photoCount = type === "land" ? int(2, 4) : int(4, 9);
   for (let m = 0; m < photoCount; m++) {
-    const phash = chance(0.04) ? `shared-${int(1, 12)}` : `${propertyId.slice(0, 8)}-${m}`;
+    // Les photos repiquées ne sont pas des copies bit à bit : elles sont
+    // recompressées, recadrées, filigranées. Le jeu de données reflète cela en
+    // dérivant l'empreinte volée à quelques bits près, ce qui exerce vraiment
+    // `phash_distance` au lieu d'une égalité stricte.
+    let phash;
+    if (chance(0.04) && stolenPool.length) {
+      phash = flipBits(pick(stolenPool), int(0, 4));
+    } else {
+      phash = randomPhash();
+      if (stolenPool.length < 12) stolenPool.push(phash);
+    }
     await db.query(
-      `INSERT INTO media(property_id, url, position, width, height, perceptual_hash, variants)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      `INSERT INTO media(property_id, url, position, width, height, phash, variants)
+       VALUES ($1,$2,$3,$4,$5,$6::bit(64),$7)`,
       [propertyId, `/api/photo/${propertyId.slice(0, 8)}-${m}`, m, 1600, 1067, phash,
        JSON.stringify([{ w: 400 }, { w: 800 }, { w: 1600 }])]);
     mediaCount++;

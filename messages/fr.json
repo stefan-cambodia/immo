@@ -223,7 +223,12 @@
     "auditShowing": "{shown} affichées sur {total}",
     "auditSpanLabel": "{total} entrées · {oldest} → {newest}",
     "auditPurgeCount": "{n} purge(s) journalisée(s)",
-    "auditRetentionNote": "La purge se fait par archivage préalable : npm run audit:retention"
+    "auditRetentionNote": "La purge se fait par archivage préalable : npm run audit:retention",
+    "submissions": "Soumissions en attente de pin",
+    "submissionsHint": "Annonces reçues d'un flux ou du bot dont tout est prêt sauf la position. Étape bloquante : aucun bien n'est créé tant que le pin n'est pas posé.",
+    "submissionsEmpty": "Aucune soumission en attente.",
+    "submissionPin": "Poser le pin et publier",
+    "submissionSource": "Canal"
   },
   "footer": {
     "about": "À propos",

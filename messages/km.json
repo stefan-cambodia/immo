@@ -223,7 +223,12 @@
     "auditShowing": "បង្ហាញ {shown} ក្នុងចំណោម {total}",
     "auditSpanLabel": "ធាតុ {total} · {oldest} → {newest}",
     "auditPurgeCount": "បានកត់ត្រាការសម្អាត {n} ដង",
-    "auditRetentionNote": "ការសម្អាតតម្រូវឲ្យទុកបណ្ណសារជាមុនសិន៖ npm run audit:retention"
+    "auditRetentionNote": "ការសម្អាតតម្រូវឲ្យទុកបណ្ណសារជាមុនសិន៖ npm run audit:retention",
+    "submissions": "ការដាក់ស្នើរង់ចាំចំណុចទីតាំង",
+    "submissionsHint": "ការចុះផ្សាយទទួលបានពីប្រភពទិន្នន័យ ឬបូត ដែលមានព័ត៌មានគ្រប់គ្រាន់ លើកលែងតែទីតាំង។ ជំហានចាំបាច់៖ គ្មានអចលនទ្រព្យត្រូវបានបង្កើតទេ រហូតដល់ដាក់ចំណុច។",
+    "submissionsEmpty": "គ្មានការដាក់ស្នើរង់ចាំទេ។",
+    "submissionPin": "ដាក់ចំណុច និងផ្សាយ",
+    "submissionSource": "ប៉ុស្តិ៍"
   },
   "footer": {
     "about": "អំពីយើង",

@@ -5,6 +5,9 @@ import { redirect } from "next/navigation";
 import { queryOne, withTransaction } from "@/lib/db";
 import { AuthError, requireUser, type SessionUser } from "@/lib/auth";
 import { actorFromUser, recordAudit } from "@/lib/audit";
+// Socle d'ingestion en ESM simple, partagé avec les jobs : la même logique
+// sert au flux XML, au bot et au back-office.
+import { completeSubmission } from "../../../../db/lib/ingest.mjs";
 import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n";
 
 /** Les formulaires du back-office fonctionnent sans JavaScript : le retour
@@ -310,4 +313,66 @@ export async function confirmListing(form: FormData) {
   });
 
   revalidatePath("/[locale]/backoffice", "page");
+}
+
+
+/**
+ * Pose le pin manquant sur une soumission venue d'un flux ou du bot (§6.1).
+ *
+ * C'est l'étape bloquante, déplacée d'un cran : le canal d'ingestion a pu
+ * apporter tous les champs, mais tant que personne n'a pointé le bien sur la
+ * carte, il n'existe pas.
+ */
+export async function pinSubmission(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale);
+
+  const submissionId = String(form.get("submission_id") ?? "");
+  const lng = Number(form.get("lng"));
+  const lat = Number(form.get("lat"));
+
+  if (!/^[0-9a-f-]{36}$/i.test(submissionId)) fail(locale, "invalid_input");
+  if (!form.get("lng") || !form.get("lat") || !Number.isFinite(lng) || !Number.isFinite(lat)) {
+    fail(locale, "pin_required");
+  }
+
+  let reference: string | null = null;
+  try {
+    reference = await withTransaction(async (client) => {
+      // Une agence ne complète que ses propres soumissions.
+      const owner = await client.query(
+        `SELECT agency_id FROM submissions WHERE id = $1`, [submissionId]);
+      if (owner.rows.length === 0) return null;
+      if (user.role !== "admin" && owner.rows[0].agency_id !== user.agencyId) {
+        throw new AuthError("forbidden");
+      }
+
+      const outcome = await completeSubmission(
+        client, submissionId, { lng, lat }, `back-office:${user.email}`);
+      if (outcome.status !== "accepted") return null;
+
+      await recordAudit(client, actorFromUser(user), {
+        action: "property_created",
+        targetType: "property",
+        targetId: outcome.propertyId,
+        targetLabel: outcome.reference,
+        details: {
+          via: "submission",
+          submissionId,
+          dedupDecision: outcome.decision,
+          dedupScore: outcome.score,
+          reasons: outcome.reasons,
+          pin: { lng, lat },
+        },
+      });
+      return outcome.reference as string;
+    });
+  } catch (err) {
+    if (err instanceof AuthError) fail(locale, "forbidden");
+    fail(locale, "db_error");
+  }
+
+  revalidatePath("/[locale]/backoffice", "page");
+  if (reference) redirect(`/${locale}/property/${reference}`);
+  fail(locale, "invalid_input");
 }

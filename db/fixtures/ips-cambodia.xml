@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Flux d'exemple façon CRM d'agence (IPS, Century 21, Keller Williams…).
+     Deux annonces portent des coordonnées posées dans le CRM ; une n'a qu'une
+     adresse texte et repartira en attente de pin. -->
+<listings>
+  <listing id="IPS-2291">
+    <type>condo</type>
+    <transaction>sale</transaction>
+    <price currency="USD">185000</price>
+    <area unit="sqm">72</area>
+    <bedrooms>2</bedrooms>
+    <bathrooms>2</bathrooms>
+    <floor>14</floor>
+    <unit>1407</unit>
+    <title>strata</title>
+    <furnished>true</furnished>
+    <area_name>BKK1</area_name>
+    <building>Embassy Central</building>
+    <geo lat="11.54680" lng="104.92190"/>
+    <description lang="en">Bright two-bedroom on the 14th floor, city view.</description>
+    <photos>
+      <photo>https://cdn.example.kh/ips/2291-1.jpg</photo>
+      <photo>https://cdn.example.kh/ips/2291-2.jpg</photo>
+    </photos>
+  </listing>
+
+  <listing id="IPS-2292">
+    <type>villa</type>
+    <transaction>rent</transaction>
+    <price currency="USD">2400</price>
+    <area unit="sqm">320</area>
+    <land unit="sqm">450</land>
+    <bedrooms>4</bedrooms>
+    <bathrooms>4</bathrooms>
+    <title>hard</title>
+    <area_name>Toul Tom Poung</area_name>
+    <geo lat="11.53410" lng="104.91620"/>
+    <description lang="en">Large family villa near the Russian Market.</description>
+  </listing>
+
+  <listing id="IPS-2293">
+    <type>flat_shophouse</type>
+    <transaction>sale</transaction>
+    <price currency="USD">240000</price>
+    <area unit="sqm">140</area>
+    <bedrooms>3</bedrooms>
+    <bathrooms>3</bathrooms>
+    <title>soft</title>
+    <area_name>Toul Kork</area_name>
+    <address>Street 315, near Depo Market</address>
+    <description lang="en">Shophouse with commercial ground floor.</description>
+  </listing>
+</listings>

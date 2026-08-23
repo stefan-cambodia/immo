@@ -1,0 +1,4 @@
+external_ref,type,transaction,price_usd,area_sqm,land_sqm,bedrooms,bathrooms,floor,title,area,building,lat,lng,description,lang
+C21-8801,condo,sale,182500,72,,2,2,14,strata,BKK1,Embassy Central,11.54679,104.92188,"Two bedroom unit, 14th floor, Embassy Central.",en
+C21-8802,borey_house,sale,168000,145,90,4,3,0,hard,Sen Sok,Borey Vimean Phnom Penh,11.59510,104.88800,"Corner house in a gated borey.",en
+C21-8803,land,sale,95000,,600,0,0,,soft,Chroy Changvar,,,,"Riverside land plot.",en

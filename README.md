@@ -1,7 +1,9 @@
 # Portail immobilier Cambodge — implémentation
 
-Mise en œuvre du brief `roadmap-portail-immobilier-cambodge.md`, au périmètre
-de la **phase 1 (MVP consultable)**.
+Mise en œuvre du brief `roadmap-portail-immobilier-cambodge.md`. La **phase 1
+(MVP consultable)** est complète ; la **phase 2 (ingestion à l'échelle)** est
+engagée — socle d'ingestion, moteur de déduplication, hash perceptuel réel et
+import XML/CSV sont en place.
 
 Le produit tient en une phrase : **un bien = une fiche**. Le portail affiche
 une fiche unique par bien physique, avec la liste des agences qui le proposent
@@ -87,7 +89,7 @@ bien sans pin), unicité d'une annonce active par (bien, agence, transaction),
 
 ### L'internationalisation (§4)
 
-Quatre locales complètes (`fr`, `en`, `zh`, `km`), 237 clés chacune, parité
+Quatre locales complètes (`fr`, `en`, `zh`, `km`), 242 clés chacune, parité
 vérifiée. URLs préfixées, `hreflang` complet plus `x-default`, sitemap avec
 alternates par langue, négociation `Accept-Language` au premier passage puis
 cookie.
@@ -285,6 +287,110 @@ facturable ni démontrable.
 
 ---
 
+## Phase 2 — ingestion à l'échelle
+
+Objectif du brief : « l'offre s'alimente sans intervention interne ».
+
+| Élément de la phase 2 | État |
+|---|---|
+| Moteur de déduplication + file de validation | **fait** |
+| Hash perceptuel des photos | **fait** — dHash réel |
+| Import XML / CSV | **fait** |
+| Cycle d'expiration 45 j | fait (phase 1) |
+| Historique de prix | fait (phase 1) |
+| Dessin de polygone | fait (phase 1) |
+| Extension SR / SHV / Kampot / Battambang | fait (données) |
+| Bot Telegram + extraction LLM | à faire — nécessite un jeton de bot et une clé d'API |
+| Traduction automatique à l'ingestion | à faire — nécessite une clé d'API |
+| Relances automatiques | à faire — dépend du bot |
+
+### L'entonnoir commun
+
+Les trois canaux — bot Telegram, flux XML/CSV, back-office — déposent la même
+chose : une **soumission**. C'est `db/lib/ingest.mjs` qui décide ensuite où elle
+atterrit. Faire passer les trois par le même entonnoir est ce qui garantit
+qu'aucun ne peut contourner la règle du pin manuel.
+
+Le socle est en ESM simple et prend son client PostgreSQL en paramètre : la
+même logique sert au job d'import, à l'action du back-office et, demain, au
+worker du bot. Il n'y a pas deux implémentations à tenir d'accord.
+
+`submissions` porte un index unique sur `(agency_id, source, external_ref)` :
+réimporter le flux nocturne d'une agence ne duplique rien. Vérifié en rejouant
+le même fichier — 3 annonces, 3 « déjà importées », 0 création.
+
+### Le pin, un cran plus loin
+
+Une nuance qui n'apparaît qu'une fois la déduplication en place : **le pin
+n'est exigé que pour créer un nouveau bien**. Une annonce rattachée à un bien
+existant hérite du pin déjà posé. C'est précisément ce que la déduplication
+fait gagner aux agences — et ce qui rendra le canal Telegram supportable pour
+un agent sur son téléphone.
+
+Une annonce qui n'apporte qu'une adresse texte n'est jamais géocodée : elle
+attend en `needs_pin` dans le back-office, où un humain la pointe sur la carte.
+Des coordonnées explicites venues d'un CRM sont acceptées — quelqu'un les y a
+posées.
+
+### Le moteur de déduplication (§6.2)
+
+Trois issues, et une règle qui prime : « ne jamais laisser l'algorithme
+fusionner seul les cas ambigus ».
+
+- **Fusion automatique** uniquement sur une correspondance déterministe : même
+  immeuble identifié, même étage, même nombre de chambres, surface à 2 % près.
+  Rien d'interprétable.
+- **File de validation** pour tout le reste au-dessus du seuil, **y compris une
+  correspondance photographique parfaite** sans corroboration structurelle.
+- **Nouveau bien** en dessous du seuil.
+
+Une agence face à sa propre annonce n'est jamais fusionnée automatiquement :
+c'est une mise à jour, pas un doublon inter-agences.
+
+### Le hash perceptuel, et sa limite
+
+Les agences se repiquent les images — fait de marché, donc signal exploitable.
+Mais elles les recompressent, les recadrent, les filigranent : une comparaison
+octet à octet ne trouve rien. Le dHash (9×8 en niveaux de gris, 64 bits) ne
+retient que la structure, et `phash_distance()` donne la distance de Hamming
+directement en SQL.
+
+Seuils **mesurés**, pas devinés :
+
+| Transformation | Distance |
+|---|---|
+| JPEG qualité 30 | 1 |
+| Réduction de moitié | 1 |
+| Recadrage 8 % | 3 |
+| Filigrane | 4 |
+| Dix images sans rapport | 11 à 33 |
+
+D'où ≤ 6 pour « même photo », zone grise jusqu'à 10, juste sous le minimum
+observé pour des images différentes.
+
+**La limite, découverte en calibrant** : dHash ne lit que la structure
+grossière. Deux photos réellement différentes mais de composition très proche —
+deux studios identiques du même immeuble, pris au même endroit — tombent à une
+distance nulle. Le hash est donc une **corroboration, jamais une preuve** : le
+moteur ne fusionne jamais sur ce seul signal.
+
+### Import de flux
+
+```bash
+node db/jobs/import-feed.mjs --file db/fixtures/ips-cambodia.xml --agency ips-cambodia --dry-run
+node db/jobs/import-feed.mjs --file db/fixtures/century21.csv  --agency century-21-mekong
+```
+
+Le parseur ne fait que traduire un format en soumissions ; ajouter un troisième
+format revient à écrire une fonction de lecture, pas une seconde logique
+métier. Les quartiers sont résolus par la table d'alias — « BKK1 », « Toul Tom
+Poung », « Sen Sok » atterrissent au bon endroit.
+
+Les deux flux d'exemple contiennent délibérément la même unité chez deux
+agences différentes. À l'import du second, le moteur fusionne (score 0,90 :
+même immeuble, même étage, mêmes chambres, surface identique à 2 %) et la fiche
+publique affiche « 2 agences proposent ce bien, de 182 500 $ à 185 000 $ ».
+
 ## Tâches planifiées
 
 Deux tâches tournent en dehors de l'application, sur un socle commun
@@ -423,12 +529,17 @@ db/
   jobs/expire-listings.mjs    Expiration à 45 jours (appelle la fonction SQL)
   jobs/audit-retention.mjs    Archivage puis purge du journal d'audit
   jobs/audit-verify.mjs       Confrontation archive ↔ journal
+  jobs/import-feed.mjs        Import XML / CSV vers l'entonnoir
+  lib/ingest.mjs              Entonnoir commun aux canaux d'ingestion
+  lib/dedup.mjs               Moteur de déduplication (§6.2)
+  lib/phash.mjs               dHash 64 bits, seuils mesurés
+  fixtures/                   Flux d'exemple XML et CSV
   checks/dedup-merge.mjs      Vérification de la fusion (transaction annulée)
 ops/
   lib/job-runner.sh           Socle commun : verrou, environnement, node, journal
   expire-listings.sh          Lanceur — expiration des annonces
   audit-retention.sh          Lanceur — rétention du journal d'audit
-messages/                     fr · en · zh · km — 237 clés, parité vérifiée
+messages/                     fr · en · zh · km — 242 clés, parité vérifiée
 src/lib/
   search.ts                   Filtres, requêtes, résolution d'alias, fiche bien
   i18n.ts                     Locales, traducteur, négociation, champs JSONB
@@ -447,11 +558,10 @@ src/app/api/                  suggest · map · leads · photo · audit/export
 
 Hors périmètre de la phase 1, conformément à la roadmap :
 
-- **bot Telegram** et import XML/CSV (phase 2) — le modèle les prévoit
-  (`listings.source`), rien ne les branche ;
-- **traduction machine à l'ingestion** (phase 2) ;
-- **hash perceptuel réel** — les hashes du jeu de données sont simulés ; la
-  détection de réutilisation et son écran de modération, eux, fonctionnent ;
+- **bot Telegram** (§6.1, canal déterminant du volume) — l'entonnoir
+  d'ingestion l'attend, mais il faut un jeton de bot et une clé d'API pour
+  l'extraction LLM ;
+- **traduction machine à l'ingestion** — même dépendance ;
 - **pages SEO par quartier × type × langue**, alertes, facturation, tableau de
   bord agence, WeChat (phase 3) ;
 - **gestion des comptes** — l'authentification et le journal d'audit sont en
