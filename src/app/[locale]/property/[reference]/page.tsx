@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { getTranslator, i18nField, isLocale, HTML_LANG, type Locale } from "@/lib/i18n";
 import { daysSince, daysUntil, formatDate, formatKhr, formatNumber, formatUsd } from "@/lib/format";
 import { getProperty, similarProperties } from "@/lib/search";
-import { pricePosition } from "@/lib/estimate";
+import { estimate, pricePosition } from "@/lib/estimate";
 import { getMapProvider } from "@/lib/map-provider";
 import { Gallery } from "@/components/Gallery";
 import { PriceHistory } from "@/components/PriceHistory";
@@ -67,6 +67,18 @@ export default async function PropertyPage({
   // sous MIN_SAMPLE comparables plutôt que faussement précise.
   const position = await pricePosition(
     p.locationSlug, p.propertyType, transaction, min, Number(area) || 0);
+  // Rendement locatif brut pour un bien à vendre : loyer estimé du secteur ×
+  // 12 / prix demandé. Muet si les comparables de location manquent ou
+  // doivent s'élargir au pays entier.
+  const rentEstimate = transaction === "sale" && Number(area) > 0
+    ? await estimate({
+        locationSlug: p.locationSlug, propertyType: p.propertyType,
+        transaction: "rent", areaSqm: Number(area),
+      })
+    : null;
+  const grossYield = rentEstimate && rentEstimate.level !== "country" && min > 0
+    ? (rentEstimate.value * 12 / min) * 100
+    : null;
 
   // Pourquoi le bien est — ou n'est pas — accessible à un acheteur étranger (§5.3).
   const foreignReason = p.foreignEligible
@@ -210,6 +222,19 @@ export default async function PropertyPage({
                         style={{ color: "var(--color-brand)", fontWeight: 600 }}>
                     {t("estimate.title")} →
                   </Link>
+                </span>
+              )}
+              {grossYield !== null && rentEstimate && (
+                <span style={{ display: "block", fontSize: "0.8125rem", marginTop: "0.375rem" }}
+                      title={t("estimate.yieldDisclaimer")}>
+                  <strong>{t("estimate.yieldTitle")} : {grossYield.toFixed(1)} %</strong>
+                  <span style={{ color: "var(--color-ink-soft)" }}>
+                    {" "}· {t("estimate.yieldRent", { rent: formatUsd(rentEstimate.value, locale) })}
+                    {" "}· {t("estimate.comparables", { n: rentEstimate.stats.n })}{" "}
+                    {rentEstimate.usedName
+                      ? t("estimate.scope", { area: i18nField(rentEstimate.usedName, locale) })
+                      : ""}
+                  </span>
                 </span>
               )}
             </div>

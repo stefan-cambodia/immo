@@ -492,6 +492,11 @@
     "belowMedian": "低于片区中位价 {pct} %",
     "atMedian": "处于片区中位价",
     "positionNote": "对比 {area} 的 {n} 套可比房源",
-    "estimateThis": "估算此处的房产"
+    "estimateThis": "估算此处的房产",
+    "yieldTitle": "估算毛租金回报率",
+    "yieldRent": "估算租金 {rent} / 月",
+    "yieldBasis": "{saleN} 套在售与 {rentN} 套在租可比房源",
+    "yieldDisclaimer": "毛回报:未扣除费用、税项与空置期。",
+    "yieldShort": "毛回报率"
   }
 }

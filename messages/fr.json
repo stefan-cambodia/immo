@@ -492,6 +492,11 @@
     "belowMedian": "{pct} % en dessous de la médiane du secteur",
     "atMedian": "Dans la médiane du secteur",
     "positionNote": "vs {n} comparables sur {area}",
-    "estimateThis": "Estimer un bien ici"
+    "estimateThis": "Estimer un bien ici",
+    "yieldTitle": "Rendement locatif brut estimé",
+    "yieldRent": "Loyer estimé {rent} / mois",
+    "yieldBasis": "{saleN} annonces de vente et {rentN} de location",
+    "yieldDisclaimer": "Brut : hors charges, impôts et vacance locative.",
+    "yieldShort": "Rendement brut"
   }
 }

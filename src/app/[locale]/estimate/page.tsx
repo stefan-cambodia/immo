@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { query } from "@/lib/db";
 import { getTranslator, i18nField, isLocale, LOCALES, type Locale } from "@/lib/i18n";
 import { formatNumber, formatUsd } from "@/lib/format";
-import { estimate, priceTrend, MIN_SAMPLE, type TrendPoint } from "@/lib/estimate";
+import { estimate, priceTrend, rentalYield, MIN_SAMPLE, type TrendPoint } from "@/lib/estimate";
 import { PROPERTY_TYPES } from "@/lib/search";
 
 // Estimation de prix par quartier (phase 4). Formulaire GET pur : le résultat
@@ -92,9 +92,13 @@ export default async function EstimatePage({
   const result = wantsEstimate
     ? await estimate({ locationSlug: areaSlug, propertyType: type, transaction, areaSqm: sqm })
     : null;
-  const trend = result
-    ? await priceTrend(result.usedSlug, type, transaction)
-    : [];
+  const [trend, yld] = result
+    ? await Promise.all([
+        priceTrend(result.usedSlug, type, transaction),
+        // Le rendement n'a de sens que sur une estimation d'achat.
+        transaction === "sale" ? rentalYield(areaSlug, type) : Promise.resolve(null),
+      ])
+    : [[] as TrendPoint[], null];
   const trendDelta = trend.length >= 2
     ? Math.round(((trend[trend.length - 1].perSqm - trend[0].perSqm) / trend[0].perSqm) * 100)
     : null;
@@ -258,6 +262,35 @@ export default async function EstimatePage({
             <p style={{ fontSize: "0.8125rem", color: "var(--color-ink-faint)", marginTop: "1rem" }}>
               {t("estimate.trendThin")}
             </p>
+          )}
+
+          {yld && (
+            <div style={{
+              marginTop: "1.25rem", padding: "0.875rem 1rem", borderRadius: "0.625rem",
+              background: "var(--color-surface-alt)", border: "1px solid var(--color-line-soft)",
+            }}>
+              <div style={{ display: "flex", gap: "0.625rem", alignItems: "baseline", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "0.8125rem", fontWeight: 700 }}>
+                  {t("estimate.yieldTitle")}
+                </span>
+                <data value={yld.grossPct.toFixed(1)} data-yield
+                      style={{ fontSize: "1.25rem", fontWeight: 800, color: "var(--color-brand)" }}>
+                  {yld.grossPct.toFixed(1)} %
+                </data>
+              </div>
+              <p style={{ fontSize: "0.8125rem", color: "var(--color-ink-soft)", marginTop: "0.25rem" }}>
+                {t("estimate.yieldRent", {
+                  rent: formatUsd(Math.round(yld.rentPerSqm * sqm / 10) * 10, locale) })}
+                {" · "}
+                {t("estimate.yieldBasis", { saleN: yld.saleN, rentN: yld.rentN })}{" "}
+                {yld.usedName
+                  ? t("estimate.scope", { area: i18nField(yld.usedName, locale) })
+                  : t("estimate.scopeCountry")}
+              </p>
+              <p style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)", marginTop: "0.25rem" }}>
+                {t("estimate.yieldDisclaimer")}
+              </p>
+            </div>
           )}
 
           <p style={{ marginTop: "1.25rem" }}>

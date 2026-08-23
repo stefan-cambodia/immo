@@ -96,8 +96,21 @@ async function comparablesAt(
   return row ?? { n: 0, perSqmMedian: 0, perSqmP25: 0, perSqmP75: 0, priceMedian: 0 };
 }
 
-export async function estimate(input: EstimateInput): Promise<Estimate | null> {
-  // Chaîne administrative : lieu demandé, parent, grand-parent.
+interface Resolved {
+  level: Estimate["level"];
+  usedSlug: string | null;
+  usedName: Record<string, string> | null;
+  requestedName: Record<string, string>;
+  stats: ComparableStats;
+}
+
+/**
+ * Gravit l'échelle administrative (lieu demandé → parent → grand-parent →
+ * pays) jusqu'au premier rang qui porte assez de comparables.
+ */
+async function resolveComparables(
+  locationSlug: string, propertyType: string, transaction: string
+): Promise<Resolved | null> {
   const chain = await query<ChainRow>(
     `
     WITH RECURSIVE up AS (
@@ -109,30 +122,36 @@ export async function estimate(input: EstimateInput): Promise<Estimate | null> {
     )
     SELECT id, slug, name, depth FROM up ORDER BY depth
     `,
-    [input.locationSlug]
+    [locationSlug]
   );
   if (chain.length === 0) return null;
 
   const LEVELS = ["exact", "parent", "grandparent"] as const;
   for (let i = 0; i < chain.length && i < LEVELS.length; i++) {
-    const stats = await comparablesAt(chain[i].id, input.propertyType, input.transaction);
+    const stats = await comparablesAt(chain[i].id, propertyType, transaction);
     if (stats.n >= MIN_SAMPLE) {
-      return withValue(input, {
+      return {
         level: LEVELS[i],
         usedSlug: chain[i].slug,
         usedName: chain[i].name,
         requestedName: chain[0].name,
         stats,
-      });
+      };
     }
   }
 
-  const country = await comparablesAt(null, input.propertyType, input.transaction);
+  const country = await comparablesAt(null, propertyType, transaction);
   if (country.n < MIN_SAMPLE) return null;
-  return withValue(input, {
+  return {
     level: "country", usedSlug: null, usedName: null,
     requestedName: chain[0].name, stats: country,
-  });
+  };
+}
+
+export async function estimate(input: EstimateInput): Promise<Estimate | null> {
+  const resolved = await resolveComparables(
+    input.locationSlug, input.propertyType, input.transaction);
+  return resolved ? withValue(input, resolved) : null;
 }
 
 function withValue(
@@ -194,6 +213,52 @@ export async function priceTrend(
     `,
     [transaction, propertyType, usedSlug]
   );
+}
+
+export interface YieldEstimate {
+  /** Rendement locatif brut : loyer annuel médian / prix médian, en %. */
+  grossPct: number;
+  salePerSqm: number;
+  rentPerSqm: number;
+  saleN: number;
+  rentN: number;
+  /** Le rang le plus large des deux côtés — c'est lui qui borne la confiance. */
+  level: Estimate["level"];
+  usedName: Record<string, string> | null;
+}
+
+const LEVEL_ORDER: Estimate["level"][] = ["exact", "parent", "grandparent", "country"];
+
+/**
+ * Rendement locatif brut estimé d'une combinaison quartier × type (phase 4).
+ *
+ * Les médianes au m² côté vente et côté location se résolvent chacune sur
+ * l'échelle administrative ; la surface se simplifie, le rendement est une
+ * propriété du secteur. Brut veut dire brut : hors charges, impôts et vacance
+ * — la page le dit. Muet si l'un des deux côtés doit s'élargir au pays
+ * entier : un « rendement par quartier » calculé sur le pays n'en est pas un.
+ */
+export async function rentalYield(
+  locationSlug: string, propertyType: string
+): Promise<YieldEstimate | null> {
+  const [sale, rent] = await Promise.all([
+    resolveComparables(locationSlug, propertyType, "sale"),
+    resolveComparables(locationSlug, propertyType, "rent"),
+  ]);
+  if (!sale || !rent) return null;
+  if (sale.level === "country" || rent.level === "country") return null;
+  if (sale.stats.perSqmMedian <= 0 || rent.stats.perSqmMedian <= 0) return null;
+
+  const wider = LEVEL_ORDER.indexOf(sale.level) >= LEVEL_ORDER.indexOf(rent.level) ? sale : rent;
+  return {
+    grossPct: (rent.stats.perSqmMedian * 12 / sale.stats.perSqmMedian) * 100,
+    salePerSqm: sale.stats.perSqmMedian,
+    rentPerSqm: rent.stats.perSqmMedian,
+    saleN: sale.stats.n,
+    rentN: rent.stats.n,
+    level: wider.level,
+    usedName: wider.usedName,
+  };
 }
 
 export interface PricePosition {

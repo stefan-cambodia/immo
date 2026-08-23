@@ -108,6 +108,59 @@ if (thin) {
   console.log("  (aucune combinaison mince dans le jeu de données — cas non testé)");
 }
 
+// ------------------------------------------------ Rendement locatif brut
+console.log("\nRendement locatif brut");
+const { rows: [both] } = await db.query(`
+  WITH by_txn AS (
+    SELECT loc.slug, p.property_type::text AS type, l.transaction_type::text AS txn,
+           count(DISTINCT p.id)::int AS n
+    FROM properties p
+    JOIN locations loc ON loc.id = p.location_id AND loc.level = 'neighborhood'
+    JOIN listings l ON l.property_id = p.id AND l.status = 'active'
+    WHERE COALESCE(p.indoor_area_sqm, p.land_area_sqm) > 0
+    GROUP BY 1, 2, 3
+  )
+  SELECT s.slug, s.type FROM by_txn s
+  JOIN by_txn r ON r.slug = s.slug AND r.type = s.type AND r.txn = 'rent'
+  WHERE s.txn = 'sale' AND s.n >= $1 AND r.n >= $1
+  ORDER BY s.n + r.n DESC LIMIT 1`, [MIN_SAMPLE]);
+
+if (both) {
+  const { rows: [saleStats] } = await db.query(STATS, [both.slug, "sale", both.type]);
+  const { rows: [rentStats] } = await db.query(STATS, [both.slug, "rent", both.type]);
+  const expectedYield = ((rentStats.median * 12) / saleStats.median * 100).toFixed(1);
+
+  const yHtml = await (await fetch(
+    `${BASE}/en/estimate?area=${both.slug}&type=${both.type}&sqm=${SQM}`)).text();
+  const shownYield = yHtml.match(/<data value="([\d.]+)" data-yield/)?.[1];
+  check(`le rendement affiché égale la définition (${both.slug} × ${both.type} : ${expectedYield} %)`,
+        shownYield === expectedYield, `${shownYield} ≠ ${expectedYield}`);
+  check("le rendement est annoncé comme brut", yHtml.includes("before fees, taxes and vacancy"), "");
+
+  const rentHtml = await (await fetch(
+    `${BASE}/en/estimate?area=${both.slug}&type=${both.type}&txn=rent&sqm=${SQM}`)).text();
+  check("pas de rendement sur une estimation de loyer", !rentHtml.includes("data-yield"), "");
+
+  // La page d'atterrissage achat × type du même quartier porte la statistique.
+  const landing = await (await fetch(`${BASE}/en/buy/${both.slug}/${both.type}`)).text();
+  check("la page d'atterrissage achat affiche le rendement du quartier",
+        landing.includes("Gross yield") && landing.includes(`${expectedYield} %`),
+        `attendu ${expectedYield} %`);
+
+  const { rows: [saleProp] } = await db.query(`
+    SELECT p.reference FROM properties p
+    JOIN locations loc ON loc.id = p.location_id AND loc.slug = $1
+    JOIN listings l ON l.property_id = p.id AND l.status = 'active' AND l.transaction_type = 'sale'
+    WHERE p.property_type = $2::property_type
+      AND COALESCE(p.indoor_area_sqm, p.land_area_sqm) > 0
+    LIMIT 1`, [both.slug, both.type]);
+  const salePropHtml = await (await fetch(`${BASE}/en/property/${saleProp.reference}`)).text();
+  check(`la fiche d'un bien à vendre affiche son rendement (${saleProp.reference})`,
+        salePropHtml.includes("gross rental yield"), "");
+} else {
+  console.log("  (aucune combinaison avec vente ET location au seuil — cas non testé)");
+}
+
 // ------------------------------------------------ Position sur la fiche
 console.log("\nPosition du prix sur la fiche bien");
 const { rows: [prop] } = await db.query(`

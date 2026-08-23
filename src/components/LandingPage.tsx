@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { formatNumber, formatUsd } from "@/lib/format";
 import { getTranslator, i18nField, isLocale, type Locale } from "@/lib/i18n";
 import { parseFilters, searchProperties } from "@/lib/search";
+import { rentalYield } from "@/lib/estimate";
 import {
   INDEX_THRESHOLD, isPropertyType, landingAlternates, landingPath, landingStats,
   siblingAreas, siblingTypes, txnFromSegment, type LandingScope,
@@ -88,7 +89,15 @@ export async function LandingPage({ params }: { params: LandingParams }) {
     sort: "relevance",
   }));
 
-  const [types, areas] = await Promise.all([siblingTypes(scope), siblingAreas(scope)]);
+  const [types, areas, yld] = await Promise.all([
+    siblingTypes(scope), siblingAreas(scope),
+    // Rendement brut sur les pages achat typées, seulement quand les deux
+    // côtés (vente et location) tiennent au rang exact du quartier.
+    scope.transaction === "sale" && scope.typeSlug
+      ? rentalYield(scope.areaSlug, scope.typeSlug)
+      : Promise.resolve(null),
+  ]);
+  const exactYield = yld && yld.level === "exact" ? yld : null;
 
   const perMonth = scope.transaction === "rent" ? ` ${t("common.perMonth")}` : "";
   const searchHref = `/${locale}/search?area=${scope.areaSlug}`
@@ -212,6 +221,9 @@ export async function LandingPage({ params }: { params: LandingParams }) {
             )}
             {stats.foreignEligible > 0 && (
               <Stat label={t("nav.foreignEligible")} value={String(stats.foreignEligible)} />
+            )}
+            {exactYield && (
+              <Stat label={t("estimate.yieldShort")} value={`${exactYield.grossPct.toFixed(1)} %`} />
             )}
           </section>
         )}

@@ -492,6 +492,11 @@
     "belowMedian": "{pct} % below the area median",
     "atMedian": "At the area median",
     "positionNote": "vs. {n} comparables in {area}",
-    "estimateThis": "Estimate a property here"
+    "estimateThis": "Estimate a property here",
+    "yieldTitle": "Estimated gross rental yield",
+    "yieldRent": "Estimated rent {rent} / month",
+    "yieldBasis": "{saleN} sale and {rentN} rental comparables",
+    "yieldDisclaimer": "Gross: before fees, taxes and vacancy.",
+    "yieldShort": "Gross yield"
   }
 }
