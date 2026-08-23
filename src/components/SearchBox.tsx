@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface Suggestion {
@@ -28,9 +28,10 @@ export function SearchBox({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const box = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
 
   useEffect(() => {
-    if (value.trim().length < 2) { setItems([]); return; }
+    if (value.trim().length < 2) return;
     const ctrl = new AbortController();
     const timer = setTimeout(async () => {
       try {
@@ -77,13 +78,20 @@ export function SearchBox({
           className="field"
           value={value}
           autoFocus={autoFocus}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setValue(e.target.value);
+            // Sous le seuil de recherche, la liste se vide ici, dans le
+            // gestionnaire d'événement, pas dans l'effet.
+            if (e.target.value.trim().length < 2) setItems([]);
+          }}
           onFocus={() => items.length && setOpen(true)}
           onKeyDown={onKey}
           placeholder={placeholder}
           aria-label={placeholder}
+          role="combobox"
           aria-autocomplete="list"
           aria-expanded={open}
+          aria-controls={listboxId}
           style={{ padding: size === "lg" ? "0.875rem 1rem" : undefined, fontSize: size === "lg" ? "1rem" : undefined }}
         />
         <button className="btn btn-primary" onClick={() => go(active >= 0 ? items[active] : undefined)}>
@@ -96,6 +104,7 @@ export function SearchBox({
 
       {open && items.length > 0 && (
         <ul
+          id={listboxId}
           role="listbox"
           style={{
             position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 40,

@@ -14,7 +14,7 @@ import { extractListing, MODEL } from "../lib/extract.mjs";
 let pass = 0, fail = 0;
 const check = (label, ok, detail = "") => {
   console.log(`  ${ok ? "✓" : "✗"} ${label}${ok ? "" : " — " + detail}`);
-  ok ? pass++ : fail++;
+  if (ok) pass++; else fail++;
 };
 
 let captured = null;

@@ -15,6 +15,19 @@ interface Stats {
   properties: string; listings: string; agencies: string; merged: string;
 }
 
+const Stat = ({ value, label, locale }: {
+  value: string | number; label: string; locale: Locale;
+}) => (
+  <div>
+    <div style={{ fontSize: "clamp(1.5rem, 4vw, 2rem)", fontWeight: 800, letterSpacing: "-0.02em" }}>
+      {formatNumber(value, locale)}
+    </div>
+    <div style={{ fontSize: "0.8125rem", color: "var(--color-ink-soft)", lineHeight: 1.4 }}>
+      {label}
+    </div>
+  </div>
+);
+
 export default async function HomePage({
   params,
 }: { params: Promise<{ locale: string }> }) {
@@ -49,17 +62,6 @@ export default async function HomePage({
 
   const { rows: foreignOk } = await searchProperties(
     parseFilters({ foreign: "1", sort: "freshest" })
-  );
-
-  const Stat = ({ value, label }: { value: string | number; label: string }) => (
-    <div>
-      <div style={{ fontSize: "clamp(1.5rem, 4vw, 2rem)", fontWeight: 800, letterSpacing: "-0.02em" }}>
-        {formatNumber(value, locale)}
-      </div>
-      <div style={{ fontSize: "0.8125rem", color: "var(--color-ink-soft)", lineHeight: 1.4 }}>
-        {label}
-      </div>
-    </div>
   );
 
   return (
@@ -114,10 +116,10 @@ export default async function HomePage({
           display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(9rem, 1fr))",
           gap: "1.5rem", padding: "2rem 0", borderBottom: "1px solid var(--color-line-soft)",
         }}>
-          <Stat value={stats.properties} label={t("home.statProperties")} />
-          <Stat value={stats.listings} label={t("home.statListings")} />
-          <Stat value={stats.agencies} label={t("home.statAgencies")} />
-          <Stat value={stats.merged} label={t("home.statDedup")} />
+          <Stat value={stats.properties} label={t("home.statProperties")} locale={locale} />
+          <Stat value={stats.listings} label={t("home.statListings")} locale={locale} />
+          <Stat value={stats.agencies} label={t("home.statAgencies")} locale={locale} />
+          <Stat value={stats.merged} label={t("home.statDedup")} locale={locale} />
         </section>
 
         <section style={{ padding: "2.5rem 0" }}>

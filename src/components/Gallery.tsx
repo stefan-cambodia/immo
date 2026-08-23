@@ -27,7 +27,7 @@ export function Gallery({ photos, alt }: { photos: { url: string }[]; alt: strin
           display: "grid", gap: "0.5rem",
           gridTemplateRows: `repeat(${Math.min(2, photos.length - 1)}, 1fr)`,
         }}>
-          {photos.slice(1, 3).map((p, i) => (
+          {photos.slice(1, 3).map((p) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               key={p.url}

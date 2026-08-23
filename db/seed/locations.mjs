@@ -4,7 +4,7 @@
 // recherches textuelles ne renvoient rien. Ils sont enrichis manuellement à
 // partir des logs de `search_misses`.
 
-const P = "province", D = "district", C = "commune", N = "neighborhood";
+const P = "province", D = "district", N = "neighborhood";
 
 export const locations = [
   // ---------------- Provinces ----------------

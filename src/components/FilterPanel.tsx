@@ -2,24 +2,24 @@ import Link from "next/link";
 import type { Locale, Translator } from "@/lib/i18n";
 import { AMENITIES, PROPERTY_TYPES, TITLE_TYPES, type Filters } from "@/lib/search";
 
+const Section = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <fieldset style={{ borderTop: "1px solid var(--color-line-soft)", paddingTop: "0.875rem" }}>
+    <legend style={{
+      fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase",
+      letterSpacing: "0.04em", color: "var(--color-ink-faint)", marginBottom: "0.5rem",
+    }}>
+      {label}
+    </legend>
+    {children}
+  </fieldset>
+);
+
 // Formulaire GET pur : les filtres fonctionnent sans JavaScript. Sur Android
 // d'entrée de gamme et réseau contraint (principe n°4), c'est ce qui garantit
 // que la page de résultats reste utilisable.
 export function FilterPanel({
   f, locale, t,
 }: { f: Filters; locale: Locale; t: Translator }) {
-  const Section = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <fieldset style={{ borderTop: "1px solid var(--color-line-soft)", paddingTop: "0.875rem" }}>
-      <legend style={{
-        fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase",
-        letterSpacing: "0.04em", color: "var(--color-ink-faint)", marginBottom: "0.5rem",
-      }}>
-        {label}
-      </legend>
-      {children}
-    </fieldset>
-  );
-
   return (
     <form
       action={`/${locale}/search`}

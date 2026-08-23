@@ -27,6 +27,13 @@ export function parseScope(params: LandingParams): { locale: Locale; scope: Land
   };
 }
 
+const Stat = ({ label, value }: { label: string; value: string }) => (
+  <div style={{ borderTop: "1px solid var(--color-line-soft)", paddingTop: "0.5rem" }}>
+    <div style={{ fontSize: "0.6875rem", color: "var(--color-ink-faint)" }}>{label}</div>
+    <div style={{ fontWeight: 700, fontSize: "0.9375rem" }}>{value}</div>
+  </div>
+);
+
 function headingKey(scope: LandingScope) {
   if (scope.typeSlug) return scope.transaction === "rent" ? "landing.forRentIn" : "landing.forSaleIn";
   return scope.transaction === "rent" ? "landing.allForRentIn" : "landing.allForSaleIn";
@@ -113,13 +120,6 @@ export async function LandingPage({ params }: { params: LandingParams }) {
       },
     ],
   };
-
-  const Stat = ({ label, value }: { label: string; value: string }) => (
-    <div style={{ borderTop: "1px solid var(--color-line-soft)", paddingTop: "0.5rem" }}>
-      <div style={{ fontSize: "0.6875rem", color: "var(--color-ink-faint)" }}>{label}</div>
-      <div style={{ fontWeight: 700, fontSize: "0.9375rem" }}>{value}</div>
-    </div>
-  );
 
   return (
     <>

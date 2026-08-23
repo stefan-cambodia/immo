@@ -14,7 +14,7 @@
 import pg from "pg";
 import {
   canonicalFilters, confirmByToken, deliver, filtersToQuery, findDue, hasCriteria,
-  linkTelegram, subscribe, unsubscribeByToken, AlertError,
+  subscribe, unsubscribeByToken, AlertError,
 } from "../lib/alerts.mjs";
 import { FakeMailer } from "../lib/mail.mjs";
 import { FakeTelegram } from "../lib/telegram.mjs";
@@ -29,7 +29,7 @@ const SITE = "https://example.test";
 let pass = 0, fail = 0;
 const check = (label, ok, detail = "") => {
   console.log(`  ${ok ? "✓" : "✗"} ${label}${ok ? "" : " — " + detail}`);
-  ok ? pass++ : fail++;
+  if (ok) pass++; else fail++;
 };
 
 const db = new pg.Client({

@@ -11,7 +11,7 @@ import { translateDescription, translateQueue, MODEL, LOCALES } from "../lib/tra
 let pass = 0, fail = 0;
 const check = (label, ok, detail = "") => {
   console.log(`  ${ok ? "✓" : "✗"} ${label}${ok ? "" : " — " + detail}`);
-  ok ? pass++ : fail++;
+  if (ok) pass++; else fail++;
 };
 
 // ------------------------------------------------------- contrat de requête
@@ -84,11 +84,6 @@ await db.query(`UPDATE listings SET translation_status = 'pending'`);
 const { rows: [empty] } = await db.query(
   `UPDATE listings SET description_i18n = '{}'::jsonb
    WHERE id = (SELECT id FROM listings LIMIT 1) RETURNING id`);
-// Une annonce d'agence premium, pour vérifier la priorité.
-const { rows: [prem] } = await db.query(
-  `SELECT l.id, l.description_source_lang::text AS lang FROM listings l
-   JOIN agencies a ON a.id = l.agency_id
-   WHERE a.subscription_tier = 'premium' AND l.description_i18n <> '{}'::jsonb LIMIT 1`);
 
 let seen = [];
 const fakeTranslate = async (text, lang) => {

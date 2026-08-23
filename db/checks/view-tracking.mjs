@@ -18,7 +18,7 @@ const BASE = opt("base", "http://localhost:3111");
 let pass = 0, fail = 0;
 const check = (label, ok, detail = "") => {
   console.log(`  ${ok ? "✓" : "✗"} ${label}${ok ? "" : " — " + detail}`);
-  ok ? pass++ : fail++;
+  if (ok) pass++; else fail++;
 };
 
 const db = new pg.Client({

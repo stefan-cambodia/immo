@@ -219,8 +219,6 @@ export interface PropertyCard {
   total: number;
 }
 
-interface Built { where: string; params: unknown[]; }
-
 function buildWhere(f: Filters, params: unknown[]): string {
   const clauses: string[] = [];
   const add = (sql: string, value: unknown) => {
@@ -370,8 +368,70 @@ export async function searchMapPoints(f: Filters, limit = 2000) {
 // ---------------------------------------------------------------------------
 // Fiche bien
 // ---------------------------------------------------------------------------
+export interface PropertyDetail {
+  id: string;
+  reference: string;
+  propertyType: string;
+  villaSub: string | null;
+  floor: number | null;
+  unitNumber: string | null;
+  bedrooms: number;
+  bathrooms: number;
+  indoorArea: string | null;
+  landArea: string | null;
+  titleType: string;
+  foreignEligible: boolean;
+  yearBuilt: number | null;
+  furnished: boolean | null;
+  amenities: string[];
+  verifiedAt: string | null;
+  geoPinBy: string | null;
+  geoPinAt: string | null;
+  lng: number;
+  lat: number;
+  locationSlug: string;
+  locationName: Record<string, string>;
+  parentSlug: string | null;
+  parentName: Record<string, string> | null;
+  buildingSlug: string | null;
+  buildingName: Record<string, string> | null;
+  buildingFloors: number | null;
+  buildingUnits: number | null;
+  buildingYear: number | null;
+  buildingStatus: string | null;
+  buildingAmenities: string[] | null;
+  developerName: string | null;
+}
+
+export interface OfferDetail {
+  id: string;
+  transactionType: string;
+  price: string;
+  pricePeriod: string | null;
+  negotiable: boolean | null;
+  source: string;
+  lastConfirmed: string;
+  expiresAt: string;
+  description: Record<string, string> | null;
+  sourceLang: string;
+  machineTranslated: boolean | null;
+  featured: boolean;
+  agencyId: string;
+  agencySlug: string;
+  agencyName: string;
+  agencyVerification: string;
+  agencyTier: string;
+  agentId: string;
+  agentName: string;
+  phone: string;
+  telegram: string | null;
+  wechat: string | null;
+  spokenLangs: string[] | null;
+  history: { price: string; at: string }[] | null;
+}
+
 export async function getProperty(reference: string) {
-  const property = await queryOne<Record<string, any>>(
+  const property = await queryOne<PropertyDetail>(
     `
     SELECT p.id, p.reference, p.property_type AS "propertyType", p.villa_sub AS "villaSub",
            p.floor, p.unit_number AS "unitNumber", p.bedrooms, p.bathrooms,
@@ -398,7 +458,7 @@ export async function getProperty(reference: string) {
   if (!property) return null;
 
   // Toutes les offres actives sur ce bien : le cœur de la fiche (§3.3).
-  const offers = await query<Record<string, any>>(
+  const offers = await query<OfferDetail>(
     `
     SELECT l.id, l.transaction_type AS "transactionType", l.price_usd AS "price",
            l.price_period AS "pricePeriod", l.negotiable, l.source,

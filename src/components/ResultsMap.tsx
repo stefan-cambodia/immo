@@ -43,11 +43,15 @@ export function ResultsMap({
   const paramString = params.toString();
 
   const [ready, setReady] = useState(false);
-  const [loading, setLoading] = useState(true);
+  // Le chargement est un état dérivé : « les points affichés correspondent-ils
+  // aux filtres courants ? » — pas un drapeau posé/levé dans l'effet.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const loading = loadedFor !== paramString;
   const [moved, setMoved] = useState(false);
   const [autoSearch, setAutoSearch] = useState(false);
   const [drawing, setDrawing] = useState(false);
   const draft = useRef<[number, number][]>([]);
+  const [draftCount, setDraftCount] = useState(0);
 
   // ------------------------------------------------------------- init carte
   useEffect(() => {
@@ -168,7 +172,6 @@ export function ResultsMap({
   useEffect(() => {
     if (!ready) return;
     const ctrl = new AbortController();
-    setLoading(true);
     fetch(`/api/map?${paramString}`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((points: Point[]) => {
@@ -186,7 +189,7 @@ export function ResultsMap({
             },
           })),
         });
-        setLoading(false);
+        setLoadedFor(paramString);
         setMoved(false);
       })
       .catch(() => {});
@@ -235,6 +238,7 @@ export function ResultsMap({
 
     const onClick = (e: maplibregl.MapMouseEvent) => {
       draft.current = [...draft.current, [e.lngLat.lng, e.lngLat.lat]];
+      setDraftCount(draft.current.length);
       redraw();
     };
 
@@ -258,6 +262,7 @@ export function ResultsMap({
 
   const clearPolygon = () => {
     draft.current = [];
+    setDraftCount(0);
     const src = map.current?.getSource("draw") as GeoJSONSource | undefined;
     src?.setData({ type: "FeatureCollection", features: [] });
     const next = new URLSearchParams(paramString);
@@ -266,7 +271,7 @@ export function ResultsMap({
     setDrawing(false);
   };
 
-  const hasPolygon = params.get("polygon") !== null || draft.current.length > 0;
+  const hasPolygon = params.get("polygon") !== null || draftCount > 0;
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 320 }}>
@@ -284,7 +289,8 @@ export function ResultsMap({
         )}
         <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
           {!drawing ? (
-            <button className="btn btn-outline" onClick={() => { draft.current = []; setDrawing(true); }}
+            <button className="btn btn-outline"
+                    onClick={() => { draft.current = []; setDraftCount(0); setDrawing(true); }}
                     style={{ padding: "0.375rem 0.625rem", fontSize: "0.8125rem" }}>
               ✎ {labels.drawPolygon}
             </button>

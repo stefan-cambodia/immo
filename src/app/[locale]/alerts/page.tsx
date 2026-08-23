@@ -36,6 +36,25 @@ function HiddenFilters({ f }: { f: Filters }) {
   );
 }
 
+const Box = ({ children }: { children: React.ReactNode }) => (
+  <div style={{
+    minHeight: "60vh", display: "flex", alignItems: "flex-start", justifyContent: "center",
+    padding: "2.5rem clamp(0.75rem, 3vw, 1.5rem)",
+  }}>
+    <div className="card" style={{ padding: "1.75rem", width: "100%", maxWidth: "34rem" }}>
+      {children}
+    </div>
+  </div>
+);
+
+const Title = ({ children }: { children: React.ReactNode }) => (
+  <h1 style={{ fontSize: "1.375rem", fontWeight: 800, letterSpacing: "-0.02em" }}>{children}</h1>
+);
+const Sub = ({ children }: { children: React.ReactNode }) => (
+  <p style={{ fontSize: "0.9375rem", color: "var(--color-ink-soft)", lineHeight: 1.6,
+              marginTop: "0.5rem" }}>{children}</p>
+);
+
 export default async function AlertsPage({
   params, searchParams,
 }: { params: Promise<{ locale: string }>; searchParams: Promise<SP> }) {
@@ -70,25 +89,6 @@ export default async function AlertsPage({
   const errorMessage = error
     ? (t(errorKey) === errorKey ? t("alerts.errorGeneric") : t(errorKey)) : null;
   const searchHref = `/${locale}/search${filtersToQueryString(f)}`;
-
-  const Box = ({ children }: { children: React.ReactNode }) => (
-    <div style={{
-      minHeight: "60vh", display: "flex", alignItems: "flex-start", justifyContent: "center",
-      padding: "2.5rem clamp(0.75rem, 3vw, 1.5rem)",
-    }}>
-      <div className="card" style={{ padding: "1.75rem", width: "100%", maxWidth: "34rem" }}>
-        {children}
-      </div>
-    </div>
-  );
-
-  const Title = ({ children }: { children: React.ReactNode }) => (
-    <h1 style={{ fontSize: "1.375rem", fontWeight: 800, letterSpacing: "-0.02em" }}>{children}</h1>
-  );
-  const Sub = ({ children }: { children: React.ReactNode }) => (
-    <p style={{ fontSize: "0.9375rem", color: "var(--color-ink-soft)", lineHeight: 1.6,
-                marginTop: "0.5rem" }}>{children}</p>
-  );
 
   if (done === "email") {
     return (

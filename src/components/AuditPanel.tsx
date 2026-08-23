@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { formatDate, formatNumber } from "@/lib/format";
 import type { Locale, Translator } from "@/lib/i18n";
 import { AUDIT_ACTIONS, auditFiltersToQuery, type AuditFilters, type AuditRecord } from "@/lib/audit";

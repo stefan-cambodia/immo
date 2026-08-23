@@ -20,12 +20,12 @@ await db.query("BEGIN");
 let pass = 0, fail = 0;
 const check = (label, ok, detail = "") => {
   console.log(`  ${ok ? "✓" : "✗"} ${label}${ok ? "" : " — " + detail}`);
-  ok ? pass++ : fail++;
+  if (ok) pass++; else fail++;
 };
 
 // Un agent existant, rattaché à un chat Telegram connu.
 const CHAT = 987654321;
-const { rows: [agent] } = await db.query(
+await db.query(
   `UPDATE agents SET telegram_chat_id = $1
    WHERE id = (SELECT id FROM agents LIMIT 1)
    RETURNING id, name, agency_id`, [CHAT]);

@@ -2,12 +2,26 @@ import type { Locale, Translator } from "@/lib/i18n";
 import { formatDate, formatUsd } from "@/lib/format";
 import { PinPicker } from "./PinPicker";
 
+/** Champs de la charge normalisée réellement affichés par la file. */
+interface NormalizedSubmission {
+  propertyType?: string;
+  transactionType?: string;
+  priceUsd?: number | string;
+  bedrooms?: number;
+  indoorAreaSqm?: number;
+  landAreaSqm?: number;
+  floor?: number;
+  titleType?: string;
+  address?: string;
+  payload?: { address?: string };
+}
+
 export interface PendingSubmission {
   id: string;
   source: string;
   externalRef: string | null;
   agency: string;
-  normalized: Record<string, any>;
+  normalized: NormalizedSubmission & Record<string, unknown>;
   locationName: Record<string, string> | null;
   createdAt: string;
 }
@@ -78,7 +92,7 @@ export function SubmissionQueue({
 
             {/* L'adresse est affichée pour aider la pose du pin — elle n'est
                 jamais convertie en coordonnées par le système. */}
-            {s.normalized?.address || (s.normalized as any)?.payload?.address ? (
+            {s.normalized?.address || s.normalized?.payload?.address ? (
               <p style={{ fontSize: "0.75rem", color: "var(--color-ink-soft)", marginBottom: "0.5rem" }}>
                 {String(s.normalized.address ?? "")}
               </p>
