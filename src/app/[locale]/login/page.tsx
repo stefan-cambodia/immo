@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
@@ -32,6 +33,7 @@ export default async function LoginPage({
   const one = (k: string) => (Array.isArray(sp[k]) ? sp[k][0] : sp[k]) ?? "";
   const next = one("next") || `/${locale}/backoffice`;
   const error = ERRORS.includes(one("error")) ? one("error") : null;
+  const notice = one("notice") === "passwordSet" ? "passwordSet" : null;
 
   // Déjà connecté : rien à faire sur cette page.
   if (await getCurrentUser()) redirect(next.startsWith("/") ? next : `/${locale}/backoffice`);
@@ -59,6 +61,15 @@ export default async function LoginPage({
             {t(`auth.${error}`)}
           </p>
         )}
+        {notice && (
+          <p role="status" style={{
+            marginTop: "1rem", padding: "0.75rem 0.875rem", borderRadius: "0.5rem",
+            background: "var(--color-fresh-soft)", color: "var(--color-fresh)",
+            fontSize: "0.875rem", fontWeight: 600, lineHeight: 1.5,
+          }}>
+            {t("auth.passwordSet")}
+          </p>
+        )}
 
         <form action={signIn} style={{
           display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "1.25rem",
@@ -82,6 +93,13 @@ export default async function LoginPage({
             {t("auth.signIn")}
           </button>
         </form>
+
+        <p style={{ marginTop: "1rem", fontSize: "0.8125rem" }}>
+          <Link href={`/${locale}/account/forgot`}
+                style={{ color: "var(--color-brand)", fontWeight: 600 }}>
+            {t("auth.forgotLink")}
+          </Link>
+        </p>
       </div>
     </div>
   );

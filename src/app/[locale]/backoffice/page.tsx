@@ -18,10 +18,24 @@ import { createProperty, resolveDedup, addAlias, confirmListing, pinSubmission,
          approveTranslation, changeTier, issueInvoice, markInvoicePaid,
          voidInvoice, setVerification, requestTitleVerification,
          advanceTitleVerification, concludeTitleVerification,
-         createApiPartner, issueApiKey, revokeApiKey } from "./actions";
+         createApiPartner, issueApiKey, revokeApiKey,
+         createUserAccount, reinviteAccount, toggleAccountActive } from "./actions";
 import { listPartners, listVerifications, OPEN_STATUSES }
   from "../../../../db/lib/titles.mjs";
 import { listApiPartners } from "../../../../db/lib/partner-api.mjs";
+import { listAccounts } from "../../../../db/lib/accounts.mjs";
+
+/** Compte du back-office, tel que renvoyé par accounts.mjs. */
+interface AccountRow {
+  id: string;
+  email: string;
+  name: string;
+  role: "admin" | "agency";
+  active: boolean;
+  lastLoginAt: string | null;
+  agencyName: string | null;
+  inviteExpiresAt: string | null;
+}
 
 /** Partenaire API et ses clés, tels que renvoyés par partner-api.mjs. */
 interface ApiPartnerRow {
@@ -96,16 +110,17 @@ export default async function BackofficePage({
   // aux requêtes, pas appliqué après coup sur des données déjà chargées.
   const scope = isAdmin ? null : user.agencyId;
 
-  // Clé API fraîchement émise, remise une seule fois via un cookie d'une
-  // minute posé par l'action — jamais par l'URL, qui finit dans les journaux.
-  const issuedApiKey = isAdmin
-    ? ((await cookies()).get("issued_api_key")?.value ?? null)
-    : null;
+  // Secrets fraîchement émis (clé API, lien d'invitation), remis une seule
+  // fois via un cookie d'une minute posé par l'action — jamais par l'URL,
+  // qui finit dans les journaux.
+  const store = isAdmin ? await cookies() : null;
+  const issuedApiKey = store?.get("issued_api_key")?.value ?? null;
+  const issuedInviteLink = store?.get("issued_invite_link")?.value ?? null;
 
   const [locations, agents, dedup, misses, expiring, reuse, leadStats,
          audit, auditTotal, span, pending, translations,
          billingRows, invoicesOpen, plans, verifRows,
-         titleDossiers, titlePartners, apiPartners] = await Promise.all([
+         titleDossiers, titlePartners, apiPartners, accounts] = await Promise.all([
     query<{ slug: string; name: Record<string, string>; parent: Record<string, string> | null }>(
       `SELECT l.slug, l.name_i18n AS name, p.name_i18n AS parent
        FROM locations l LEFT JOIN locations p ON p.id = l.parent_id
@@ -223,6 +238,8 @@ export default async function BackofficePage({
     isAdmin ? (listPartners(pool) as Promise<{ id: string; name: string }[]>) : [],
     // API partenaires (phase 4) : clés et usage du jour, modération seulement.
     isAdmin ? (listApiPartners(pool) as Promise<ApiPartnerRow[]>) : [],
+    // Comptes du back-office et invitations en cours, modération seulement.
+    isAdmin ? (listAccounts(pool) as Promise<AccountRow[]>) : [],
   ]);
 
   return (
@@ -281,7 +298,9 @@ export default async function BackofficePage({
                         ? t("titles.unknownReference")
                         : error === "duplicate_partner"
                           ? t("apiPartners.duplicate")
-                          : String(error)}
+                          : error === "duplicate_email"
+                            ? t("accounts.duplicate")
+                            : String(error)}
           </p>
         )}
       </header>
@@ -927,6 +946,108 @@ export default async function BackofficePage({
                     )}
                   </div>
                 ))}
+              </div>
+            ))}
+          </div>
+        </Panel>
+        )}
+
+        {/* ----------- Comptes — modération uniquement ----------- */}
+        {isAdmin && (
+        <Panel title={t("accounts.panelTitle")} hint={t("accounts.panelHint")}>
+          {issuedInviteLink && (
+            <p style={{
+              padding: "0.75rem 1rem", borderRadius: "0.625rem", marginBottom: "0.875rem",
+              background: "var(--color-gold-soft)", color: "var(--color-gold)",
+              fontSize: "0.8125rem", lineHeight: 1.55, overflowWrap: "anywhere",
+            }}>
+              {t("accounts.inviteIssuedNotice")}{" "}
+              <code style={{ fontWeight: 700, userSelect: "all" }}>{issuedInviteLink}</code>
+            </p>
+          )}
+
+          <form action={createUserAccount} style={{
+            display: "flex", gap: "0.375rem", alignItems: "center", flexWrap: "wrap",
+            marginBottom: "0.875rem",
+          }}>
+            <input type="hidden" name="locale" value={locale} />
+            <input className="field" name="name" required
+                   placeholder={t("accounts.personName")} aria-label={t("accounts.personName")}
+                   style={{ flex: "1 1 7rem", minWidth: 0, fontSize: "0.8125rem", padding: "0.3125rem 0.5rem" }} />
+            <input className="field" name="email" type="email" required
+                   placeholder={t("auth.email")} aria-label={t("auth.email")}
+                   style={{ flex: "1 1 9rem", minWidth: 0, fontSize: "0.8125rem", padding: "0.3125rem 0.5rem" }} />
+            <select className="field" name="role" defaultValue="agency"
+                    aria-label={t("accounts.role")}
+                    style={{ fontSize: "0.8125rem", padding: "0.3125rem 0.5rem" }}>
+              <option value="agency">{t("auth.roleAgency")}</option>
+              <option value="admin">{t("auth.roleAdmin")}</option>
+            </select>
+            <select className="field" name="agency_id" aria-label={t("accounts.agency")}
+                    style={{ flex: "1 1 8rem", fontSize: "0.8125rem", padding: "0.3125rem 0.5rem" }}>
+              {verifRows.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            <button className="btn btn-primary" style={{ padding: "0.3125rem 0.75rem", fontSize: "0.8125rem" }}>
+              {t("accounts.createAndInvite")}
+            </button>
+          </form>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {accounts.map((a) => (
+              <div key={a.id} style={{
+                display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap",
+                borderTop: "1px solid var(--color-line-soft)", paddingTop: "0.5rem",
+                fontSize: "0.8125rem",
+              }}>
+                <span style={{ fontWeight: 600, minWidth: 0, overflowWrap: "anywhere" }}>
+                  {a.email}
+                </span>
+                <span style={{ color: "var(--color-ink-faint)", fontSize: "0.75rem",
+                               flex: "1 1 8rem", minWidth: 0 }}>
+                  {a.name}{a.agencyName ? ` · ${a.agencyName}` : ""}
+                  {a.lastLoginAt
+                    ? ` · ${t("accounts.lastLogin")} ${formatDate(a.lastLoginAt, locale)}`
+                    : ` · ${t("accounts.neverSignedIn")}`}
+                </span>
+                <span className="chip" style={{
+                  background: a.role === "admin" ? "var(--color-brand-soft)" : "var(--color-surface-alt)",
+                  color: a.role === "admin" ? "var(--color-brand)" : "var(--color-ink-soft)",
+                }}>
+                  {t(a.role === "admin" ? "auth.roleAdmin" : "auth.roleAgency")}
+                </span>
+                {!a.active && (
+                  <span className="chip" style={{
+                    background: "var(--color-danger-soft)", color: "var(--color-danger)",
+                  }}>
+                    {t("accounts.inactive")}
+                  </span>
+                )}
+                {a.active && a.inviteExpiresAt && (
+                  <span className="chip" style={{
+                    background: "var(--color-gold-soft)", color: "var(--color-gold)",
+                  }}>
+                    {t("accounts.invitePending", { date: formatDate(a.inviteExpiresAt, locale) })}
+                  </span>
+                )}
+                {a.active && !a.lastLoginAt && (
+                  <form action={reinviteAccount} style={{ display: "inline" }}>
+                    <input type="hidden" name="locale" value={locale} />
+                    <input type="hidden" name="user_id" value={a.id} />
+                    <button className="btn btn-outline" style={{ padding: "0.1875rem 0.5rem", fontSize: "0.75rem" }}>
+                      {t("accounts.reinvite")}
+                    </button>
+                  </form>
+                )}
+                {a.id !== user.id && (
+                  <form action={toggleAccountActive} style={{ display: "inline" }}>
+                    <input type="hidden" name="locale" value={locale} />
+                    <input type="hidden" name="user_id" value={a.id} />
+                    <input type="hidden" name="active" value={a.active ? "0" : "1"} />
+                    <button className="btn btn-outline" style={{ padding: "0.1875rem 0.5rem", fontSize: "0.75rem" }}>
+                      {a.active ? t("accounts.deactivate") : t("accounts.activate")}
+                    </button>
+                  </form>
+                )}
               </div>
             ))}
           </div>

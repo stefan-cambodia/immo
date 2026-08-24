@@ -15,6 +15,9 @@ import { advanceVerification, concludeVerification, openVerification }
   from "../../../../db/lib/titles.mjs";
 import { createApiPartner as insertApiPartner, issueApiKey as insertApiKey,
          revokeApiKey as revokeKey } from "../../../../db/lib/partner-api.mjs";
+import { createAccount as insertAccount, issueToken, setAccountActive as setActive }
+  from "../../../../db/lib/accounts.mjs";
+import { sendAccountEmail, setPasswordLink } from "@/lib/account-mail";
 import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n";
 
 /** Les formulaires du back-office fonctionnent sans JavaScript : le retour
@@ -940,6 +943,130 @@ export async function revokeApiKey(form: FormData) {
       targetId: keyId,
       targetLabel: revoked.prefix + "…",
       details: {},
+    });
+  });
+
+  revalidatePath("/[locale]/backoffice", "page");
+}
+
+// ---------------------------------------------------------------------------
+// Gestion des comptes
+// ---------------------------------------------------------------------------
+
+/**
+ * Envoie l'email d'invitation et remet le lien à la personne au clavier via
+ * le même cookie d'une minute que les clés API : au Cambodge il partira
+ * souvent par Telegram, et si le transport email échoue, le lien affiché
+ * est le canal de secours — le jeton émis reste valable.
+ */
+async function deliverInvite(
+  locale: string, email: string, name: string, token: string
+): Promise<void> {
+  const loc = isLocale(locale) ? locale : DEFAULT_LOCALE;
+  const link = setPasswordLink(loc, token);
+  await sendAccountEmail("invite", loc, email, { name, link });
+  (await cookies()).set("issued_invite_link", link, {
+    httpOnly: true, sameSite: "lax", maxAge: 60, path: `/${locale}/backoffice`,
+  });
+}
+
+/**
+ * Crée un compte et l'invite dans la foulée. Pas d'inscription libre : un
+ * compte du back-office engage une agence et ses annonces, il se crée en
+ * modération. Aucun mot de passe provisoire — le compte est inerte tant que
+ * l'invitation n'est pas consommée.
+ */
+export async function createUserAccount(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const email = String(form.get("email") ?? "").trim().toLowerCase().slice(0, 200);
+  const name = String(form.get("name") ?? "").trim().slice(0, 120);
+  const role = form.get("role") === "admin" ? "admin" : "agency";
+  const agencyId = String(form.get("agency_id") ?? "");
+  if (!email.includes("@") || !name) fail(locale, "invalid_input");
+  if (role === "agency" && !UUID.test(agencyId)) fail(locale, "invalid_input");
+
+  let outcome: string | null = null;
+  let invite: { token: string } | null = null;
+  await withTransaction(async (client) => {
+    const account = await insertAccount(client, {
+      email, name, role, agencyId: role === "agency" ? agencyId : null,
+    });
+    if (!account) { outcome = "duplicate_email"; return; }
+
+    invite = await issueToken(client, {
+      userId: account.id, purpose: "invite", createdBy: user.email,
+    });
+
+    await recordAudit(client, actorFromUser(user), {
+      action: "account_created",
+      targetType: "user",
+      targetId: account.id,
+      targetLabel: account.email,
+      details: { name, role, agencyId: account.agencyId, invited: Boolean(invite) },
+    });
+  });
+
+  if (typeof outcome === "string") fail(locale, outcome);
+  if (invite) await deliverInvite(locale, email, name, (invite as { token: string }).token);
+  revalidatePath("/[locale]/backoffice", "page");
+  redirect(`/${locale}/backoffice`);
+}
+
+/** Renvoie une invitation (compte jamais activé, lien périmé ou perdu). Le
+ *  jeton précédent est invalidé : le dernier lien envoyé fait foi. */
+export async function reinviteAccount(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const userId = String(form.get("user_id") ?? "");
+  if (!UUID.test(userId)) fail(locale, "invalid_input");
+
+  let invite: { token: string; email: string; name: string } | null = null;
+  await withTransaction(async (client) => {
+    invite = await issueToken(client, { userId, purpose: "invite", createdBy: user.email });
+    if (!invite) return; // compte inconnu ou désactivé : rien à journaliser
+
+    await recordAudit(client, actorFromUser(user), {
+      action: "account_invited",
+      targetType: "user",
+      targetId: userId,
+      targetLabel: invite.email,
+      details: {},
+    });
+  });
+
+  if (!invite) fail(locale, "invalid_input");
+  const issued = invite as { token: string; email: string; name: string };
+  await deliverInvite(locale, issued.email, issued.name, issued.token);
+  revalidatePath("/[locale]/backoffice", "page");
+  redirect(`/${locale}/backoffice`);
+}
+
+/** Active ou désactive un compte. La désactivation coupe les sessions et les
+ *  invitations en cours : la révocation est immédiate ou n'est pas. */
+export async function toggleAccountActive(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const userId = String(form.get("user_id") ?? "");
+  const active = form.get("active") === "1";
+  if (!UUID.test(userId)) fail(locale, "invalid_input");
+  // Se couper soi-même l'accès serait un tir dans le pied sans remède : le
+  // dernier admin actif doit passer par un autre admin.
+  if (userId === user.id) fail(locale, "invalid_input");
+
+  await withTransaction(async (client) => {
+    const changed = await setActive(client, userId, active);
+    if (!changed) return; // déjà dans cet état : rien à journaliser
+
+    await recordAudit(client, actorFromUser(user), {
+      action: "account_status_changed",
+      targetType: "user",
+      targetId: userId,
+      targetLabel: changed.email,
+      details: { active },
     });
   });
 

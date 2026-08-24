@@ -39,7 +39,8 @@
     "check:estimate": "node db/checks/estimate.mjs",
     "check:compare": "node db/checks/compare.mjs",
     "check:titles": "node db/checks/title-verification.mjs",
-    "check:partner-api": "node db/checks/partner-api.mjs"
+    "check:partner-api": "node db/checks/partner-api.mjs",
+    "check:accounts": "node db/checks/accounts.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

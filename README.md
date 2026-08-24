@@ -884,18 +884,16 @@ Hors périmètre de la phase 1, conformément à la roadmap :
   établir ;
 - **transcription des messages vocaux** — le brief les mentionne (§6.1) ; le
   bot demande aujourd'hui du texte ;
-- **facturation des abonnements, WeChat** (phase 3) ;
 - **alertes : premier envoi réel** — le circuit est vérifié de bout en bout avec
   le transport `file` et le double Telegram ; Resend et Postmark n'ont pas
   encore été appelés avec une clé réelle, et la délivrabilité (SPF, DKIM,
-  domaine d'envoi) reste à établir sur l'hébergement ;
-- **gestion des comptes** — l'authentification et le journal d'audit sont en
-  place, mais les comptes ne se créent qu'au seed : ni inscription, ni
-  réinitialisation de mot de passe, ni second facteur. Les mots de passe du
-  seed sont des mots de passe de développement.
-- **expiration des annonces** — `expire_stale_listings()` n'est toujours
-  déclenchée par rien. Le lanceur `ops/audit-retention.sh` donne le modèle à
-  reprendre : même verrou, même résolution de `node`, même journalisation.
+  domaine d'envoi) reste à établir sur l'hébergement — les invitations et
+  réinitialisations de mot de passe empruntent le même transport ;
+- **second facteur** — la gestion des comptes est en place (création en
+  modération, invitation par lien à usage unique, réinitialisation de mot de
+  passe, désactivation immédiate), mais les comptes admin n'ont pas de second
+  facteur. Les mots de passe du seed restent des mots de passe de
+  développement.
 - **stockage des archives** — les archives restent sur le disque local, sans
   copie hors site ni chiffrement au repos.
 - **médias réels** — les visuels sont générés par `/api/photo/[seed]` ; le
