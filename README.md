@@ -897,8 +897,12 @@ Hors périmètre de la phase 1, conformément à la roadmap :
   désactivation immédiate, second facteur TOTP auto-enrôlé), mais les mots de
   passe du seed restent des mots de passe de développement et aucun compte
   n'a de second facteur actif par défaut — chacun enrôle le sien.
-- **stockage des archives** — les archives restent sur le disque local, sans
-  copie hors site ni chiffrement au repos.
+- **garde de la clé d'archive** — les archives d'audit savent se chiffrer au
+  repos (AES-256-GCM via `ARCHIVE_KEY`, le clair ne survit pas au disque) et
+  se copier hors site (`ARCHIVE_S3_BUCKET`, même couche S3 signée que les
+  médias), mais la clé vit dans l'environnement : sa garde (coffre, rotation)
+  et l'exercice de restauration régulier restent une discipline
+  d'exploitation, pas du code.
 - **médias réels** — le pipeline est en place (variantes AVIF/WebP/JPEG par
   `ops/process-media.sh`, stockage abstrait local/S3 signé SigV4, `<picture>`
   sur les fiches et les cartes), mais les visuels de développement restent

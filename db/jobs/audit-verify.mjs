@@ -6,16 +6,20 @@
  * `audit_purged` n'est qu'une affirmation. Avec elle, l'archive et le journal
  * se confirment mutuellement.
  *
- *   node db/jobs/audit-verify.mjs var/audit-archive/audit-....jsonl
+ *   node db/jobs/audit-verify.mjs var/audit-archive/audit-....jsonl[.enc]
+ *
+ * Une archive chiffrée (suffixe .enc, ARCHIVE_KEY posée) est déchiffrée
+ * avant vérification : l'empreinte consignée décrit le contenu en clair.
  */
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import pg from "pg";
+import { decryptArchive, parseArchiveKey } from "../lib/archive-vault.mjs";
 
-const file = process.argv[2];
+let file = process.argv[2];
 if (!file) {
-  console.error("Usage : node db/jobs/audit-verify.mjs <archive.jsonl>");
+  console.error("Usage : node db/jobs/audit-verify.mjs <archive.jsonl[.enc]>");
   process.exit(1);
 }
 
@@ -26,13 +30,33 @@ let bytes;
 try {
   bytes = await readFile(file);
 } catch (err) {
-  if (err.code === "ENOENT") {
+  if (err.code !== "ENOENT") throw err;
+  // La rétention chiffrée ne laisse que le .enc : accepter le nom en clair.
+  try {
+    bytes = await readFile(`${file}.enc`);
+    file = `${file}.enc`;
+  } catch {
     console.error(`✗ Archive introuvable : ${file}`);
     console.error("  Une purge journalisée sans archive correspondante est une anomalie à instruire.");
     process.exit(1);
   }
-  throw err;
 }
+
+if (file.endsWith(".enc")) {
+  const key = parseArchiveKey();
+  if (!key) {
+    console.error("✗ Archive chiffrée mais ARCHIVE_KEY absente : impossible de vérifier.");
+    process.exit(1);
+  }
+  try {
+    bytes = decryptArchive(bytes, key);
+  } catch (err) {
+    console.error(`✗ Déchiffrement impossible : ${err.message}`);
+    console.error("  Clé fausse ou archive altérée — l'étiquette GCM ne pardonne ni l'un ni l'autre.");
+    process.exit(1);
+  }
+}
+
 const sha256 = createHash("sha256").update(bytes).digest("hex");
 const lines = bytes.toString("utf8").trimEnd().split("\n");
 
@@ -41,14 +65,17 @@ const db = new pg.Client({
 });
 await db.connect();
 
+// L'entrée de purge consigne le nom EN CLAIR : le suffixe .enc n'est qu'un
+// habillage du disque, il ne change pas ce qui a été purgé.
+const claimName = basename(file).replace(/\.enc$/, "");
 const { rows } = await db.query(
   `SELECT details, created_at FROM audit_log
    WHERE action = 'audit_purged' AND details->>'archive' = $1
    ORDER BY id DESC LIMIT 1`,
-  [basename(file)]);
+  [claimName]);
 
 if (rows.length === 0) {
-  console.error(`✗ Aucune entrée audit_purged ne mentionne ${basename(file)}.`);
+  console.error(`✗ Aucune entrée audit_purged ne mentionne ${claimName}.`);
   process.exit(1);
 }
 

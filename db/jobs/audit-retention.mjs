@@ -18,12 +18,17 @@
  * Variables d'environnement :
  *   AUDIT_RETENTION_DAYS   défaut 730 (deux ans)
  *   AUDIT_ARCHIVE_DIR      défaut ./var/audit-archive
+ *   ARCHIVE_KEY            chiffrement au repos (AES-256-GCM) — la version
+ *                          en clair ne survit pas sur le disque
+ *   ARCHIVE_S3_BUCKET      copie hors site (cf. db/lib/archive-vault.mjs)
  *   DATABASE_URL
  */
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { basename, join, resolve } from "node:path";
 import pg from "pg";
+import { createOffsiteStore, encryptArchive, decryptArchive, parseArchiveKey }
+  from "../lib/archive-vault.mjs";
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(`--${name}`);
@@ -53,8 +58,13 @@ if (!Number.isFinite(retentionDays) || retentionDays < 1) {
 const result = {
   retentionDays, dryRun, actor,
   cutoff: null, candidates: 0, archive: null, sha256: null, purged: 0,
-  from: null, to: null,
+  from: null, to: null, encrypted: false, offsite: null,
 };
+
+// La clé et le dépôt hors site sont validés AVANT toute purge : une
+// configuration cassée doit arrêter le job tant qu'il est encore inoffensif.
+const archiveKey = parseArchiveKey();
+const offsite = createOffsiteStore();
 
 const db = new pg.Client({
   connectionString: process.env.DATABASE_URL ?? "postgres://immo:immo@localhost:5433/cambodia_immo",
@@ -153,6 +163,46 @@ try {
   emit({ ...result, error: err.message });
   await db.end();
   process.exit(1);
+}
+
+// ------------------------------------------------- chiffrement au repos
+// Après la purge : l'empreinte consignée décrit le contenu en clair, le
+// chiffrement n'est qu'un habillage sur le disque. La version chiffrée est
+// relue et déchiffrée avant que le clair ne soit supprimé — le seul
+// exemplaire restant doit avoir prouvé qu'il s'ouvre.
+if (archiveKey) {
+  const sealedPath = `${path}.enc`;
+  await writeFile(sealedPath, encryptArchive(onDisk, archiveKey), { flag: "wx" });
+  const reread = decryptArchive(await readFile(sealedPath), archiveKey);
+  if (createHash("sha256").update(reread).digest("hex") !== sha256) {
+    console.error(`Chiffrement incohérent : ${sealedPath} ne restitue pas l'archive.`);
+    console.error(`La version en clair ${path} est conservée.`);
+    emit({ ...result, error: "encrypt_mismatch" });
+    await db.end();
+    process.exit(1);
+  }
+  await rm(path);
+  result.archive = sealedPath;
+  result.encrypted = true;
+  log(`Chiffrée : ${sealedPath} (le clair est supprimé).`);
+}
+
+// ------------------------------------------------------ copie hors site
+// Un échec ici n'annule rien — la purge est faite, l'archive locale est
+// saine — mais il doit être bruyant : code 1, le lanceur alerte.
+if (offsite) {
+  try {
+    const file = result.archive;
+    result.offsite = await offsite.put(
+      `audit/${basename(file)}`, await readFile(file), "application/octet-stream");
+    log(`Copie hors site : ${result.offsite}`);
+  } catch (err) {
+    console.error("Copie hors site échouée :", err.message);
+    console.error(`L'archive locale ${result.archive} est intacte ; relancer la copie.`);
+    emit({ ...result, error: "offsite_failed" });
+    await db.end();
+    process.exit(1);
+  }
 }
 
 emit(result);
