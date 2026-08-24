@@ -289,7 +289,12 @@
     "inviteSubject": "Votre accès au back-office Khmer Estate",
     "inviteBody": "Bonjour {name},\n\nUn compte vous a été créé sur le back-office Khmer Estate. Choisissez votre mot de passe avec ce lien (valable 7 jours) :\n\n{link}\n\nSi vous n'attendiez pas cette invitation, ignorez ce message.",
     "resetSubject": "Réinitialisation de votre mot de passe",
-    "resetBody": "Bonjour {name},\n\nPour choisir un nouveau mot de passe, suivez ce lien (valable 1 heure) :\n\n{link}\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez ce message — votre mot de passe reste inchangé."
+    "resetBody": "Bonjour {name},\n\nPour choisir un nouveau mot de passe, suivez ce lien (valable 1 heure) :\n\n{link}\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez ce message — votre mot de passe reste inchangé.",
+    "totpPrompt": "Saisissez le code affiché par votre application d'authentification.",
+    "totpCode": "Code à 6 chiffres",
+    "totpVerify": "Vérifier",
+    "invalidCode": "Code invalide ou déjà utilisé.",
+    "twoFactorExpired": "L'étape de vérification a expiré — reconnectez-vous."
   },
   "accounts": {
     "panelTitle": "Comptes",
@@ -307,6 +312,17 @@
     "lastLogin": "dernière connexion",
     "neverSignedIn": "jamais connecté",
     "duplicate": "Un compte existe déjà avec cette adresse."
+  },
+  "security": {
+    "panelTitle": "Sécurité du compte",
+    "panelHint": "Second facteur TOTP (application d'authentification), pour votre propre compte. La modération ne voit jamais votre secret : vous seul l'enrôlez, et le désactiver exige un code courant.",
+    "enable": "Activer le second facteur",
+    "enrollHint": "Ajoutez cette clé dans votre application d'authentification (Google Authenticator, Aegis…), puis confirmez avec le premier code affiché. Tant que ce n'est pas confirmé, rien ne change à la connexion.",
+    "codePlaceholder": "Code à 6 chiffres",
+    "confirm": "Confirmer et activer",
+    "disable": "Désactiver",
+    "statusOn": "Second facteur actif depuis le {date}",
+    "invalidCode": "Code invalide ou déjà utilisé."
   },
   "auditAction": {
     "sign_in": "Connexion",
@@ -335,7 +351,9 @@
     "account_created": "Compte créé",
     "account_invited": "Invitation renvoyée",
     "account_status_changed": "Compte activé/désactivé",
-    "password_set": "Mot de passe enregistré"
+    "password_set": "Mot de passe enregistré",
+    "totp_enabled": "Second facteur activé",
+    "totp_disabled": "Second facteur désactivé"
   },
   "landing": {
     "forSaleIn": "{type} à vendre à {area}",

@@ -289,7 +289,12 @@
     "inviteSubject": "Your access to the Khmer Estate back office",
     "inviteBody": "Hello {name},\n\nAn account has been created for you on the Khmer Estate back office. Choose your password with this link (valid 7 days):\n\n{link}\n\nIf you were not expecting this invitation, ignore this message.",
     "resetSubject": "Password reset",
-    "resetBody": "Hello {name},\n\nTo choose a new password, follow this link (valid 1 hour):\n\n{link}\n\nIf you did not make this request, ignore this message — your password remains unchanged."
+    "resetBody": "Hello {name},\n\nTo choose a new password, follow this link (valid 1 hour):\n\n{link}\n\nIf you did not make this request, ignore this message — your password remains unchanged.",
+    "totpPrompt": "Enter the code shown by your authenticator app.",
+    "totpCode": "6-digit code",
+    "totpVerify": "Verify",
+    "invalidCode": "Invalid or already-used code.",
+    "twoFactorExpired": "The verification step expired — sign in again."
   },
   "accounts": {
     "panelTitle": "Accounts",
@@ -307,6 +312,17 @@
     "lastLogin": "last sign-in",
     "neverSignedIn": "never signed in",
     "duplicate": "An account already exists with this address."
+  },
+  "security": {
+    "panelTitle": "Account security",
+    "panelHint": "TOTP second factor (authenticator app), for your own account. Moderation never sees your secret: only you enrol it, and disabling requires a current code.",
+    "enable": "Enable second factor",
+    "enrollHint": "Add this key to your authenticator app (Google Authenticator, Aegis…), then confirm with the first code shown. Until confirmed, nothing changes at sign-in.",
+    "codePlaceholder": "6-digit code",
+    "confirm": "Confirm and enable",
+    "disable": "Disable",
+    "statusOn": "Second factor active since {date}",
+    "invalidCode": "Invalid or already-used code."
   },
   "auditAction": {
     "sign_in": "Signed in",
@@ -335,7 +351,9 @@
     "account_created": "Account created",
     "account_invited": "Invitation resent",
     "account_status_changed": "Account enabled/disabled",
-    "password_set": "Password set"
+    "password_set": "Password set",
+    "totp_enabled": "Second factor enabled",
+    "totp_disabled": "Second factor disabled"
   },
   "landing": {
     "forSaleIn": "{type} for sale in {area}",

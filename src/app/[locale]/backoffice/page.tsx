@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { pool, query } from "@/lib/db";
+import { pool, query, queryOne } from "@/lib/db";
 import { daysUntil, formatDate, formatNumber, formatUsd } from "@/lib/format";
 import { getTranslator, i18nField, isLocale, type Locale } from "@/lib/i18n";
 import { getMapProvider, PHNOM_PENH } from "@/lib/map-provider";
@@ -19,11 +19,14 @@ import { createProperty, resolveDedup, addAlias, confirmListing, pinSubmission,
          voidInvoice, setVerification, requestTitleVerification,
          advanceTitleVerification, concludeTitleVerification,
          createApiPartner, issueApiKey, revokeApiKey,
-         createUserAccount, reinviteAccount, toggleAccountActive } from "./actions";
+         createUserAccount, reinviteAccount, toggleAccountActive,
+         startTotpEnrollment, cancelTotpEnrollment, confirmTotpEnrollment,
+         disableTotp } from "./actions";
 import { listPartners, listVerifications, OPEN_STATUSES }
   from "../../../../db/lib/titles.mjs";
 import { listApiPartners } from "../../../../db/lib/partner-api.mjs";
 import { listAccounts } from "../../../../db/lib/accounts.mjs";
+import { otpauthUri } from "../../../../db/lib/totp.mjs";
 
 /** Compte du back-office, tel que renvoyé par accounts.mjs. */
 interface AccountRow {
@@ -120,7 +123,7 @@ export default async function BackofficePage({
   const [locations, agents, dedup, misses, expiring, reuse, leadStats,
          audit, auditTotal, span, pending, translations,
          billingRows, invoicesOpen, plans, verifRows,
-         titleDossiers, titlePartners, apiPartners, accounts] = await Promise.all([
+         titleDossiers, titlePartners, apiPartners, accounts, totp] = await Promise.all([
     query<{ slug: string; name: Record<string, string>; parent: Record<string, string> | null }>(
       `SELECT l.slug, l.name_i18n AS name, p.name_i18n AS parent
        FROM locations l LEFT JOIN locations p ON p.id = l.parent_id
@@ -240,6 +243,11 @@ export default async function BackofficePage({
     isAdmin ? (listApiPartners(pool) as Promise<ApiPartnerRow[]>) : [],
     // Comptes du back-office et invitations en cours, modération seulement.
     isAdmin ? (listAccounts(pool) as Promise<AccountRow[]>) : [],
+    // Second facteur du compte CONNECTÉ : chacun gère le sien, la modération
+    // ne voit jamais un secret.
+    queryOne<{ secret: string | null; enabledAt: string | null }>(
+      `SELECT totp_secret AS secret, totp_enabled_at AS "enabledAt"
+       FROM users WHERE id = $1`, [user.id]),
   ]);
 
   return (
@@ -300,7 +308,9 @@ export default async function BackofficePage({
                           ? t("apiPartners.duplicate")
                           : error === "duplicate_email"
                             ? t("accounts.duplicate")
-                            : String(error)}
+                            : error === "invalid_code"
+                              ? t("security.invalidCode")
+                              : String(error)}
           </p>
         )}
       </header>
@@ -1061,6 +1071,71 @@ export default async function BackofficePage({
                       filters={auditFilters} locale={locale} t={t} />
         </Panel>
         )}
+
+        {/* ------- Sécurité du compte connecté — tous les rôles ------- */}
+        <Panel title={t("security.panelTitle")} hint={t("security.panelHint")}>
+          {totp?.enabledAt ? (
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+              <span className="chip" style={{
+                background: "var(--color-fresh-soft)", color: "var(--color-fresh)",
+              }}>
+                {t("security.statusOn", { date: formatDate(totp.enabledAt, locale) })}
+              </span>
+              <form action={disableTotp} style={{ display: "flex", gap: "0.375rem", alignItems: "center" }}>
+                <input type="hidden" name="locale" value={locale} />
+                <input className="field" name="code" required inputMode="numeric"
+                       pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code"
+                       placeholder={t("security.codePlaceholder")}
+                       aria-label={t("security.codePlaceholder")}
+                       style={{ width: "7rem", fontSize: "0.8125rem", padding: "0.3125rem 0.5rem" }} />
+                <button className="btn btn-outline" style={{ padding: "0.3125rem 0.625rem", fontSize: "0.8125rem" }}>
+                  {t("security.disable")}
+                </button>
+              </form>
+            </div>
+          ) : totp?.secret ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+              <p style={{ fontSize: "0.8125rem", lineHeight: 1.6, color: "var(--color-ink-soft)" }}>
+                {t("security.enrollHint")}
+              </p>
+              <code style={{
+                fontSize: "0.9375rem", fontWeight: 700, letterSpacing: "0.08em",
+                overflowWrap: "anywhere", userSelect: "all",
+              }}>
+                {totp.secret.replace(/(.{4})/g, "$1 ").trim()}
+              </code>
+              <p style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)",
+                          overflowWrap: "anywhere" }}>
+                {otpauthUri(user.email, totp.secret)}
+              </p>
+              <form action={confirmTotpEnrollment}
+                    style={{ display: "flex", gap: "0.375rem", alignItems: "center", flexWrap: "wrap" }}>
+                <input type="hidden" name="locale" value={locale} />
+                <input className="field" name="code" required inputMode="numeric"
+                       pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code"
+                       placeholder={t("security.codePlaceholder")}
+                       aria-label={t("security.codePlaceholder")}
+                       style={{ width: "7rem", fontSize: "0.8125rem", padding: "0.3125rem 0.5rem" }} />
+                <button className="btn btn-primary" style={{ padding: "0.3125rem 0.75rem", fontSize: "0.8125rem" }}>
+                  {t("security.confirm")}
+                </button>
+              </form>
+              <form action={cancelTotpEnrollment}>
+                <input type="hidden" name="locale" value={locale} />
+                <button className="btn btn-outline" style={{ padding: "0.25rem 0.625rem", fontSize: "0.75rem" }}>
+                  {t("backoffice.cancel")}
+                </button>
+              </form>
+            </div>
+          ) : (
+            <form action={startTotpEnrollment}>
+              <input type="hidden" name="locale" value={locale} />
+              <button className="btn btn-primary" style={{ padding: "0.3125rem 0.75rem", fontSize: "0.8125rem" }}>
+                {t("security.enable")}
+              </button>
+            </form>
+          )}
+        </Panel>
 
         {/* ------------------------------------------------------- Leads */}
         <Panel title={`${t("backoffice.leads")} — 30 ${t("filters.days")}`}>

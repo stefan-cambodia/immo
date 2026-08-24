@@ -289,7 +289,12 @@
     "inviteSubject": "您的 Khmer Estate 后台访问权限",
     "inviteBody": "{name}，您好：\n\n已为您在 Khmer Estate 后台创建账户。请通过以下链接设置密码（7 天内有效）：\n\n{link}\n\n如果您并未预期此邀请，请忽略本邮件。",
     "resetSubject": "重置密码",
-    "resetBody": "{name}，您好：\n\n请通过以下链接设置新密码（1 小时内有效）：\n\n{link}\n\n如果这不是您本人的操作，请忽略本邮件——您的密码保持不变。"
+    "resetBody": "{name}，您好：\n\n请通过以下链接设置新密码（1 小时内有效）：\n\n{link}\n\n如果这不是您本人的操作，请忽略本邮件——您的密码保持不变。",
+    "totpPrompt": "请输入身份验证器应用显示的验证码。",
+    "totpCode": "6 位验证码",
+    "totpVerify": "验证",
+    "invalidCode": "验证码无效或已使用。",
+    "twoFactorExpired": "验证步骤已过期——请重新登录。"
   },
   "accounts": {
     "panelTitle": "账户",
@@ -307,6 +312,17 @@
     "lastLogin": "最近登录",
     "neverSignedIn": "从未登录",
     "duplicate": "该邮箱已存在账户。"
+  },
+  "security": {
+    "panelTitle": "账户安全",
+    "panelHint": "TOTP 双重验证（身份验证器应用），仅针对您自己的账户。审核端永远看不到您的密钥：只有您本人可以绑定，停用需要输入当前验证码。",
+    "enable": "启用双重验证",
+    "enrollHint": "将此密钥添加到您的身份验证器应用（Google Authenticator、Aegis 等），然后输入显示的第一个验证码进行确认。确认前登录方式不变。",
+    "codePlaceholder": "6 位验证码",
+    "confirm": "确认并启用",
+    "disable": "停用",
+    "statusOn": "双重验证已于 {date} 启用",
+    "invalidCode": "验证码无效或已使用。"
   },
   "auditAction": {
     "sign_in": "登录",
@@ -335,7 +351,9 @@
     "account_created": "已创建账户",
     "account_invited": "已重发邀请",
     "account_status_changed": "已启用/停用账户",
-    "password_set": "已设置密码"
+    "password_set": "已设置密码",
+    "totp_enabled": "已启用双重验证",
+    "totp_disabled": "已停用双重验证"
   },
   "landing": {
     "forSaleIn": "{area}{type}出售",

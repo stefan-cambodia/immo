@@ -194,12 +194,16 @@ export interface LoginOutcome {
   ok: boolean;
   reason?: "invalid_credentials" | "rate_limited";
   userId?: string;
+  /** Le mot de passe est bon mais le compte exige un code TOTP : pas de
+   *  session tant que le second facteur n'est pas passé. */
+  secondFactor?: boolean;
 }
 
-export async function attemptLogin(emailRaw: string, password: string): Promise<LoginOutcome> {
+/** La limitation des tentatives, partagée entre le mot de passe et le code
+ *  TOTP : un code se devine par force brute exactement comme un mot de passe. */
+export async function isLoginBlocked(emailRaw: string): Promise<boolean> {
   const email = emailRaw.trim().toLowerCase();
   const { ip } = await clientMeta();
-
   const [{ blocked }] = await query<{ blocked: boolean }>(
     `SELECT (
        (SELECT count(*) FROM login_attempts
@@ -212,10 +216,25 @@ export async function attemptLogin(emailRaw: string, password: string): Promise<
      ) AS blocked`,
     [email, ip, ATTEMPT_WINDOW, MAX_ATTEMPTS]
   );
-  if (blocked) return { ok: false, reason: "rate_limited" };
+  return blocked;
+}
 
-  const user = await queryOne<{ id: string; password_hash: string }>(
-    `SELECT id, password_hash FROM users WHERE lower(email) = $1 AND active`,
+export async function recordLoginAttempt(emailRaw: string, successful: boolean): Promise<void> {
+  const { ip } = await clientMeta();
+  await query(
+    `INSERT INTO login_attempts(email, ip, successful) VALUES ($1, $2, $3)`,
+    [emailRaw.trim().toLowerCase(), ip, successful]
+  );
+}
+
+export async function attemptLogin(emailRaw: string, password: string): Promise<LoginOutcome> {
+  const email = emailRaw.trim().toLowerCase();
+
+  if (await isLoginBlocked(email)) return { ok: false, reason: "rate_limited" };
+
+  const user = await queryOne<{ id: string; password_hash: string; totp: boolean }>(
+    `SELECT id, password_hash, totp_enabled_at IS NOT NULL AS totp
+     FROM users WHERE lower(email) = $1 AND active`,
     [email]
   );
 
@@ -224,10 +243,11 @@ export async function attemptLogin(emailRaw: string, password: string): Promise<
   const valid = await verifyPassword(password, user?.password_hash ?? DECOY_HASH);
   const ok = Boolean(user) && valid;
 
-  await query(
-    `INSERT INTO login_attempts(email, ip, successful) VALUES ($1, $2, $3)`,
-    [email, ip, ok]
-  );
+  // Avec second facteur, la tentative ne compte comme réussie qu'une fois le
+  // code passé : l'étape TOTP enregistre la sienne.
+  if (!user?.totp || !ok) await recordLoginAttempt(email, ok);
 
-  return ok ? { ok: true, userId: user!.id } : { ok: false, reason: "invalid_credentials" };
+  return ok
+    ? { ok: true, userId: user!.id, secondFactor: user!.totp }
+    : { ok: false, reason: "invalid_credentials" };
 }

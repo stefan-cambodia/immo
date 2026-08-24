@@ -892,11 +892,11 @@ Hors périmètre de la phase 1, conformément à la roadmap :
   encore été appelés avec une clé réelle, et la délivrabilité (SPF, DKIM,
   domaine d'envoi) reste à établir sur l'hébergement — les invitations et
   réinitialisations de mot de passe empruntent le même transport ;
-- **second facteur** — la gestion des comptes est en place (création en
-  modération, invitation par lien à usage unique, réinitialisation de mot de
-  passe, désactivation immédiate), mais les comptes admin n'ont pas de second
-  facteur. Les mots de passe du seed restent des mots de passe de
-  développement.
+- **mots de passe du seed** — la gestion des comptes est complète (création
+  en modération, invitation par lien à usage unique, réinitialisation,
+  désactivation immédiate, second facteur TOTP auto-enrôlé), mais les mots de
+  passe du seed restent des mots de passe de développement et aucun compte
+  n'a de second facteur actif par défaut — chacun enrôle le sien.
 - **stockage des archives** — les archives restent sur le disque local, sans
   copie hors site ni chiffrement au repos.
 - **médias réels** — le pipeline est en place (variantes AVIF/WebP/JPEG par

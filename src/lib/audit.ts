@@ -13,6 +13,7 @@ export const AUDIT_ACTIONS = [
   "title_verification_concluded",
   "api_partner_created", "api_key_issued", "api_key_revoked",
   "account_created", "account_invited", "account_status_changed", "password_set",
+  "totp_enabled", "totp_disabled",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

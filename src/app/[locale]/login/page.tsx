@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { getTranslator, isLocale, type Locale } from "@/lib/i18n";
-import { signIn } from "./actions";
+import { signIn, verifySecondFactor } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,8 @@ export async function generateMetadata(
   return { title: t("auth.signInTitle"), robots: { index: false, follow: false } };
 }
 
-const ERRORS = ["invalidCredentials", "rateLimited", "missingFields", "sessionExpired", "forbidden"];
+const ERRORS = ["invalidCredentials", "rateLimited", "missingFields", "sessionExpired",
+                "forbidden", "invalidCode", "twoFactorExpired"];
 
 export default async function LoginPage({
   params, searchParams,
@@ -34,6 +35,9 @@ export default async function LoginPage({
   const next = one("next") || `/${locale}/backoffice`;
   const error = ERRORS.includes(one("error")) ? one("error") : null;
   const notice = one("notice") === "passwordSet" ? "passwordSet" : null;
+  // Étape du second facteur : le mot de passe est validé, la page ne demande
+  // plus que le code. Le jeton d'étape vit dans un cookie httpOnly.
+  const totpStep = one("step") === "totp";
 
   // Déjà connecté : rien à faire sur cette page.
   if (await getCurrentUser()) redirect(next.startsWith("/") ? next : `/${locale}/backoffice`);
@@ -71,35 +75,62 @@ export default async function LoginPage({
           </p>
         )}
 
-        <form action={signIn} style={{
-          display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "1.25rem",
-        }}>
-          <input type="hidden" name="locale" value={locale} />
-          <input type="hidden" name="next" value={next} />
+        {totpStep ? (
+          <form action={verifySecondFactor} style={{
+            display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "1.25rem",
+          }}>
+            <input type="hidden" name="locale" value={locale} />
+            <input type="hidden" name="next" value={next} />
 
-          <label style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)", fontWeight: 600 }}>
-            {t("auth.email")}
-            <input className="field" type="email" name="email" required autoComplete="username"
-                   autoFocus inputMode="email" style={{ marginTop: "0.25rem" }} />
-          </label>
+            <p style={{ fontSize: "0.875rem", color: "var(--color-ink-soft)", lineHeight: 1.6 }}>
+              {t("auth.totpPrompt")}
+            </p>
+            <label style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)", fontWeight: 600 }}>
+              {t("auth.totpCode")}
+              <input className="field" name="code" required autoFocus
+                     inputMode="numeric" pattern="[0-9]{6}" maxLength={6}
+                     autoComplete="one-time-code"
+                     style={{ marginTop: "0.25rem", letterSpacing: "0.25em",
+                              fontVariantNumeric: "tabular-nums" }} />
+            </label>
 
-          <label style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)", fontWeight: 600 }}>
-            {t("auth.password")}
-            <input className="field" type="password" name="password" required
-                   autoComplete="current-password" style={{ marginTop: "0.25rem" }} />
-          </label>
+            <button type="submit" className="btn btn-primary" style={{ marginTop: "0.25rem" }}>
+              {t("auth.totpVerify")}
+            </button>
+          </form>
+        ) : (
+          <form action={signIn} style={{
+            display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "1.25rem",
+          }}>
+            <input type="hidden" name="locale" value={locale} />
+            <input type="hidden" name="next" value={next} />
 
-          <button type="submit" className="btn btn-primary" style={{ marginTop: "0.25rem" }}>
-            {t("auth.signIn")}
-          </button>
-        </form>
+            <label style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)", fontWeight: 600 }}>
+              {t("auth.email")}
+              <input className="field" type="email" name="email" required autoComplete="username"
+                     autoFocus inputMode="email" style={{ marginTop: "0.25rem" }} />
+            </label>
 
-        <p style={{ marginTop: "1rem", fontSize: "0.8125rem" }}>
-          <Link href={`/${locale}/account/forgot`}
-                style={{ color: "var(--color-brand)", fontWeight: 600 }}>
-            {t("auth.forgotLink")}
-          </Link>
-        </p>
+            <label style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)", fontWeight: 600 }}>
+              {t("auth.password")}
+              <input className="field" type="password" name="password" required
+                     autoComplete="current-password" style={{ marginTop: "0.25rem" }} />
+            </label>
+
+            <button type="submit" className="btn btn-primary" style={{ marginTop: "0.25rem" }}>
+              {t("auth.signIn")}
+            </button>
+          </form>
+        )}
+
+        {!totpStep && (
+          <p style={{ marginTop: "1rem", fontSize: "0.8125rem" }}>
+            <Link href={`/${locale}/account/forgot`}
+                  style={{ color: "var(--color-brand)", fontWeight: 600 }}>
+              {t("auth.forgotLink")}
+            </Link>
+          </p>
+        )}
       </div>
     </div>
   );

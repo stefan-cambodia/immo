@@ -17,6 +17,7 @@ import { createApiPartner as insertApiPartner, issueApiKey as insertApiKey,
          revokeApiKey as revokeKey } from "../../../../db/lib/partner-api.mjs";
 import { createAccount as insertAccount, issueToken, setAccountActive as setActive }
   from "../../../../db/lib/accounts.mjs";
+import { generateTotpSecret, verifyTotp } from "../../../../db/lib/totp.mjs";
 import { sendAccountEmail, setPasswordLink } from "@/lib/account-mail";
 import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n";
 
@@ -1067,6 +1068,100 @@ export async function toggleAccountActive(form: FormData) {
       targetId: userId,
       targetLabel: changed.email,
       details: { active },
+    });
+  });
+
+  revalidatePath("/[locale]/backoffice", "page");
+}
+
+// ---------------------------------------------------------------------------
+// Second facteur — auto-enrôlement uniquement : la modération crée des
+// comptes mais ne voit jamais un secret TOTP. Chacun enrôle son téléphone.
+// ---------------------------------------------------------------------------
+
+/** Pose un secret en attente de confirmation. Rien n'est encore exigé à la
+ *  connexion : le second facteur ne s'applique qu'une fois le premier code
+ *  passé — un secret jamais scanné ne doit pas verrouiller le compte. */
+export async function startTotpEnrollment(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale);
+
+  await queryOne(
+    `UPDATE users SET totp_secret = $2, totp_last_step = 0
+     WHERE id = $1 AND totp_enabled_at IS NULL RETURNING id`,
+    [user.id, generateTotpSecret()]);
+
+  revalidatePath("/[locale]/backoffice", "page");
+}
+
+export async function cancelTotpEnrollment(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale);
+
+  await queryOne(
+    `UPDATE users SET totp_secret = NULL
+     WHERE id = $1 AND totp_enabled_at IS NULL RETURNING id`,
+    [user.id]);
+
+  revalidatePath("/[locale]/backoffice", "page");
+}
+
+/** Active le second facteur sur un premier code valide : la preuve que le
+ *  téléphone a bien enregistré le secret. */
+export async function confirmTotpEnrollment(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale);
+  const code = String(form.get("code") ?? "");
+
+  const row = await queryOne<{ secret: string | null }>(
+    `SELECT totp_secret AS secret FROM users
+     WHERE id = $1 AND totp_enabled_at IS NULL`, [user.id]);
+  if (!row?.secret) fail(locale, "invalid_input");
+
+  const step = verifyTotp(row.secret, code);
+  if (step === null) fail(locale, "invalid_code");
+
+  await withTransaction(async (client) => {
+    await client.query(
+      `UPDATE users SET totp_enabled_at = now(), totp_last_step = $2 WHERE id = $1`,
+      [user.id, step]);
+    await recordAudit(client, actorFromUser(user), {
+      action: "totp_enabled",
+      targetType: "user",
+      targetId: user.id,
+      targetLabel: user.email,
+      details: {},
+    });
+  });
+
+  revalidatePath("/[locale]/backoffice", "page");
+}
+
+/** Désactiver exige un code courant : un poste laissé ouvert ne suffit pas
+ *  à retirer le second facteur. */
+export async function disableTotp(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale);
+  const code = String(form.get("code") ?? "");
+
+  const row = await queryOne<{ secret: string | null; lastStep: string }>(
+    `SELECT totp_secret AS secret, totp_last_step AS "lastStep" FROM users
+     WHERE id = $1 AND totp_enabled_at IS NOT NULL`, [user.id]);
+  if (!row?.secret) fail(locale, "invalid_input");
+
+  const step = verifyTotp(row.secret, code, { lastStep: Number(row.lastStep) });
+  if (step === null) fail(locale, "invalid_code");
+
+  await withTransaction(async (client) => {
+    await client.query(
+      `UPDATE users SET totp_secret = NULL, totp_enabled_at = NULL, totp_last_step = 0
+       WHERE id = $1`, [user.id]);
+    await recordAudit(client, actorFromUser(user), {
+      action: "totp_disabled",
+      targetType: "user",
+      targetId: user.id,
+      targetLabel: user.email,
+      details: {},
     });
   });
 

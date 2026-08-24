@@ -16,6 +16,11 @@ import { createHash, randomBytes } from "node:crypto";
 
 export const INVITE_TTL = "7 days";
 export const RESET_TTL = "1 hour";
+// Mot de passe validé, code TOTP attendu : cinq minutes suffisent à ouvrir
+// une application d'authentification.
+export const SECOND_FACTOR_TTL = "5 minutes";
+
+const TTL = { invite: INVITE_TTL, reset: RESET_TTL, second_factor: SECOND_FACTOR_TTL };
 
 /** Limitation des demandes de réinitialisation. */
 export const RESET_MAX_PER_EMAIL = 3; // par heure
@@ -106,7 +111,7 @@ export async function issueToken(db, { userId, purpose, createdBy }) {
     [userId, purpose]);
 
   const { token, hash } = generateAccountToken();
-  const ttl = purpose === "invite" ? INVITE_TTL : RESET_TTL;
+  const ttl = TTL[purpose];
   const { rows: [row] } = await db.query(
     `INSERT INTO account_tokens(user_id, purpose, token_hash, expires_at, created_by)
      VALUES ($1, $2, $3, now() + $4::interval, $5)
@@ -149,6 +154,45 @@ export async function consumeTokenAndSetPassword(db, { token, passwordHash }) {
     [consumed.userId, passwordHash]);
   await db.query(`DELETE FROM sessions WHERE user_id = $1`, [consumed.userId]);
   return consumed;
+}
+
+// ---------------------------------------------------------------------------
+// Second facteur — l'étape entre le mot de passe et la session
+// ---------------------------------------------------------------------------
+
+/** Le compte derrière un jeton de second facteur, secret TOTP compris.
+ *  Regarde sans consommer : un code faux ne brûle pas l'étape. */
+export async function pendingSecondFactor(db, token) {
+  if (!token) return null;
+  const { rows: [row] } = await db.query(
+    `SELECT u.id AS "userId", u.email, u.name, u.role::text AS role,
+            a.name AS "agencyName", u.totp_secret AS secret,
+            u.totp_last_step AS "lastStep"
+     FROM account_tokens t
+     JOIN users u ON u.id = t.user_id
+     LEFT JOIN agencies a ON a.id = u.agency_id
+     WHERE t.token_hash = $1 AND t.purpose = 'second_factor'
+       AND t.used_at IS NULL AND t.expires_at > now() AND u.active`,
+    [hashToken(token)]);
+  return row ?? null;
+}
+
+/** Consomme le jeton après un code accepté et avance le dernier pas servi :
+ *  le même code, rejoué, sera refusé. */
+export async function completeSecondFactor(db, token, step) {
+  const { rows: [row] } = await db.query(
+    `UPDATE account_tokens t SET used_at = now()
+     FROM users u
+     WHERE t.token_hash = $1 AND t.purpose = 'second_factor'
+       AND t.used_at IS NULL AND t.expires_at > now()
+       AND u.id = t.user_id AND u.active
+     RETURNING t.user_id AS "userId"`,
+    [hashToken(token)]);
+  if (!row) return null;
+  await db.query(
+    `UPDATE users SET totp_last_step = GREATEST(totp_last_step, $2) WHERE id = $1`,
+    [row.userId, step]);
+  return row;
 }
 
 // ---------------------------------------------------------------------------
