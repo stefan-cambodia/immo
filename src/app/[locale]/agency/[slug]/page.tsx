@@ -48,7 +48,9 @@ export default async function AgencyPage({
            b.slug AS "buildingSlug", b.name_i18n AS "buildingName",
            agg.agency_count AS "agencyCount", agg.price_min AS "priceMin",
            agg.price_max AS "priceMax", agg.last_confirmed AS "lastConfirmed", agg.featured,
-           (SELECT url FROM media WHERE property_id = p.id ORDER BY position LIMIT 1) AS photo
+           (SELECT url FROM media WHERE property_id = p.id ORDER BY position LIMIT 1) AS photo,
+           (SELECT NULLIF(variants, '[]'::jsonb) FROM media
+             WHERE property_id = p.id ORDER BY position LIMIT 1) AS "photoVariants"
     FROM listings l
     JOIN properties p ON p.id = l.property_id
     JOIN agg ON agg.property_id = p.id

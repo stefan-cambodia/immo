@@ -188,6 +188,16 @@ export async function logSearchMiss(q: string, locale: Locale, filters: unknown)
 // ---------------------------------------------------------------------------
 // Requête principale
 // ---------------------------------------------------------------------------
+
+/** Variante générée par le pipeline des médias (§7). */
+export interface MediaVariant {
+  url: string;
+  format: string;
+  width: number;
+  height: number;
+  bytes?: number;
+}
+
 export interface PropertyCard {
   id: string;
   reference: string;
@@ -216,6 +226,7 @@ export interface PropertyCard {
   lastConfirmed: string;
   featured: boolean;
   photo: string | null;
+  photoVariants: MediaVariant[] | null;
   total: number;
 }
 
@@ -324,6 +335,8 @@ export async function searchProperties(f: Filters): Promise<{ rows: PropertyCard
       m.price_min AS "priceMin", m.price_max AS "priceMax",
       m.last_confirmed AS "lastConfirmed", m.featured,
       (SELECT url FROM media WHERE property_id = m.id ORDER BY position LIMIT 1) AS photo,
+      (SELECT NULLIF(variants, '[]'::jsonb) FROM media
+        WHERE property_id = m.id ORDER BY position LIMIT 1) AS "photoVariants",
       count(*) OVER () AS total
     FROM matched m
     JOIN locations loc ON loc.id = m.location_id
@@ -486,8 +499,11 @@ export async function getProperty(reference: string) {
     [property.id]
   );
 
-  const photos = await query<{ url: string; width: number; height: number }>(
-    `SELECT url, width, height FROM media WHERE property_id = $1 ORDER BY position`,
+  const photos = await query<{
+    url: string; width: number; height: number; variants: MediaVariant[] | null;
+  }>(
+    `SELECT url, width, height, NULLIF(variants, '[]'::jsonb) AS variants
+     FROM media WHERE property_id = $1 ORDER BY position`,
     [property.id]
   );
 
@@ -512,7 +528,9 @@ export async function similarProperties(propertyId: string, limit = 4) {
            loc.slug AS "locationSlug", loc.name_i18n AS "locationName",
            agg.price_min AS "priceMin", agg.price_max AS "priceMax",
            agg.agency_count AS "agencyCount", agg.last_confirmed AS "lastConfirmed",
-           (SELECT url FROM media WHERE property_id = p.id ORDER BY position LIMIT 1) AS photo
+           (SELECT url FROM media WHERE property_id = p.id ORDER BY position LIMIT 1) AS photo,
+           (SELECT NULLIF(variants, '[]'::jsonb) FROM media
+             WHERE property_id = p.id ORDER BY position LIMIT 1) AS "photoVariants"
     FROM properties p
     JOIN agg ON agg.property_id = p.id
     JOIN locations loc ON loc.id = p.location_id

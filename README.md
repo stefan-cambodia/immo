@@ -694,6 +694,7 @@ Trois tâches tournent en dehors de l'application, sur un socle commun
 | Tâche | Cadence visée | Rôle |
 |---|---|---|
 | `ops/send-alerts.sh` | **toutes les 15 minutes** | Envoie les alertes dues ; purge les inscriptions non confirmées |
+| `ops/process-media.sh` | **toutes les 15 minutes** | Génère et stocke les variantes WebP/AVIF/JPEG des médias en attente (§7) |
 | `ops/expire-listings.sh` | **horaire** | Bascule à `expired` les annonces passé 45 jours (§6.3) |
 | `ops/audit-retention.sh` | **hebdomadaire** | Archive puis purge le journal d'audit, et vérifie l'archive |
 
@@ -705,10 +706,12 @@ connexion — ce qui est précisément le rôle du socle décrit plus bas.
 
 ```bash
 npm run alerts:send              # ops/send-alerts.sh
+npm run media:process            # ops/process-media.sh
 npm run listings:expire          # ops/expire-listings.sh
 npm run audit:retention          # archive puis purge
 
 npm run alerts:send-check        # simulation, aucune modification
+npm run media:process-check      # simulation, aucune modification
 npm run listings:expire-check    # simulation, aucune modification
 npm run audit:retention-check    # simulation, aucune modification
 ```
@@ -896,5 +899,8 @@ Hors périmètre de la phase 1, conformément à la roadmap :
   développement.
 - **stockage des archives** — les archives restent sur le disque local, sans
   copie hors site ni chiffrement au repos.
-- **médias réels** — les visuels sont générés par `/api/photo/[seed]` ; le
-  stockage S3 + CDN avec variantes WebP/AVIF est à brancher.
+- **médias réels** — le pipeline est en place (variantes AVIF/WebP/JPEG par
+  `ops/process-media.sh`, stockage abstrait local/S3 signé SigV4, `<picture>`
+  sur les fiches et les cartes), mais les visuels de développement restent
+  générés par `/api/photo/[seed]` : le bucket réel, son CDN devant `/media/`
+  et l'envoi direct de photos depuis le back-office restent à brancher.

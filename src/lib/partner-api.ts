@@ -380,8 +380,8 @@ export async function getPartnerProperty(reference: string) {
        ORDER BY l.price_usd, a.slug`,
       [row.id]
     ),
-    query<{ url: string; width: number | null; height: number | null }>(
-      `SELECT url, width, height FROM media
+    query<{ url: string; width: number | null; height: number | null; variants: unknown[] }>(
+      `SELECT url, width, height, variants FROM media
        WHERE property_id = $1 ORDER BY position`,
       [row.id]
     ),

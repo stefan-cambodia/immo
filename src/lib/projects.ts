@@ -140,7 +140,9 @@ export async function projectProperties(buildingId: string, limit = 24): Promise
            agg.agency_count AS "agencyCount", agg.listing_count AS "listingCount",
            agg.price_min AS "priceMin", agg.price_max AS "priceMax",
            agg.last_confirmed AS "lastConfirmed", agg.featured,
-           (SELECT url FROM media WHERE property_id = p.id ORDER BY position LIMIT 1) AS photo
+           (SELECT url FROM media WHERE property_id = p.id ORDER BY position LIMIT 1) AS photo,
+           (SELECT NULLIF(variants, '[]'::jsonb) FROM media
+             WHERE property_id = p.id ORDER BY position LIMIT 1) AS "photoVariants"
     FROM properties p
     JOIN agg ON agg.property_id = p.id
     JOIN locations loc ON loc.id = p.location_id

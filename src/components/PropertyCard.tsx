@@ -3,6 +3,7 @@ import { formatUsd, formatKhr, formatNumber } from "@/lib/format";
 import { i18nField, type Locale, type Translator } from "@/lib/i18n";
 import type { PropertyCard as Card } from "@/lib/search";
 import { AgencyCountBadge, ForeignEligibleBadge, FreshnessBadge } from "./Badges";
+import { Pic } from "./Pic";
 
 export function PropertyCardItem({
   item, locale, t, transaction,
@@ -17,14 +18,14 @@ export function PropertyCardItem({
       <Link href={`/${locale}/property/${item.reference}`} style={{ display: "block", position: "relative" }}>
         <div className="ph" style={{ aspectRatio: "4 / 3", position: "relative" }}>
           {item.photo && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={item.photo}
+            <Pic
+              url={item.photo}
+              variants={item.photoVariants}
               alt=""
               loading="lazy"
-              decoding="async"
               width={400}
               height={300}
+              sizes="(min-width: 700px) 320px, 100vw"
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
           )}
