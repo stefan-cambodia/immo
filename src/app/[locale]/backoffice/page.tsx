@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { pool, query } from "@/lib/db";
 import { daysUntil, formatDate, formatNumber, formatUsd } from "@/lib/format";
@@ -16,9 +17,30 @@ import { signOut } from "../login/actions";
 import { createProperty, resolveDedup, addAlias, confirmListing, pinSubmission,
          approveTranslation, changeTier, issueInvoice, markInvoicePaid,
          voidInvoice, setVerification, requestTitleVerification,
-         advanceTitleVerification, concludeTitleVerification } from "./actions";
+         advanceTitleVerification, concludeTitleVerification,
+         createApiPartner, issueApiKey, revokeApiKey } from "./actions";
 import { listPartners, listVerifications, OPEN_STATUSES }
   from "../../../../db/lib/titles.mjs";
+import { listApiPartners } from "../../../../db/lib/partner-api.mjs";
+
+/** Partenaire API et ses clés, tels que renvoyés par partner-api.mjs. */
+interface ApiPartnerRow {
+  id: string;
+  slug: string;
+  name: string;
+  contact: string | null;
+  active: boolean;
+  keys: {
+    id: string;
+    prefix: string;
+    label: string;
+    dailyQuota: number;
+    createdAt: string;
+    lastUsedAt: string | null;
+    revokedAt: string | null;
+    usedToday: number;
+  }[];
+}
 
 /** Dossier de vérification de titre, tel que renvoyé par titles.mjs. */
 interface TitleDossier {
@@ -74,10 +96,16 @@ export default async function BackofficePage({
   // aux requêtes, pas appliqué après coup sur des données déjà chargées.
   const scope = isAdmin ? null : user.agencyId;
 
+  // Clé API fraîchement émise, remise une seule fois via un cookie d'une
+  // minute posé par l'action — jamais par l'URL, qui finit dans les journaux.
+  const issuedApiKey = isAdmin
+    ? ((await cookies()).get("issued_api_key")?.value ?? null)
+    : null;
+
   const [locations, agents, dedup, misses, expiring, reuse, leadStats,
          audit, auditTotal, span, pending, translations,
          billingRows, invoicesOpen, plans, verifRows,
-         titleDossiers, titlePartners] = await Promise.all([
+         titleDossiers, titlePartners, apiPartners] = await Promise.all([
     query<{ slug: string; name: Record<string, string>; parent: Record<string, string> | null }>(
       `SELECT l.slug, l.name_i18n AS name, p.name_i18n AS parent
        FROM locations l LEFT JOIN locations p ON p.id = l.parent_id
@@ -193,6 +221,8 @@ export default async function BackofficePage({
     // tête, puis conclusions récentes.
     isAdmin ? (listVerifications(pool) as Promise<TitleDossier[]>) : [],
     isAdmin ? (listPartners(pool) as Promise<{ id: string; name: string }[]>) : [],
+    // API partenaires (phase 4) : clés et usage du jour, modération seulement.
+    isAdmin ? (listApiPartners(pool) as Promise<ApiPartnerRow[]>) : [],
   ]);
 
   return (
@@ -249,7 +279,9 @@ export default async function BackofficePage({
                       ? t("titles.alreadyOpen")
                       : error === "unknown_reference"
                         ? t("titles.unknownReference")
-                        : String(error)}
+                        : error === "duplicate_partner"
+                          ? t("apiPartners.duplicate")
+                          : String(error)}
           </p>
         )}
       </header>
@@ -793,6 +825,108 @@ export default async function BackofficePage({
                     {v.note}
                   </p>
                 )}
+              </div>
+            ))}
+          </div>
+        </Panel>
+        )}
+
+        {/* --------- API partenaires — modération uniquement (phase 4) --------- */}
+        {isAdmin && (
+        <Panel title={t("apiPartners.panelTitle")} hint={t("apiPartners.panelHint")}>
+          {issuedApiKey && (
+            <p style={{
+              padding: "0.75rem 1rem", borderRadius: "0.625rem", marginBottom: "0.875rem",
+              background: "var(--color-gold-soft)", color: "var(--color-gold)",
+              fontSize: "0.8125rem", lineHeight: 1.55, overflowWrap: "anywhere",
+            }}>
+              {t("apiPartners.issuedNotice")}{" "}
+              <code style={{ fontWeight: 700, userSelect: "all" }}>{issuedApiKey}</code>
+            </p>
+          )}
+
+          <form action={createApiPartner} style={{
+            display: "flex", gap: "0.375rem", alignItems: "center", flexWrap: "wrap",
+            marginBottom: "0.625rem",
+          }}>
+            <input type="hidden" name="locale" value={locale} />
+            <input className="field" name="name" required
+                   placeholder={t("apiPartners.partnerName")} aria-label={t("apiPartners.partnerName")}
+                   style={{ flex: "1 1 9rem", minWidth: 0, fontSize: "0.8125rem", padding: "0.3125rem 0.5rem" }} />
+            <input className="field" name="contact" type="email"
+                   placeholder={t("apiPartners.contact")} aria-label={t("apiPartners.contact")}
+                   style={{ flex: "1 1 9rem", minWidth: 0, fontSize: "0.8125rem", padding: "0.3125rem 0.5rem" }} />
+            <button className="btn btn-outline" style={{ padding: "0.3125rem 0.75rem", fontSize: "0.8125rem" }}>
+              {t("apiPartners.newPartner")}
+            </button>
+          </form>
+
+          {apiPartners.length > 0 && (
+            <form action={issueApiKey} style={{
+              display: "flex", gap: "0.375rem", alignItems: "center", flexWrap: "wrap",
+              marginBottom: "0.875rem",
+            }}>
+              <input type="hidden" name="locale" value={locale} />
+              <select className="field" name="partner_id" aria-label={t("apiPartners.partnerName")}
+                      style={{ flex: "1 1 9rem", fontSize: "0.8125rem", padding: "0.3125rem 0.5rem" }}>
+                {apiPartners.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <input className="field" name="label"
+                     placeholder={t("apiPartners.keyLabel")} aria-label={t("apiPartners.keyLabel")}
+                     style={{ flex: "1 1 7rem", minWidth: 0, fontSize: "0.8125rem", padding: "0.3125rem 0.5rem" }} />
+              <input className="field" name="daily_quota" type="number" min={1} defaultValue={5000}
+                     aria-label={t("apiPartners.quotaPerDay")} title={t("apiPartners.quotaPerDay")}
+                     style={{ width: "5.5rem", fontSize: "0.8125rem", padding: "0.3125rem 0.5rem" }} />
+              <button className="btn btn-primary" style={{ padding: "0.3125rem 0.75rem", fontSize: "0.8125rem" }}>
+                {t("apiPartners.issueKey")}
+              </button>
+            </form>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+            {apiPartners.length === 0 && (
+              <p style={{ fontSize: "0.875rem", color: "var(--color-ink-soft)" }}>
+                {t("apiPartners.noPartners")}
+              </p>
+            )}
+            {apiPartners.map((p) => (
+              <div key={p.id} style={{
+                borderBottom: "1px solid var(--color-line-soft)", paddingBottom: "0.625rem",
+              }}>
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 600, fontSize: "0.875rem" }}>{p.name}</span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)", flex: "1 1 6rem", minWidth: 0 }}>
+                    {p.contact ?? p.slug}
+                  </span>
+                </div>
+                {p.keys.map((k) => (
+                  <div key={k.id} style={{
+                    display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap",
+                    marginTop: "0.375rem", fontSize: "0.75rem",
+                  }}>
+                    <code style={{ fontWeight: 600 }}>{k.prefix}…</code>
+                    {k.label && <span style={{ color: "var(--color-ink-soft)" }}>{k.label}</span>}
+                    <span style={{ color: "var(--color-ink-faint)", flex: "1 1 8rem", minWidth: 0 }}>
+                      {t("apiPartners.usedToday")} {formatNumber(k.usedToday, locale)}/{formatNumber(k.dailyQuota, locale)}
+                      {k.lastUsedAt && ` · ${t("apiPartners.lastUsed")} ${formatDate(k.lastUsedAt, locale)}`}
+                    </span>
+                    {k.revokedAt ? (
+                      <span className="chip" style={{
+                        background: "var(--color-danger-soft)", color: "var(--color-danger)",
+                      }}>
+                        {t("apiPartners.revoked")}
+                      </span>
+                    ) : (
+                      <form action={revokeApiKey}>
+                        <input type="hidden" name="locale" value={locale} />
+                        <input type="hidden" name="key_id" value={k.id} />
+                        <button className="btn btn-outline" style={{ padding: "0.1875rem 0.5rem", fontSize: "0.75rem" }}>
+                          {t("apiPartners.revoke")}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                ))}
               </div>
             ))}
           </div>

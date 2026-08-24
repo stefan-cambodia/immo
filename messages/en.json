@@ -291,7 +291,10 @@
     "verification_changed": "Verification changed",
     "title_verification_requested": "Title case opened",
     "title_verification_step": "Title case advanced",
-    "title_verification_concluded": "Title case concluded"
+    "title_verification_concluded": "Title case concluded",
+    "api_partner_created": "API partner created",
+    "api_key_issued": "API key issued",
+    "api_key_revoked": "API key revoked"
   },
   "landing": {
     "forSaleIn": "{type} for sale in {area}",
@@ -540,5 +543,22 @@
     "badge": "Verified title",
     "verifiedNote": "Title verified from documents by {partner} on {date}.",
     "verifiedDisclaimer": "The verification covers the documents provided to the partner; it is not legal advice."
+  },
+  "apiPartners": {
+    "panelTitle": "Partner API",
+    "panelHint": "Read-only access to the deduplicated catalogue for named partners. The key is shown only once when issued; every call counts against a daily quota.",
+    "newPartner": "Create partner",
+    "partnerName": "Partner name",
+    "contact": "Contact",
+    "issueKey": "Issue a key",
+    "keyLabel": "Label",
+    "quotaPerDay": "Daily quota",
+    "issuedNotice": "Key issued — copy it now, it will never be shown again:",
+    "revoke": "Revoke",
+    "revoked": "Revoked",
+    "lastUsed": "last call",
+    "usedToday": "today:",
+    "noPartners": "No partners yet.",
+    "duplicate": "A partner with this name already exists."
   }
 }

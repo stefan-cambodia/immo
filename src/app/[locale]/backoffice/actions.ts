@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { queryOne, withTransaction } from "@/lib/db";
 import { AuthError, requireUser, type SessionUser } from "@/lib/auth";
@@ -12,6 +13,8 @@ import { FEATURED_DAYS, issueInvoiceFor, releaseHeld }
   from "../../../../db/lib/billing.mjs";
 import { advanceVerification, concludeVerification, openVerification }
   from "../../../../db/lib/titles.mjs";
+import { createApiPartner as insertApiPartner, issueApiKey as insertApiKey,
+         revokeApiKey as revokeKey } from "../../../../db/lib/partner-api.mjs";
 import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n";
 
 /** Les formulaires du back-office fonctionnent sans JavaScript : le retour
@@ -838,6 +841,105 @@ export async function concludeTitleVerification(form: FormData) {
           : {}),
         note,
       },
+    });
+  });
+
+  revalidatePath("/[locale]/backoffice", "page");
+}
+
+// ---------------------------------------------------------------------------
+// API partenaires (phase 4)
+// ---------------------------------------------------------------------------
+
+const slugify = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+   .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+export async function createApiPartner(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const name = String(form.get("name") ?? "").trim().slice(0, 120);
+  const contact = String(form.get("contact") ?? "").trim().slice(0, 200) || null;
+  const slug = slugify(name);
+  if (!name || !slug) fail(locale, "invalid_input");
+
+  let outcome: string | null = null;
+  await withTransaction(async (client) => {
+    const partner = await insertApiPartner(client, { slug, name, contact });
+    if (!partner) { outcome = "duplicate_partner"; return; }
+
+    await recordAudit(client, actorFromUser(user), {
+      action: "api_partner_created",
+      targetType: "api_partner",
+      targetId: partner.id,
+      targetLabel: partner.slug,
+      details: { name, contact },
+    });
+  });
+
+  if (typeof outcome === "string") fail(locale, outcome);
+  revalidatePath("/[locale]/backoffice", "page");
+}
+
+/**
+ * Émet une clé et la remet une seule fois à la personne au clavier, via un
+ * cookie httpOnly d'une minute que la page affiche puis laisse expirer.
+ * Jamais par l'URL de redirection : une URL finit dans les journaux d'accès
+ * et l'historique du navigateur, un cookie non. En base, seul le hachage
+ * survit — la clé perdue se remplace, elle ne se retrouve pas.
+ */
+export async function issueApiKey(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const partnerId = String(form.get("partner_id") ?? "");
+  const label = String(form.get("label") ?? "").trim().slice(0, 80);
+  const quotaRaw = Number(form.get("daily_quota") ?? 5000);
+  const dailyQuota = Number.isInteger(quotaRaw) && quotaRaw > 0 ? quotaRaw : 5000;
+  if (!UUID.test(partnerId)) fail(locale, "invalid_input");
+
+  let issued: { key: string } | null = null;
+  await withTransaction(async (client) => {
+    const row = await insertApiKey(client, { partnerId, label, dailyQuota });
+    if (!row) return;
+    issued = row;
+
+    await recordAudit(client, actorFromUser(user), {
+      action: "api_key_issued",
+      targetType: "api_key",
+      targetId: row.id,
+      targetLabel: row.prefix + "…",
+      details: { partner: row.partnerName, label, dailyQuota },
+    });
+  });
+
+  if (!issued) fail(locale, "invalid_input");
+  (await cookies()).set("issued_api_key", (issued as { key: string }).key, {
+    httpOnly: true, sameSite: "lax", maxAge: 60, path: `/${locale}/backoffice`,
+  });
+  revalidatePath("/[locale]/backoffice", "page");
+  redirect(`/${locale}/backoffice`);
+}
+
+export async function revokeApiKey(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const keyId = String(form.get("key_id") ?? "");
+  if (!UUID.test(keyId)) fail(locale, "invalid_input");
+
+  await withTransaction(async (client) => {
+    // Déjà révoquée (double clic) : rien à faire, rien à journaliser.
+    const revoked = await revokeKey(client, keyId);
+    if (!revoked) return;
+
+    await recordAudit(client, actorFromUser(user), {
+      action: "api_key_revoked",
+      targetType: "api_key",
+      targetId: keyId,
+      targetLabel: revoked.prefix + "…",
+      details: {},
     });
   });
 

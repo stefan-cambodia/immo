@@ -291,7 +291,10 @@
     "verification_changed": "认证状态变更",
     "title_verification_requested": "产权核验档案开立",
     "title_verification_step": "产权核验档案推进",
-    "title_verification_concluded": "产权核验档案结案"
+    "title_verification_concluded": "产权核验档案结案",
+    "api_partner_created": "已创建 API 合作伙伴",
+    "api_key_issued": "已签发 API 密钥",
+    "api_key_revoked": "已吊销 API 密钥"
   },
   "landing": {
     "forSaleIn": "{area}{type}出售",
@@ -540,5 +543,22 @@
     "badge": "产权已核验",
     "verifiedNote": "产权文件由 {partner} 于 {date} 核验。",
     "verifiedDisclaimer": "核验仅针对提交给合作伙伴的文件，不构成法律意见。"
+  },
+  "apiPartners": {
+    "panelTitle": "合作伙伴 API",
+    "panelHint": "为指定合作伙伴提供去重房源目录的只读访问。密钥仅在签发时显示一次；每次调用都计入每日配额。",
+    "newPartner": "创建合作伙伴",
+    "partnerName": "合作伙伴名称",
+    "contact": "联系方式",
+    "issueKey": "签发密钥",
+    "keyLabel": "备注",
+    "quotaPerDay": "每日配额",
+    "issuedNotice": "密钥已签发——请立即复制，此后不再显示：",
+    "revoke": "吊销",
+    "revoked": "已吊销",
+    "lastUsed": "最近调用",
+    "usedToday": "今日：",
+    "noPartners": "暂无合作伙伴。",
+    "duplicate": "同名合作伙伴已存在。"
   }
 }

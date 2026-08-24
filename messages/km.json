@@ -291,7 +291,10 @@
     "verification_changed": "បានផ្លាស់ប្ដូរការផ្ទៀងផ្ទាត់",
     "title_verification_requested": "បានបើកសំណុំរឿងប្លង់",
     "title_verification_step": "សំណុំរឿងប្លង់បានទៅមុខ",
-    "title_verification_concluded": "សំណុំរឿងប្លង់បានបញ្ចប់"
+    "title_verification_concluded": "សំណុំរឿងប្លង់បានបញ្ចប់",
+    "api_partner_created": "បានបង្កើតដៃគូ API",
+    "api_key_issued": "បានចេញសោ API",
+    "api_key_revoked": "បានដកហូតសោ API"
   },
   "landing": {
     "forSaleIn": "{type}សម្រាប់លក់នៅ{area}",
@@ -540,5 +543,22 @@
     "badge": "ប្លង់បានផ្ទៀងផ្ទាត់",
     "verifiedNote": "ប្លង់បានផ្ទៀងផ្ទាត់តាមឯកសារដោយ {partner} នៅ {date}។",
     "verifiedDisclaimer": "ការផ្ទៀងផ្ទាត់គ្របដណ្ដប់តែឯកសារដែលបានផ្ដល់ជូនដៃគូប៉ុណ្ណោះ មិនមែនជាយោបល់ផ្នែកច្បាប់ទេ។"
+  },
+  "apiPartners": {
+    "panelTitle": "API ដៃគូ",
+    "panelHint": "ការចូលប្រើតែអានចំពោះបញ្ជីអចលនទ្រព្យដែលបានលុបស្ទួន សម្រាប់ដៃគូដែលមានឈ្មោះ។ សោបង្ហាញតែម្ដងគត់នៅពេលចេញ ហើយការហៅនីមួយៗត្រូវបានរាប់ក្នុងកូតាប្រចាំថ្ងៃ។",
+    "newPartner": "បង្កើតដៃគូ",
+    "partnerName": "ឈ្មោះដៃគូ",
+    "contact": "ទំនាក់ទំនង",
+    "issueKey": "ចេញសោ",
+    "keyLabel": "ស្លាក",
+    "quotaPerDay": "កូតាប្រចាំថ្ងៃ",
+    "issuedNotice": "សោត្រូវបានចេញ — សូមចម្លងឥឡូវនេះ វានឹងមិនបង្ហាញម្ដងទៀតទេ៖",
+    "revoke": "ដកហូត",
+    "revoked": "បានដកហូត",
+    "lastUsed": "ការហៅចុងក្រោយ",
+    "usedToday": "ថ្ងៃនេះ៖",
+    "noPartners": "មិនទាន់មានដៃគូទេ។",
+    "duplicate": "មានដៃគូឈ្មោះនេះរួចហើយ។"
   }
 }

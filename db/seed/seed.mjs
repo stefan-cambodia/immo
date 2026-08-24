@@ -5,6 +5,7 @@ import pg from "pg";
 import { randomBytes, scrypt as scryptCb } from "node:crypto";
 import { promisify } from "node:util";
 import { locations } from "./locations.mjs";
+import { createApiPartner, issueApiKey } from "../lib/partner-api.mjs";
 
 const scrypt = promisify(scryptCb);
 
@@ -34,7 +35,8 @@ console.log("Nettoyage des tables de données…");
 await db.query(`TRUNCATE leads, price_history, media, listings, properties, buildings,
   agents, agencies, developers, locations, search_misses, dedup_candidates,
   sessions, users, login_attempts, submissions, property_views,
-  title_verifications, verification_partners RESTART IDENTITY CASCADE`);
+  title_verifications, verification_partners,
+  api_usage, api_keys, api_partners RESTART IDENTITY CASCADE`);
 // Le journal d'audit est en ajout seul : le déclencheur refuse un DELETE, et
 // TRUNCATE le contournerait silencieusement. La table est vidée explicitement,
 // pour que la remise à zéro d'un environnement de développement reste un geste
@@ -607,6 +609,21 @@ if (verifiable.length >= 4) {
 }
 console.log(`  ${partners.length} partenaires, ${dossierCount} dossiers de titre`);
 
+// ------------------------------------------- API partenaires (phase 4)
+// Deux partenaires avec chacun une clé active — les clés en clair sont
+// affichées en fin de seed, comme les mots de passe des comptes : elles
+// n'existent qu'ici, la base ne garde que leur hachage.
+const apiKeysIssued = [];
+for (const [slug, name, contact, label] of [
+  ["aba-bank", "ABA Bank", "data@ababank.com", "évaluation hypothécaire"],
+  ["realestate-kh", "Realestate.com.kh", "api@realestate.com.kh", "syndication"],
+]) {
+  const partner = await createApiPartner(db, { slug, name, contact });
+  const issued = await issueApiKey(db, { partnerId: partner.id, label, dailyQuota: 5000 });
+  apiKeysIssued.push({ partner: name, key: issued.key });
+}
+console.log(`  ${apiKeysIssued.length} partenaires API`);
+
 // Quelques recherches sans résultat, matière première de la table d'alias (§10).
 for (const q of ["kompong som beach", "bkk one penthouse", "toul kok villa", "西港公寓",
                  "ភ្នំពេញថ្មី ដីលក់", "chruy changvar condo", "sen sok borey"]) {
@@ -628,5 +645,7 @@ console.table(stats[0]);
 
 console.log(`\nComptes back-office (mot de passe : ${DEV_PASSWORD})`);
 console.table(accounts.map(([email, role, agency]) => ({ email, role, agency })));
+console.log("Clés API partenaires (affichées uniquement ici)");
+console.table(apiKeysIssued);
 await db.end();
 console.log("Seed terminé.");

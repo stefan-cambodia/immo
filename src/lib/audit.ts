@@ -11,13 +11,14 @@ export const AUDIT_ACTIONS = [
   "listing_featured", "listing_unfeatured", "verification_changed",
   "title_verification_requested", "title_verification_step",
   "title_verification_concluded",
+  "api_partner_created", "api_key_issued", "api_key_revoked",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 export type AuditTarget =
   | "session" | "property" | "listing" | "location" | "dedup_candidate" | "audit_log"
-  | "agency" | "invoice" | "title_verification";
+  | "agency" | "invoice" | "title_verification" | "api_partner" | "api_key";
 
 export interface AuditEntry {
   action: AuditAction;
