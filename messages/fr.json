@@ -288,7 +288,10 @@
     "invoice_voided": "Facture annulée",
     "listing_featured": "Annonce mise en avant",
     "listing_unfeatured": "Mise en avant retirée",
-    "verification_changed": "Vérification modifiée"
+    "verification_changed": "Vérification modifiée",
+    "title_verification_requested": "Dossier de titre ouvert",
+    "title_verification_step": "Dossier de titre avancé",
+    "title_verification_concluded": "Dossier de titre conclu"
   },
   "landing": {
     "forSaleIn": "{type} à vendre à {area}",
@@ -515,5 +518,27 @@
     "rowAgencies": "Agences qui le proposent",
     "viewProperty": "Voir l'annonce",
     "limitNote": "Seules les 4 premières références sont comparées."
+  },
+  "titles": {
+    "panelTitle": "Vérification des titres",
+    "panelHint": "Examen documentaire du titre par un partenaire juridique nommé. La conclusion corrige la fiche du bien et date le badge public ; chaque étape est journalisée.",
+    "openDossier": "Ouvrir un dossier",
+    "partner": "Partenaire",
+    "status_requested": "Demandé",
+    "status_documents_received": "Documents reçus",
+    "status_in_review": "En examen",
+    "status_confirmed": "Titre confirmé",
+    "status_rejected": "Rejeté",
+    "markDocuments": "Documents reçus",
+    "markReview": "Passer en examen",
+    "confirm": "Confirmer",
+    "reject": "Rejeter",
+    "confirmedTitle": "Titre établi",
+    "notePlaceholder": "Note du partenaire",
+    "alreadyOpen": "Un dossier de vérification est déjà ouvert pour ce bien.",
+    "unknownReference": "Référence de bien inconnue.",
+    "badge": "Titre vérifié",
+    "verifiedNote": "Titre vérifié sur documents par {partner} le {date}.",
+    "verifiedDisclaimer": "La vérification porte sur les documents transmis au partenaire ; elle ne constitue pas un avis juridique."
   }
 }

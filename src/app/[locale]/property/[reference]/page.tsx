@@ -10,7 +10,8 @@ import { Gallery } from "@/components/Gallery";
 import { PriceHistory } from "@/components/PriceHistory";
 import { ContactAgent } from "@/components/ContactAgent";
 import { MapPanel } from "@/components/MapPanel";
-import { AgencyCountBadge, ForeignEligibleBadge, FreshnessBadge, TitleBadge } from "@/components/Badges";
+import { AgencyCountBadge, ForeignEligibleBadge, FreshnessBadge, TitleBadge,
+         TitleVerifiedBadge } from "@/components/Badges";
 import { PropertyGrid } from "@/components/PropertyCard";
 import { ViewBeacon } from "@/components/ViewBeacon";
 
@@ -158,6 +159,11 @@ export default async function PropertyPage({
             <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap", marginBottom: "0.625rem" }}>
               {p.foreignEligible && <ForeignEligibleBadge t={t} />}
               <TitleBadge titleType={p.titleType} t={t} />
+              {p.titleVerifiedAt && p.titleVerifiedBy && (
+                <TitleVerifiedBadge t={t} hint={t("titles.verifiedNote", {
+                  partner: p.titleVerifiedBy, date: formatDate(p.titleVerifiedAt, locale),
+                })} />
+              )}
               <AgencyCountBadge count={agencyCount} t={t} />
               <FreshnessBadge lastConfirmed={offers[0].lastConfirmed} t={t} locale={locale} withDate />
               <span className="chip" style={{ background: "var(--color-surface-alt)", color: "var(--color-ink-soft)" }}>
@@ -260,6 +266,21 @@ export default async function PropertyPage({
               <span style={{ fontSize: "0.875rem", color: "var(--color-ink-soft)", lineHeight: 1.6 }}>
                 {foreignReason} {t(`titleType.${p.titleType}Hint`)}
               </span>
+              {/* Vérification documentaire du titre (phase 4) : partenaire
+                  nommé et date, jamais un badge anonyme. */}
+              {p.titleVerifiedAt && p.titleVerifiedBy && (
+                <span style={{ display: "block", fontSize: "0.8125rem", marginTop: "0.5rem", lineHeight: 1.6 }}>
+                  <strong style={{ color: "var(--color-fresh)" }}>
+                    ✓ {t("titles.verifiedNote", {
+                      partner: p.titleVerifiedBy,
+                      date: formatDate(p.titleVerifiedAt, locale),
+                    })}
+                  </strong>{" "}
+                  <span style={{ color: "var(--color-ink-faint)" }}>
+                    {t("titles.verifiedDisclaimer")}
+                  </span>
+                </span>
+              )}
             </div>
           </section>
 

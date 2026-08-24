@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { query } from "@/lib/db";
+import { pool, query } from "@/lib/db";
 import { daysUntil, formatDate, formatNumber, formatUsd } from "@/lib/format";
 import { getTranslator, i18nField, isLocale, type Locale } from "@/lib/i18n";
 import { getMapProvider, PHNOM_PENH } from "@/lib/map-provider";
@@ -15,7 +15,23 @@ import { billingOverview, listPlans, openInvoices } from "@/lib/billing";
 import { signOut } from "../login/actions";
 import { createProperty, resolveDedup, addAlias, confirmListing, pinSubmission,
          approveTranslation, changeTier, issueInvoice, markInvoicePaid,
-         voidInvoice, setVerification } from "./actions";
+         voidInvoice, setVerification, requestTitleVerification,
+         advanceTitleVerification, concludeTitleVerification } from "./actions";
+import { listPartners, listVerifications, OPEN_STATUSES }
+  from "../../../../db/lib/titles.mjs";
+
+/** Dossier de vérification de titre, tel que renvoyé par titles.mjs. */
+interface TitleDossier {
+  id: string;
+  reference: string;
+  partner: string;
+  claimedTitle: string;
+  status: string;
+  confirmedTitle: string | null;
+  note: string | null;
+  requestedAt: string;
+  concludedAt: string | null;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +76,8 @@ export default async function BackofficePage({
 
   const [locations, agents, dedup, misses, expiring, reuse, leadStats,
          audit, auditTotal, span, pending, translations,
-         billingRows, invoicesOpen, plans, verifRows] = await Promise.all([
+         billingRows, invoicesOpen, plans, verifRows,
+         titleDossiers, titlePartners] = await Promise.all([
     query<{ slug: string; name: Record<string, string>; parent: Record<string, string> | null }>(
       `SELECT l.slug, l.name_i18n AS name, p.name_i18n AS parent
        FROM locations l LEFT JOIN locations p ON p.id = l.parent_id
@@ -172,6 +189,10 @@ export default async function BackofficePage({
        FROM agencies a
        ORDER BY a.verification_status = 'documents_received' DESC,
                 a.verification_status = 'unverified' DESC, a.name`) : [],
+    // Vérification documentaire des titres (phase 4) : dossiers ouverts en
+    // tête, puis conclusions récentes.
+    isAdmin ? (listVerifications(pool) as Promise<TitleDossier[]>) : [],
+    isAdmin ? (listPartners(pool) as Promise<{ id: string; name: string }[]>) : [],
   ]);
 
   return (
@@ -224,7 +245,11 @@ export default async function BackofficePage({
                   ? t("billing.quotaFull")
                   : error === "invoice_not_issued"
                     ? t("billing.invoiceNotIssued")
-                    : String(error)}
+                    : error === "title_open"
+                      ? t("titles.alreadyOpen")
+                      : error === "unknown_reference"
+                        ? t("titles.unknownReference")
+                        : String(error)}
           </p>
         )}
       </header>
@@ -654,6 +679,121 @@ export default async function BackofficePage({
                   ✓
                 </button>
               </form>
+            ))}
+          </div>
+        </Panel>
+        )}
+
+        {/* ------- Vérification des titres — modération uniquement ------- */}
+        {isAdmin && (
+        <Panel title={`${t("titles.panelTitle")} (${
+                 titleDossiers.filter((v) => (OPEN_STATUSES as string[]).includes(v.status)).length})`}
+               hint={t("titles.panelHint")}>
+          <form action={requestTitleVerification} style={{
+            display: "flex", gap: "0.375rem", alignItems: "center", flexWrap: "wrap",
+            marginBottom: "0.875rem",
+          }}>
+            <input type="hidden" name="locale" value={locale} />
+            <input className="field" name="reference" required
+                   placeholder={t("common.reference")} aria-label={t("common.reference")}
+                   style={{ flex: "1 1 7rem", minWidth: 0, fontSize: "0.8125rem", padding: "0.3125rem 0.5rem" }} />
+            <select className="field" name="partner_id" aria-label={t("titles.partner")}
+                    style={{ flex: "1 1 10rem", fontSize: "0.8125rem", padding: "0.3125rem 0.5rem" }}>
+              {titlePartners.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <button className="btn btn-primary" style={{ padding: "0.3125rem 0.75rem", fontSize: "0.8125rem" }}>
+              {t("titles.openDossier")}
+            </button>
+          </form>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+            {titleDossiers.length === 0 && (
+              <p style={{ fontSize: "0.875rem", color: "var(--color-ink-soft)" }}>—</p>
+            )}
+            {titleDossiers.map((v) => (
+              <div key={v.id} style={{
+                borderBottom: "1px solid var(--color-line-soft)", paddingBottom: "0.625rem",
+              }}>
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                  <Link href={`/${locale}/property/${v.reference}`}
+                        style={{ fontWeight: 600, fontSize: "0.875rem" }}>
+                    {v.reference}
+                  </Link>
+                  <span style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)", flex: "1 1 8rem", minWidth: 0 }}>
+                    {v.partner} · {t(`titleType.${v.claimedTitle}`)}
+                    {v.status === "confirmed" && v.confirmedTitle && v.confirmedTitle !== v.claimedTitle
+                      && ` → ${t(`titleType.${v.confirmedTitle}`)}`}
+                  </span>
+                  <span className="chip" style={{
+                    background: v.status === "confirmed" ? "var(--color-fresh-soft)"
+                      : v.status === "rejected" ? "var(--color-danger-soft)"
+                      : v.status === "requested" ? "var(--color-surface-alt)"
+                      : "var(--color-gold-soft)",
+                    color: v.status === "confirmed" ? "var(--color-fresh)"
+                      : v.status === "rejected" ? "var(--color-danger)"
+                      : v.status === "requested" ? "var(--color-ink-soft)"
+                      : "var(--color-gold)",
+                  }}>
+                    {t(`titles.status_${v.status}`)}
+                  </span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)" }}>
+                    {formatDate(v.concludedAt ?? v.requestedAt, locale)}
+                  </span>
+                </div>
+
+                {(v.status === "requested" || v.status === "documents_received") && (
+                  <form action={advanceTitleVerification}
+                        style={{ display: "inline-block", marginTop: "0.5rem", marginInlineEnd: "0.5rem" }}>
+                    <input type="hidden" name="locale" value={locale} />
+                    <input type="hidden" name="verification_id" value={v.id} />
+                    <input type="hidden" name="status"
+                           value={v.status === "requested" ? "documents_received" : "in_review"} />
+                    <button className="btn btn-outline" style={{ padding: "0.25rem 0.625rem", fontSize: "0.75rem" }}>
+                      {v.status === "requested" ? t("titles.markDocuments") : t("titles.markReview")}
+                    </button>
+                  </form>
+                )}
+
+                {(OPEN_STATUSES as string[]).includes(v.status) && (
+                  <form action={concludeTitleVerification} style={{
+                    display: "flex", gap: "0.375rem", alignItems: "center", flexWrap: "wrap",
+                    marginTop: "0.5rem",
+                  }}>
+                    <input type="hidden" name="locale" value={locale} />
+                    <input type="hidden" name="verification_id" value={v.id} />
+                    {v.status !== "requested" && (
+                      <select className="field" name="confirmed_title"
+                              defaultValue={v.claimedTitle === "unknown" ? "hard" : v.claimedTitle}
+                              aria-label={t("titles.confirmedTitle")}
+                              style={{ fontSize: "0.75rem", padding: "0.25rem 0.375rem" }}>
+                        {["hard", "soft", "strata"].map((x) => (
+                          <option key={x} value={x}>{t(`titleType.${x}`)}</option>
+                        ))}
+                      </select>
+                    )}
+                    <input className="field" name="note" placeholder={t("titles.notePlaceholder")}
+                           style={{ flex: "1 1 9rem", minWidth: 0, fontSize: "0.75rem", padding: "0.25rem 0.375rem" }} />
+                    {/* La conclusion exige d'avoir reçu les documents ; le
+                        rejet reste possible à tout stade (dossier abandonné). */}
+                    {v.status !== "requested" && (
+                      <button className="btn btn-primary" name="outcome" value="confirmed"
+                              style={{ padding: "0.25rem 0.625rem", fontSize: "0.75rem" }}>
+                        {t("titles.confirm")}
+                      </button>
+                    )}
+                    <button className="btn btn-outline" name="outcome" value="rejected"
+                            style={{ padding: "0.25rem 0.625rem", fontSize: "0.75rem" }}>
+                      {t("titles.reject")}
+                    </button>
+                  </form>
+                )}
+
+                {v.note && !(OPEN_STATUSES as string[]).includes(v.status) && (
+                  <p style={{ fontSize: "0.75rem", color: "var(--color-ink-soft)", marginTop: "0.375rem", lineHeight: 1.5 }}>
+                    {v.note}
+                  </p>
+                )}
+              </div>
             ))}
           </div>
         </Panel>

@@ -58,6 +58,23 @@ export function TitleBadge({ titleType, t }: { titleType: string; t: Translator 
   );
 }
 
+/** Phase 4 : le type de titre a été vérifié sur documents par un partenaire
+ *  nommé. Le libellé complet (partenaire, date) est fourni par l'appelant. */
+export function TitleVerifiedBadge({ t, hint }: { t: Translator; hint: string }) {
+  return (
+    <span className="chip" title={hint}
+          style={{ background: "var(--color-fresh-soft)", color: "var(--color-fresh)" }}>
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden>
+        <path d="M8 1.5 13.5 3.5V7.5C13.5 11 11.2 13.5 8 14.5 4.8 13.5 2.5 11 2.5 7.5V3.5L8 1.5Z"
+              stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M5.5 8 7.3 9.8 10.5 6" stroke="currentColor" strokeWidth="1.6"
+              strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      {t("titles.badge")}
+    </span>
+  );
+}
+
 /** « 5 agences proposent ce bien » — la proposition de valeur, visible partout. */
 export function AgencyCountBadge({ count, t }: { count: number; t: Translator }) {
   if (count < 2) return null;

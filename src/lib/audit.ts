@@ -9,13 +9,15 @@ export const AUDIT_ACTIONS = [
   "audit_exported", "audit_purged",
   "tier_changed", "invoice_issued", "invoice_paid", "invoice_voided",
   "listing_featured", "listing_unfeatured", "verification_changed",
+  "title_verification_requested", "title_verification_step",
+  "title_verification_concluded",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 export type AuditTarget =
   | "session" | "property" | "listing" | "location" | "dedup_candidate" | "audit_log"
-  | "agency" | "invoice";
+  | "agency" | "invoice" | "title_verification";
 
 export interface AuditEntry {
   action: AuditAction;

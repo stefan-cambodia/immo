@@ -385,6 +385,8 @@ export interface PropertyDetail {
   furnished: boolean | null;
   amenities: string[];
   verifiedAt: string | null;
+  titleVerifiedAt: string | null;
+  titleVerifiedBy: string | null;
   geoPinBy: string | null;
   geoPinAt: string | null;
   lng: number;
@@ -438,7 +440,9 @@ export async function getProperty(reference: string) {
            p.indoor_area_sqm AS "indoorArea", p.land_area_sqm AS "landArea",
            p.title_type AS "titleType", p.foreign_eligible AS "foreignEligible",
            p.year_built AS "yearBuilt", p.furnished, p.amenities,
-           p.verified_at AS "verifiedAt", p.geo_pin_by AS "geoPinBy", p.geo_pin_at AS "geoPinAt",
+           p.verified_at AS "verifiedAt", p.title_verified_at AS "titleVerifiedAt",
+           p.title_verified_by AS "titleVerifiedBy",
+           p.geo_pin_by AS "geoPinBy", p.geo_pin_at AS "geoPinAt",
            ST_X(p.geo_point) AS lng, ST_Y(p.geo_point) AS lat,
            loc.slug AS "locationSlug", loc.name_i18n AS "locationName",
            parent.slug AS "parentSlug", parent.name_i18n AS "parentName",

@@ -288,7 +288,10 @@
     "invoice_voided": "វិក្កយបត្របានលុបចោល",
     "listing_featured": "ប្រកាសបានបង្ហាញពិសេស",
     "listing_unfeatured": "បានដកការបង្ហាញពិសេស",
-    "verification_changed": "បានផ្លាស់ប្ដូរការផ្ទៀងផ្ទាត់"
+    "verification_changed": "បានផ្លាស់ប្ដូរការផ្ទៀងផ្ទាត់",
+    "title_verification_requested": "បានបើកសំណុំរឿងប្លង់",
+    "title_verification_step": "សំណុំរឿងប្លង់បានទៅមុខ",
+    "title_verification_concluded": "សំណុំរឿងប្លង់បានបញ្ចប់"
   },
   "landing": {
     "forSaleIn": "{type}សម្រាប់លក់នៅ{area}",
@@ -515,5 +518,27 @@
     "rowAgencies": "ភ្នាក់ងារដែលផ្សាយ",
     "viewProperty": "មើលការផ្សាយ",
     "limitNote": "ប្រៀបធៀបតែ ៤ លេខយោងដំបូងប៉ុណ្ណោះ។"
+  },
+  "titles": {
+    "panelTitle": "ការផ្ទៀងផ្ទាត់ប្លង់កម្មសិទ្ធិ",
+    "panelHint": "ការពិនិត្យឯកសារប្លង់ដោយដៃគូផ្នែកច្បាប់ដែលមានឈ្មោះ។ សេចក្ដីសន្និដ្ឋានកែតម្រូវទិន្នន័យអចលនទ្រព្យ និងកំណត់កាលបរិច្ឆេទស្លាកសាធារណៈ ហើយគ្រប់ជំហានត្រូវបានកត់ត្រា។",
+    "openDossier": "បើកសំណុំរឿង",
+    "partner": "ដៃគូ",
+    "status_requested": "បានស្នើសុំ",
+    "status_documents_received": "បានទទួលឯកសារ",
+    "status_in_review": "កំពុងពិនិត្យ",
+    "status_confirmed": "បានបញ្ជាក់ប្លង់",
+    "status_rejected": "បានបដិសេធ",
+    "markDocuments": "បានទទួលឯកសារ",
+    "markReview": "ចាប់ផ្ដើមពិនិត្យ",
+    "confirm": "បញ្ជាក់",
+    "reject": "បដិសេធ",
+    "confirmedTitle": "ប្រភេទប្លង់ដែលបានកំណត់",
+    "notePlaceholder": "កំណត់ចំណាំរបស់ដៃគូ",
+    "alreadyOpen": "មានសំណុំរឿងផ្ទៀងផ្ទាត់កំពុងដំណើរការរួចហើយសម្រាប់អចលនទ្រព្យនេះ។",
+    "unknownReference": "លេខយោងអចលនទ្រព្យមិនស្គាល់។",
+    "badge": "ប្លង់បានផ្ទៀងផ្ទាត់",
+    "verifiedNote": "ប្លង់បានផ្ទៀងផ្ទាត់តាមឯកសារដោយ {partner} នៅ {date}។",
+    "verifiedDisclaimer": "ការផ្ទៀងផ្ទាត់គ្របដណ្ដប់តែឯកសារដែលបានផ្ដល់ជូនដៃគូប៉ុណ្ណោះ មិនមែនជាយោបល់ផ្នែកច្បាប់ទេ។"
   }
 }

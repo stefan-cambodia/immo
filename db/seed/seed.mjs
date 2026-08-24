@@ -33,7 +33,8 @@ const jitter = (v, d) => v + (rnd() - 0.5) * d;
 console.log("Nettoyage des tables de données…");
 await db.query(`TRUNCATE leads, price_history, media, listings, properties, buildings,
   agents, agencies, developers, locations, search_misses, dedup_candidates,
-  sessions, users, login_attempts, submissions, property_views RESTART IDENTITY CASCADE`);
+  sessions, users, login_attempts, submissions, property_views,
+  title_verifications, verification_partners RESTART IDENTITY CASCADE`);
 // Le journal d'audit est en ajout seul : le déclencheur refuse un DELETE, et
 // TRUNCATE le contournerait silencieusement. La table est vidée explicitement,
 // pour que la remise à zéro d'un environnement de développement reste un geste
@@ -542,6 +543,69 @@ await db.query(`
   FROM properties a JOIN properties b
     ON a.dedup_signature = b.dedup_signature AND a.id < b.id
   ON CONFLICT DO NOTHING`);
+
+// ------------------------------------- Vérification des titres (phase 4)
+// Des partenaires juridiques et un dossier à chaque étape du cycle, pour que
+// le panneau de modération et le badge public aient chacun quelque chose à
+// montrer. La conclusion confirmée alimente le badge du bien.
+const partners = [];
+for (const [slug, name, contact] of [
+  ["bng-legal", "BNG Legal", "titles@bnglegal.com"],
+  ["dfdl-cambodia", "DFDL Cambodia", "realestate@dfdl.com"],
+  ["sok-siphana", "Sok Siphana & Associates", "land@soksiphana.com"],
+]) {
+  const { rows } = await db.query(
+    `INSERT INTO verification_partners(slug, name, contact) VALUES ($1,$2,$3)
+     RETURNING id, name`, [slug, name, contact]);
+  partners.push(rows[0]);
+}
+
+// Quatre condos strata en vente, BKK1 d'abord : un dossier par état.
+const { rows: verifiable } = await db.query(`
+  SELECT p.id, p.reference, p.title_type::text AS claimed
+  FROM properties p
+  JOIN locations loc ON loc.id = p.location_id
+  WHERE p.property_type = 'condo' AND p.title_type = 'strata'
+    AND EXISTS (SELECT 1 FROM listings l WHERE l.property_id = p.id
+                  AND l.status = 'active' AND l.transaction_type = 'sale')
+  ORDER BY loc.slug = 'bkk1' DESC, p.reference LIMIT 4`);
+
+let dossierCount = 0;
+const dossier = (property, partner, fields) => db.query(
+  `INSERT INTO title_verifications(property_id, partner_id, property_reference,
+     partner_name, claimed_title, status, requested_by, requested_at,
+     documents_received_at, concluded_at, confirmed_title, note)
+   VALUES ($1,$2,$3,$4,$5::title_type,$6,$7,
+           now() - make_interval(days => $8),
+           CASE WHEN $9::int  IS NULL THEN NULL ELSE now() - make_interval(days => $9::int)  END,
+           CASE WHEN $10::int IS NULL THEN NULL ELSE now() - make_interval(days => $10::int) END,
+           $11::title_type, $12)`,
+  [property.id, partner.id, property.reference, partner.name, property.claimed,
+   fields.status, "seed@khmerestate.kh", fields.requestedDays,
+   fields.documentsDays ?? null, fields.concludedDays ?? null,
+   fields.confirmedTitle ?? null, fields.note ?? null]).then(() => dossierCount++);
+
+if (verifiable.length >= 4) {
+  const [confirmed, rejected, inReview, requested] = verifiable;
+  await dossier(confirmed, partners[0], {
+    status: "confirmed", requestedDays: 20, documentsDays: 16, concludedDays: 12,
+    confirmedTitle: confirmed.claimed,
+    note: "Titre strata inscrit au registre foncier, sans charge.",
+  });
+  await db.query(
+    `UPDATE properties SET title_verified_at = now() - interval '12 days',
+            title_verified_by = $2 WHERE id = $1`,
+    [confirmed.id, partners[0].name]);
+  await dossier(rejected, partners[1], {
+    status: "rejected", requestedDays: 30, concludedDays: 9,
+    note: "Documents jamais fournis par l'agence.",
+  });
+  await dossier(inReview, partners[1], {
+    status: "in_review", requestedDays: 8, documentsDays: 5,
+  });
+  await dossier(requested, partners[2], { status: "requested", requestedDays: 2 });
+}
+console.log(`  ${partners.length} partenaires, ${dossierCount} dossiers de titre`);
 
 // Quelques recherches sans résultat, matière première de la table d'alias (§10).
 for (const q of ["kompong som beach", "bkk one penthouse", "toul kok villa", "西港公寓",

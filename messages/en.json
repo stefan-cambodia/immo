@@ -288,7 +288,10 @@
     "invoice_voided": "Invoice voided",
     "listing_featured": "Listing featured",
     "listing_unfeatured": "Featuring removed",
-    "verification_changed": "Verification changed"
+    "verification_changed": "Verification changed",
+    "title_verification_requested": "Title case opened",
+    "title_verification_step": "Title case advanced",
+    "title_verification_concluded": "Title case concluded"
   },
   "landing": {
     "forSaleIn": "{type} for sale in {area}",
@@ -515,5 +518,27 @@
     "rowAgencies": "Agencies offering",
     "viewProperty": "View the listing",
     "limitNote": "Only the first 4 references are compared."
+  },
+  "titles": {
+    "panelTitle": "Title verification",
+    "panelHint": "Documentary review of the land title by a named legal partner. The conclusion corrects the property record and dates the public badge; every step is logged.",
+    "openDossier": "Open a case",
+    "partner": "Partner",
+    "status_requested": "Requested",
+    "status_documents_received": "Documents received",
+    "status_in_review": "Under review",
+    "status_confirmed": "Title confirmed",
+    "status_rejected": "Rejected",
+    "markDocuments": "Documents received",
+    "markReview": "Start review",
+    "confirm": "Confirm",
+    "reject": "Reject",
+    "confirmedTitle": "Established title",
+    "notePlaceholder": "Partner note",
+    "alreadyOpen": "A verification case is already open for this property.",
+    "unknownReference": "Unknown property reference.",
+    "badge": "Verified title",
+    "verifiedNote": "Title verified from documents by {partner} on {date}.",
+    "verifiedDisclaimer": "The verification covers the documents provided to the partner; it is not legal advice."
   }
 }

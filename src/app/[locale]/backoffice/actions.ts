@@ -10,6 +10,8 @@ import { actorFromUser, recordAudit } from "@/lib/audit";
 import { completeSubmission } from "../../../../db/lib/ingest.mjs";
 import { FEATURED_DAYS, issueInvoiceFor, releaseHeld }
   from "../../../../db/lib/billing.mjs";
+import { advanceVerification, concludeVerification, openVerification }
+  from "../../../../db/lib/titles.mjs";
 import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n";
 
 /** Les formulaires du back-office fonctionnent sans JavaScript : le retour
@@ -712,6 +714,130 @@ export async function setVerification(form: FormData) {
       targetId: agencyId,
       targetLabel: before[0].name,
       details: { from: before[0].status, to: status },
+    });
+  });
+
+  revalidatePath("/[locale]/backoffice", "page");
+}
+
+// ---------------------------------------------------------------------------
+// Vérification documentaire des titres (phase 4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Ouvre un dossier de vérification de titre auprès d'un partenaire.
+ *
+ * Réservé à la modération : le portail ne consigne que les examens qu'il a
+ * lui-même confiés à un partenaire nommé — une agence ne peut pas s'attribuer
+ * un dossier. Le bien est désigné par sa référence publique, comme sur le
+ * terrain (c'est elle qui circule entre le portail et le cabinet).
+ */
+export async function requestTitleVerification(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const reference = String(form.get("reference") ?? "").trim().toUpperCase();
+  const partnerId = String(form.get("partner_id") ?? "");
+  if (!reference || !UUID.test(partnerId)) fail(locale, "invalid_input");
+
+  let outcome: string | null = null;
+  await withTransaction(async (client) => {
+    const { rows: [property] } = await client.query(
+      `SELECT id FROM properties WHERE reference = $1`, [reference]);
+    if (!property) { outcome = "unknown_reference"; return; }
+
+    const opened = await openVerification(client, {
+      propertyId: property.id, partnerId, requestedBy: user.email,
+    });
+    if (opened === "already_open") { outcome = "title_open"; return; }
+    if (!opened) { outcome = "invalid_input"; return; }
+
+    await recordAudit(client, actorFromUser(user), {
+      action: "title_verification_requested",
+      targetType: "title_verification",
+      targetId: opened.id,
+      targetLabel: opened.reference,
+      details: { partner: opened.partner, claimedTitle: opened.claimedTitle },
+    });
+  });
+
+  if (typeof outcome === "string") fail(locale, outcome);
+  revalidatePath("/[locale]/backoffice", "page");
+}
+
+const TITLE_STEPS = ["documents_received", "in_review"] as const;
+
+/** Avance un dossier d'un cran (documents reçus, puis en examen). */
+export async function advanceTitleVerification(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const id = String(form.get("verification_id") ?? "");
+  const status = String(form.get("status") ?? "");
+  if (!UUID.test(id) || !(TITLE_STEPS as readonly string[]).includes(status)) {
+    fail(locale, "invalid_input");
+  }
+
+  await withTransaction(async (client) => {
+    // Transition invalide (double clic, dossier déjà conclu) : rien à faire,
+    // rien à journaliser.
+    const advanced = await advanceVerification(client, id, status);
+    if (!advanced) return;
+
+    await recordAudit(client, actorFromUser(user), {
+      action: "title_verification_step",
+      targetType: "title_verification",
+      targetId: id,
+      targetLabel: advanced.reference,
+      details: { partner: advanced.partner, to: status },
+    });
+  });
+
+  revalidatePath("/[locale]/backoffice", "page");
+}
+
+/**
+ * Conclut un dossier sur la réponse du partenaire. La confirmation corrige le
+ * bien (titre établi, badge daté) ; le rejet retire tout badge antérieur —
+ * dans les deux cas c'est la conclusion la plus récente qui fait foi, et le
+ * journal garde qui a consigné quoi.
+ */
+export async function concludeTitleVerification(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const id = String(form.get("verification_id") ?? "");
+  const outcome = String(form.get("outcome") ?? "");
+  const confirmedTitle = String(form.get("confirmed_title") ?? "");
+  const note = String(form.get("note") ?? "").trim().slice(0, 500) || null;
+  if (!UUID.test(id) || !["confirmed", "rejected"].includes(outcome)
+      || (outcome === "confirmed" && !["hard", "soft", "strata"].includes(confirmedTitle))) {
+    fail(locale, "invalid_input");
+  }
+
+  await withTransaction(async (client) => {
+    const concluded = await concludeVerification(client, id, {
+      outcome: outcome as "confirmed" | "rejected",
+      confirmedTitle: outcome === "confirmed" ? confirmedTitle : null,
+      note,
+    });
+    if (!concluded) return;
+    const { verification, previousTitle } = concluded;
+
+    await recordAudit(client, actorFromUser(user), {
+      action: "title_verification_concluded",
+      targetType: "title_verification",
+      targetId: id,
+      targetLabel: verification.reference,
+      details: {
+        partner: verification.partner,
+        outcome,
+        claimedTitle: verification.claimedTitle,
+        ...(outcome === "confirmed"
+          ? { previousTitle, confirmedTitle }
+          : {}),
+        note,
+      },
     });
   });
 

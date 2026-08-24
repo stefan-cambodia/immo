@@ -288,7 +288,10 @@
     "invoice_voided": "账单已作废",
     "listing_featured": "房源已置顶",
     "listing_unfeatured": "已取消置顶",
-    "verification_changed": "认证状态变更"
+    "verification_changed": "认证状态变更",
+    "title_verification_requested": "产权核验档案开立",
+    "title_verification_step": "产权核验档案推进",
+    "title_verification_concluded": "产权核验档案结案"
   },
   "landing": {
     "forSaleIn": "{area}{type}出售",
@@ -515,5 +518,27 @@
     "rowAgencies": "发布中介数",
     "viewProperty": "查看房源",
     "limitNote": "仅对比前 4 个编号。"
+  },
+  "titles": {
+    "panelTitle": "产权核验",
+    "panelHint": "由指定法律合作伙伴对地契文件进行核验。结论会更正房源信息并为公开徽章标注日期；每一步都有日志记录。",
+    "openDossier": "开立档案",
+    "partner": "合作伙伴",
+    "status_requested": "已申请",
+    "status_documents_received": "已收到文件",
+    "status_in_review": "审核中",
+    "status_confirmed": "产权已确认",
+    "status_rejected": "已驳回",
+    "markDocuments": "已收到文件",
+    "markReview": "开始审核",
+    "confirm": "确认",
+    "reject": "驳回",
+    "confirmedTitle": "认定产权类型",
+    "notePlaceholder": "合作伙伴备注",
+    "alreadyOpen": "该房源已有正在进行的核验档案。",
+    "unknownReference": "未知房源编号。",
+    "badge": "产权已核验",
+    "verifiedNote": "产权文件由 {partner} 于 {date} 核验。",
+    "verifiedDisclaimer": "核验仅针对提交给合作伙伴的文件，不构成法律意见。"
   }
 }
