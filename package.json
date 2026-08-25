@@ -19,6 +19,8 @@
     "listings:expire": "ops/expire-listings.sh",
     "listings:expire-check": "ops/expire-listings.sh --dry-run",
     "audit:retention-check": "ops/audit-retention.sh --dry-run",
+    "db:backup": "ops/backup-db.sh",
+    "db:backup-check": "ops/backup-db.sh --dry-run",
     "bot": "node db/jobs/telegram-bot.mjs",
     "bot:once": "node db/jobs/telegram-bot.mjs --once",
     "bot:reminders": "node db/jobs/send-reminders.mjs",
@@ -46,7 +48,8 @@
     "media:process": "ops/process-media.sh",
     "media:process-check": "ops/process-media.sh --dry-run",
     "check:media": "node db/checks/media.mjs",
-    "check:upload": "node db/checks/upload.mjs"
+    "check:upload": "node db/checks/upload.mjs",
+    "check:backup": "node db/checks/backup.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

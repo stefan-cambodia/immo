@@ -699,7 +699,7 @@ Telegram, `/stop`, garde-fous, et les pages.
 
 ## Tâches planifiées
 
-Cinq tâches tournent en dehors de l'application, sur un socle commun
+Six tâches tournent en dehors de l'application, sur un socle commun
 (`ops/lib/job-runner.sh`) :
 
 | Tâche | Cadence visée | Rôle |
@@ -708,6 +708,7 @@ Cinq tâches tournent en dehors de l'application, sur un socle commun
 | `ops/process-media.sh` | **toutes les 15 minutes** | Génère et stocke les variantes WebP/AVIF/JPEG des médias en attente (§7) |
 | `ops/expire-listings.sh` | **horaire** | Bascule à `expired` les annonces passé 45 jours (§6.3) |
 | `ops/billing.sh` | **quotidienne, 01:30** (après l'expiration de 01:00) | Cycle de facturation et de quotas : les places libérées profitent aux annonces retenues (§8) |
+| `ops/backup-db.sh` | **quotidienne, 02:15** | Sauvegarde de la base : dump vérifié par `pg_restore`, chiffré, copié hors site, rotation |
 | `ops/audit-retention.sh` | **hebdomadaire** | Archive puis purge le journal d'audit, et vérifie l'archive |
 
 L'ordonnancement est fourni sous `ops/systemd/` — une unité modèle
@@ -735,11 +736,13 @@ décrit plus bas.
 npm run alerts:send              # ops/send-alerts.sh
 npm run media:process            # ops/process-media.sh
 npm run listings:expire          # ops/expire-listings.sh
+npm run db:backup                # ops/backup-db.sh
 npm run audit:retention          # archive puis purge
 
 npm run alerts:send-check        # simulation, aucune modification
 npm run media:process-check      # simulation, aucune modification
 npm run listings:expire-check    # simulation, aucune modification
+npm run db:backup-check          # simulation, aucune modification
 npm run audit:retention-check    # simulation, aucune modification
 ```
 
@@ -755,6 +758,39 @@ Vérification avant mise en service, dans l'environnement réel du serveur :
 npm run listings:expire-check    # ops/expire-listings.sh --dry-run
 npm run audit:retention-check  # ops/audit-retention.sh --dry-run
 ```
+
+### Sauvegarde et restauration de la base
+
+`ops/backup-db.sh` (job `db/jobs/backup-db.mjs`) enchaîne, chaque étape
+prouvant la précédente : `pg_dump --format=custom` en mémoire ; relecture par
+`pg_restore --list` — un dump que pg_restore ne sait pas lister ne
+restaurera rien, autant le savoir la nuit même ; chiffrement AES-256-GCM avec
+la clé des archives d'audit (`ARCHIVE_KEY`), relu-déchiffré avant que le
+clair ne soit supprimé ; copie hors site sur le dépôt des archives
+(`ARCHIVE_S3_BUCKET`, échec bruyant en code 1, la sauvegarde locale restant
+intacte) ; rotation locale en dernier, qui ne retire que l'excédent au-delà
+des `BACKUP_KEEP` plus récentes (14 par défaut). Une configuration cassée
+(clé malformée, bucket sans accès) arrête le job avant le dump.
+
+`pg_dump` et `pg_restore` sont des commandes configurables
+(`BACKUP_PG_DUMP`, `BACKUP_PG_RESTORE`) : en développement elles passent par
+le conteneur (`docker exec -i cambodia-immo-db pg_dump`, cf. `.env.example`),
+en production ce sont les binaires de l'hôte, de version au moins égale à
+celle du serveur.
+
+Restauration — l'outil du jour de l'incident est `db/jobs/vault-open.mjs`,
+qui ouvre tout fichier scellé par le coffre (sauvegarde ou archive d'audit) :
+
+```bash
+ARCHIVE_KEY=… node db/jobs/vault-open.mjs var/backups/db-2026-08-25T02-15-00.dump.enc   | pg_restore --clean --if-exists --no-owner --dbname "$DATABASE_URL"
+```
+
+`npm run check:backup` exerce le cycle complet sur la base de développement
+avec un faux bucket HTTP local : chiffrement, rotation, signature SigV4 de la
+copie, réouverture par `pg_restore`, et les trois défaillances.
+L'**exercice de restauration** sur une base vide, lui, reste une discipline
+d'exploitation à tenir régulièrement — une sauvegarde jamais restaurée n'est
+qu'une hypothèse.
 
 ### Pourquoi l'expiration tourne toutes les heures
 

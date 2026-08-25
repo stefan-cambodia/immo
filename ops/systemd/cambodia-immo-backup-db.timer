@@ -1,0 +1,15 @@
+[Unit]
+Description=Khmer Estate — sauvegarde de la base (quotidienne, 02:15)
+
+[Timer]
+Unit=cambodia-immo@backup-db.service
+OnCalendar=*-*-* 02:15:00
+# Rattrape une exécution manquée pendant un arrêt de la machine — ce que
+# cron ne sait pas faire, et la raison de préférer les unités systemd.
+Persistent=true
+RandomizedDelaySec=5min
+AccuracySec=1min
+# Après la facturation de 01:30 : la sauvegarde du jour contient ses factures.
+
+[Install]
+WantedBy=timers.target
