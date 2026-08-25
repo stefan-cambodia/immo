@@ -697,6 +697,43 @@ parité, forme canonique des critères, inscription, confirmation, déclenchemen
 par une nouvelle annonce, non-répétition, cadence quotidienne, rattachement
 Telegram, `/stop`, garde-fous, et les pages.
 
+## Mise en production
+
+Ce qu'il faut pour servir le portail hors du poste de développement, dans
+l'ordre où cela se fait. Tout est dans `ops/` et se rend avec le chemin
+d'installation et l'utilisateur d'exécution substitués.
+
+1. **Hôte** — Node 22+, PostgreSQL 17 + PostGIS, `pg_dump`/`pg_restore` de
+   version au moins égale au serveur, un utilisateur système sans shell de
+   connexion (`immo`) propriétaire du dépôt sous `/opt/cambodia-immo`.
+2. **Environnement** — `/etc/cambodia-immo/env` (root:immo, 0640), sur le
+   modèle de `.env.example` : `DATABASE_URL`, `NEXT_PUBLIC_SITE_URL`, transport
+   email, jeton du bot, clé Anthropic, stockage des médias (`MEDIA_STORAGE=s3`
+   et `MEDIA_PUBLIC_URL` = l'URL du CDN), `ARCHIVE_KEY` et `ARCHIVE_S3_BUCKET`.
+   Le serveur web et les tâches lisent le même fichier ; le code, lui, ne
+   contient aucune valeur de production.
+3. **Construction et schéma** — sous l'utilisateur d'exécution :
+   `npm ci && npm run build && npm run db:migrate`. Le seed n'est **pas**
+   lancé en production.
+4. **Serveur web** — `ops/systemd/cambodia-immo-web.service` (`next start`
+   sur `127.0.0.1:3000`, `Restart=always`, système de fichiers en lecture
+   seule sauf `var/` et `.next/cache`) :
+   `sudo ops/install-scheduler.sh --web --user immo --root /opt/cambodia-immo`.
+5. **Reverse proxy** — `ops/caddy/Caddyfile` : TLS automatique, compression,
+   en-têtes de sécurité, et **retrait de l'instance du trafic** quand
+   `/api/health` ne répond plus 200.
+6. **Point de santé** — `GET /api/health` répond `200 {status:"ok"}` quand la
+   base répond et que le schéma est au niveau du code, `503` sinon
+   (`database_unreachable`, ou `migrations_pending` : un déploiement à moitié
+   fait n'est pas un état sain). Jamais mis en cache, aucun secret.
+   `npm run check:health` le vérifie, migration en attente simulée comprise.
+7. **Tâches planifiées et sauvegardes** — section suivante ; la même commande
+   d'installation pose les timers.
+
+Déploiement d'une nouvelle version : `git pull`, `npm ci`, `npm run build`,
+`npm run db:migrate`, `systemctl restart cambodia-immo-web` — dans cet ordre,
+le point de santé signalant tout schéma en retard entre les deux derniers.
+
 ## Tâches planifiées
 
 Six tâches tournent en dehors de l'application, sur un socle commun

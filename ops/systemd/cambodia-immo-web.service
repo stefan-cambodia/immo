@@ -1,0 +1,47 @@
+# Le serveur web (Next.js, `next start`). Installation : ops/install-scheduler.sh --web
+#
+# Le déploiement est : `npm ci --omit=dev && npm run build && npm run db:migrate`
+# sous l'utilisateur d'exécution, puis `systemctl restart cambodia-immo-web`.
+# /api/health répond 503 tant qu'une migration manque : le reverse proxy
+# retire l'instance du trafic plutôt que de servir un schéma en retard.
+[Unit]
+Description=Khmer Estate — serveur web
+Documentation=file://__APP_ROOT__/README.md
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__APP_USER__
+Group=__APP_USER__
+WorkingDirectory=__APP_ROOT__
+ExecStart=__APP_ROOT__/node_modules/.bin/next start --port ${PORT} --hostname 127.0.0.1
+Restart=always
+RestartSec=3s
+# Un arrêt propre laisse finir les requêtes en cours.
+KillSignal=SIGTERM
+TimeoutStopSec=20s
+
+EnvironmentFile=-/etc/cambodia-immo/env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+PrivateTmp=true
+
+# Next écrit son cache d'exécution sous .next/cache ; les médias locaux,
+# journaux et archives vivent sous var/. Tout le reste est en lecture seule.
+ProtectSystem=strict
+ReadWritePaths=__APP_ROOT__/var __APP_ROOT__/.next/cache
+ProtectHome=true
+NoNewPrivileges=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cambodia-immo-web
+
+[Install]
+WantedBy=multi-user.target

@@ -3,10 +3,11 @@
 # Installe l'ordonnancement des tâches planifiées.
 #
 #   ops/install-scheduler.sh [--user immo] [--root /opt/cambodia-immo]
-#                            [--cron] [--dry-run] [--status]
+#                            [--web] [--cron] [--dry-run] [--status]
 #
-# Par défaut : unités systemd (modèle + cinq timers) copiées dans
+# Par défaut : unités systemd (modèle + six timers) copiées dans
 # /etc/systemd/system, `daemon-reload`, timers activés et démarrés.
+# --web installe et active aussi le serveur (cambodia-immo-web.service).
 # --cron écrit /etc/cron.d/cambodia-immo à la place. --dry-run montre les
 # fichiers rendus sans rien écrire. --status affiche l'état des timers.
 #
@@ -19,16 +20,20 @@ APP_ROOT="$ROOT"
 APP_USER="${SUDO_USER:-$(id -un)}"
 MODE=systemd
 DRY=0
+WEB=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --user) APP_USER="$2"; shift 2 ;;
     --root) APP_ROOT="$(cd -- "$2" && pwd)"; shift 2 ;;
     --cron) MODE=cron; shift ;;
+    --web) WEB=1; shift ;;
     --dry-run) DRY=1; shift ;;
     --status)
       systemctl list-timers --all 'cambodia-immo-*' 2>/dev/null \
         || echo "systemd indisponible ; voir /etc/cron.d/cambodia-immo."
+      systemctl is-active cambodia-immo-web >/dev/null 2>&1 \
+        && echo "serveur web : actif" || echo "serveur web : inactif ou non installé"
       exit 0 ;;
     *) echo "option inconnue : $1" >&2; exit 2 ;;
   esac
@@ -62,6 +67,14 @@ for f in "$ROOT"/ops/systemd/cambodia-immo-*.timer; do
   timers+=("$name")
 done
 
+units=()
+if [[ $WEB -eq 1 ]]; then
+  [[ -x "$APP_ROOT/node_modules/.bin/next" ]] \
+    || echo "note : ${APP_ROOT}/node_modules/.bin/next absent — lancer npm ci puis npm run build avant de démarrer." >&2
+  install_file "$ROOT/ops/systemd/cambodia-immo-web.service" /etc/systemd/system/cambodia-immo-web.service
+  units+=(cambodia-immo-web.service)
+fi
+
 [[ $DRY -eq 1 ]] && exit 0
 
 # Le fichier d'environnement n'est jamais créé ici : il contient des secrets
@@ -70,5 +83,5 @@ done
   || echo "note : /etc/cambodia-immo/env absent — le socle lira ${APP_ROOT}/.env.local." >&2
 
 systemctl daemon-reload
-systemctl enable --now "${timers[@]}"
+systemctl enable --now "${timers[@]}" "${units[@]}"
 systemctl list-timers --all 'cambodia-immo-*'

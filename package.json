@@ -49,7 +49,8 @@
     "media:process-check": "ops/process-media.sh --dry-run",
     "check:media": "node db/checks/media.mjs",
     "check:upload": "node db/checks/upload.mjs",
-    "check:backup": "node db/checks/backup.mjs"
+    "check:backup": "node db/checks/backup.mjs",
+    "check:health": "node db/checks/health.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

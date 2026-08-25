@@ -1,0 +1,29 @@
+# Reverse proxy de référence (Caddy 2) : TLS automatique, compression,
+# retrait de l'instance du trafic quand /api/health ne répond plus 200.
+# Adapter le domaine ; le serveur Next écoute sur 127.0.0.1:3000 (unité
+# ops/systemd/cambodia-immo-web.service).
+#
+# Les médias locaux (/media/…) et les ressources Next (/_next/static/…) sont
+# immuables par construction : Caddy peut les mettre en cache devant.
+
+khmerestate.kh {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	reverse_proxy 127.0.0.1:3000 {
+		health_uri /api/health
+		health_interval 15s
+		health_timeout 5s
+		health_status 200
+	}
+}
+
+www.khmerestate.kh {
+	redir https://khmerestate.kh{uri} permanent
+}
