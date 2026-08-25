@@ -353,7 +353,9 @@
     "account_status_changed": "Account enabled/disabled",
     "password_set": "Password set",
     "totp_enabled": "Second factor enabled",
-    "totp_disabled": "Second factor disabled"
+    "totp_disabled": "Second factor disabled",
+    "media_uploaded": "Photos uploaded",
+    "media_removed": "Photo removed"
   },
   "landing": {
     "forSaleIn": "{type} for sale in {area}",
@@ -619,5 +621,23 @@
     "usedToday": "today:",
     "noPartners": "No partners yet.",
     "duplicate": "A partner with this name already exists."
+  },
+  "photos": {
+    "panelTitle": "Photos",
+    "panelHint": "Upload photos straight to an existing property (by reference), or attach them when creating one above. The file type is read from the first bytes (JPEG, PNG, WebP, AVIF); AVIF/WebP variants are produced by the scheduled task, the source is served meanwhile.",
+    "reference": "Property reference (e.g. BK-3F7A123)",
+    "attach": "Photos (JPEG, PNG, WebP, AVIF — up to {max}, {mb} MB each)",
+    "send": "Upload photos",
+    "uploaded": "{n} photo(s) received — variants will follow on the next task run.",
+    "empty": "No manual uploads yet.",
+    "ready": "Variants ready",
+    "pending": "Awaiting processing",
+    "failed": "Processing failed",
+    "remove": "Remove",
+    "no_files": "No file received.",
+    "too_many": "Too many photos in one upload ({max} at most).",
+    "too_large": "A photo exceeds {mb} MB.",
+    "unsupported_type": "Unrecognised format: JPEG, PNG, WebP or AVIF only.",
+    "upload_failed": "The upload failed on the server; nothing was saved."
   }
 }

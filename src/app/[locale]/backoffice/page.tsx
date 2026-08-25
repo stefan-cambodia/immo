@@ -21,12 +21,14 @@ import { createProperty, resolveDedup, addAlias, confirmListing, pinSubmission,
          createApiPartner, issueApiKey, revokeApiKey,
          createUserAccount, reinviteAccount, toggleAccountActive,
          startTotpEnrollment, cancelTotpEnrollment, confirmTotpEnrollment,
-         disableTotp } from "./actions";
+         disableTotp, removePhoto } from "./actions";
 import { listPartners, listVerifications, OPEN_STATUSES }
   from "../../../../db/lib/titles.mjs";
 import { listApiPartners } from "../../../../db/lib/partner-api.mjs";
 import { listAccounts } from "../../../../db/lib/accounts.mjs";
 import { otpauthUri } from "../../../../db/lib/totp.mjs";
+import { listRecentUploads, MAX_PHOTOS_PER_UPLOAD, MAX_PHOTO_BYTES }
+  from "../../../../db/lib/media-upload.mjs";
 
 /** Compte du back-office, tel que renvoyé par accounts.mjs. */
 interface AccountRow {
@@ -41,6 +43,12 @@ interface AccountRow {
 }
 
 /** Partenaire API et ses clés, tels que renvoyés par partner-api.mjs. */
+interface UploadRow {
+  id: string; url: string; position: number; bytes: number | null;
+  processedAt: string | null; processError: string | null; createdAt: string;
+  thumb: string | null; reference: string; uploadedBy: string | null;
+}
+
 interface ApiPartnerRow {
   id: string;
   slug: string;
@@ -98,6 +106,7 @@ export default async function BackofficePage({
   const { locale: raw } = await params;
   const sp = await searchParams;
   const { error } = sp;
+  const uploaded = Number(sp.uploaded ?? 0) || 0;
   const auditFilters = parseAuditFilters(sp);
   if (!isLocale(raw)) notFound();
   const locale = raw as Locale;
@@ -123,7 +132,7 @@ export default async function BackofficePage({
   const [locations, agents, dedup, misses, expiring, reuse, leadStats,
          audit, auditTotal, span, pending, translations,
          billingRows, invoicesOpen, plans, verifRows,
-         titleDossiers, titlePartners, apiPartners, accounts, totp] = await Promise.all([
+         titleDossiers, titlePartners, apiPartners, accounts, totp, uploads] = await Promise.all([
     query<{ slug: string; name: Record<string, string>; parent: Record<string, string> | null }>(
       `SELECT l.slug, l.name_i18n AS name, p.name_i18n AS parent
        FROM locations l LEFT JOIN locations p ON p.id = l.parent_id
@@ -248,6 +257,9 @@ export default async function BackofficePage({
     queryOne<{ secret: string | null; enabledAt: string | null }>(
       `SELECT totp_secret AS secret, totp_enabled_at AS "enabledAt"
        FROM users WHERE id = $1`, [user.id]),
+    // Photos envoyées à la main (§7), dans le périmètre du compte : de quoi
+    // vérifier qu'un envoi est passé et retirer une erreur.
+    listRecentUploads(pool, { agencyId: scope, limit: 24 }) as Promise<UploadRow[]>,
   ]);
 
   return (
@@ -310,7 +322,12 @@ export default async function BackofficePage({
                             ? t("accounts.duplicate")
                             : error === "invalid_code"
                               ? t("security.invalidCode")
-                              : String(error)}
+                              : error === "no_files" || error === "too_many"
+                                  || error === "too_large" || error === "unsupported_type"
+                                  || error === "upload_failed"
+                                ? t(`photos.${error}`, { max: MAX_PHOTOS_PER_UPLOAD,
+                                                         mb: Math.round(MAX_PHOTO_BYTES / 1048576) })
+                                : String(error)}
           </p>
         )}
       </header>
@@ -400,6 +417,12 @@ export default async function BackofficePage({
               {t("filters.furnished")}
             </label>
 
+            <label style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)" }}>
+              {t("photos.attach", { max: MAX_PHOTOS_PER_UPLOAD, mb: Math.round(MAX_PHOTO_BYTES / 1048576) })}
+              <input type="file" name="photos" multiple accept="image/jpeg,image/png,image/webp,image/avif"
+                     className="field" style={{ marginTop: "0.25rem" }} />
+            </label>
+
             <PinPicker
               style={provider.style}
               attribution={provider.attribution}
@@ -414,6 +437,69 @@ export default async function BackofficePage({
               }}
             />
           </form>
+        </Panel>
+
+        {/* ------------------------------------------------- Photos (§7) */}
+        <Panel title={t("photos.panelTitle")} hint={t("photos.panelHint")}>
+          <div id="photos" />
+          {uploaded > 0 && (
+            <p className="chip" style={{ marginBottom: "0.75rem", background: "var(--color-fresh-soft)", color: "var(--color-fresh)" }}>
+              {t("photos.uploaded", { n: uploaded })}
+            </p>
+          )}
+          <form method="post" action="/api/backoffice/photos" encType="multipart/form-data"
+                style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1rem" }}>
+            <input type="hidden" name="locale" value={locale} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "0.5rem" }}>
+              <input className="field" name="reference" required placeholder={t("photos.reference")}
+                     aria-label={t("photos.reference")} style={{ textTransform: "uppercase" }} />
+              <input type="file" name="photos" multiple required className="field"
+                     accept="image/jpeg,image/png,image/webp,image/avif"
+                     aria-label={t("photos.attach", { max: MAX_PHOTOS_PER_UPLOAD,
+                                                      mb: Math.round(MAX_PHOTO_BYTES / 1048576) })} />
+            </div>
+            <button className="btn btn-primary" type="submit" style={{ alignSelf: "start" }}>
+              {t("photos.send")}
+            </button>
+          </form>
+
+          {uploads.length === 0 && <p style={{ fontSize: "0.875rem", color: "var(--color-ink-soft)" }}>{t("photos.empty")}</p>}
+          <ul style={{ display: "grid", gap: "0.5rem", fontSize: "0.8125rem",
+                       gridTemplateColumns: "repeat(auto-fill, minmax(11rem, 1fr))" }}>
+            {uploads.map((m) => (
+              <li key={m.id} style={{ border: "1px solid var(--color-line-soft)", borderRadius: "0.5rem",
+                                      padding: "0.5rem", display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                {/* Vignette : la variante JPEG si le job est passé, la source sinon.
+                    Nos propres fichiers, déjà passés par le pipeline — pas d'optimiseur Next. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={m.thumb ?? m.url} alt="" loading="lazy" width={160} height={107}
+                     style={{ width: "100%", height: "6.5rem", objectFit: "cover", borderRadius: "0.25rem",
+                              background: "var(--color-line-soft)" }} />
+                <div>
+                  <Link href={`/${locale}/property/${m.reference}`} style={{ fontWeight: 600 }}>{m.reference}</Link>
+                  <span style={{ color: "var(--color-ink-faint)" }}> · #{m.position + 1}</span>
+                  {m.bytes != null && (
+                    <span style={{ color: "var(--color-ink-faint)" }}> · {formatNumber(Math.round(m.bytes / 1024), locale)} kB</span>
+                  )}
+                </div>
+                <div style={{ color: m.processError ? "var(--color-danger)" : "var(--color-ink-soft)" }}>
+                  {m.processError
+                    ? `${t("photos.failed")} — ${m.processError}`
+                    : m.processedAt ? t("photos.ready") : t("photos.pending")}
+                </div>
+                <div style={{ color: "var(--color-ink-faint)", fontSize: "0.75rem" }}>
+                  {m.uploadedBy ?? "—"} · {formatDate(m.createdAt, locale)}
+                </div>
+                <form action={removePhoto}>
+                  <input type="hidden" name="locale" value={locale} />
+                  <input type="hidden" name="media" value={m.id} />
+                  <button className="btn" type="submit" style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem" }}>
+                    {t("photos.remove")}
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
         </Panel>
 
         {/* --------------- Soumissions en attente de pin --------------- */}

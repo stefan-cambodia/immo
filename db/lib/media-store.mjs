@@ -20,8 +20,8 @@
  * AWS, MinIO et R2 — sans SDK, comme les fournisseurs d'email.
  */
 import { createHash, createHmac } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
-import { dirname, join, normalize, resolve } from "node:path";
+import { mkdir, readdir, rm, rmdir, writeFile } from "node:fs/promises";
+import { dirname, join, normalize, resolve, sep } from "node:path";
 
 const CACHE_CONTROL = "public, max-age=31536000, immutable";
 
@@ -77,6 +77,15 @@ export class LocalStore {
   async remove(key) {
     assertSafeKey(key);
     await rm(join(this.dir, key), { force: true });
+    // Les dossiers devenus vides (p/<média>/) sont élagués jusqu'à la racine
+    // du magasin : un média retiré ne laisse rien, pas même un répertoire.
+    let dir = dirname(join(this.dir, key));
+    while (dir.startsWith(this.dir + sep) && dir !== this.dir) {
+      const left = await readdir(dir).catch(() => null);
+      if (left === null || left.length > 0) break;
+      await rmdir(dir).catch(() => {});
+      dir = dirname(dir);
+    }
   }
 }
 

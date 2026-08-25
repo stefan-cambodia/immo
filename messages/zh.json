@@ -353,7 +353,9 @@
     "account_status_changed": "已启用/停用账户",
     "password_set": "已设置密码",
     "totp_enabled": "已启用双重验证",
-    "totp_disabled": "已停用双重验证"
+    "totp_disabled": "已停用双重验证",
+    "media_uploaded": "已上传照片",
+    "media_removed": "已移除照片"
   },
   "landing": {
     "forSaleIn": "{area}{type}出售",
@@ -619,5 +621,23 @@
     "usedToday": "今日：",
     "noPartners": "暂无合作伙伴。",
     "duplicate": "同名合作伙伴已存在。"
+  },
+  "photos": {
+    "panelTitle": "照片",
+    "panelHint": "直接为已有房源（按编号）上传照片，或在上方新建房源时附加。文件类型由文件头字节识别（JPEG、PNG、WebP、AVIF）；AVIF/WebP 版本由计划任务生成，在此之前先显示原图。",
+    "reference": "房源编号（如 BK-3F7A123）",
+    "attach": "照片（JPEG、PNG、WebP、AVIF — 最多 {max} 张，每张 {mb} MB）",
+    "send": "上传照片",
+    "uploaded": "已收到 {n} 张照片 — 各尺寸版本将在下次任务运行时生成。",
+    "empty": "暂无手动上传。",
+    "ready": "版本已就绪",
+    "pending": "等待处理",
+    "failed": "处理失败",
+    "remove": "移除",
+    "no_files": "未收到文件。",
+    "too_many": "一次上传的照片过多（最多 {max} 张）。",
+    "too_large": "有照片超过 {mb} MB。",
+    "unsupported_type": "无法识别的格式：仅支持 JPEG、PNG、WebP 或 AVIF。",
+    "upload_failed": "服务器端上传失败，未保存任何内容。"
   }
 }

@@ -123,7 +123,18 @@ bot Telegram :
 - **recherches sans résultat** à traiter en alias ;
 - **relance J-7** — « toujours disponible ? » en un clic, qui repousse
   `expires_at` de 45 jours ;
-- **photos réutilisées** — biens non liés partageant un hash perceptuel.
+- **photos réutilisées** — biens non liés partageant un hash perceptuel ;
+- **envoi de photos** — jointes à la création d'un bien, ou envoyées vers un
+  bien existant par sa référence (`POST /api/backoffice/photos`, formulaire
+  multipart sans JavaScript). Le type est reconnu aux premiers octets (JPEG,
+  PNG, WebP, AVIF — jamais à l'extension ni au `Content-Type` annoncés), la
+  source est déposée sur la couche de stockage des variantes (locale ou S3)
+  avant que la ligne `media` n'existe, et le job `process-media` la traite
+  comme n'importe quelle photo venue du bot. Le panneau liste les envois
+  récents du périmètre avec leur état (en attente, variantes prêtes, échec)
+  et permet de retirer une photo — envoi et retrait sont journalisés.
+  `npm run check:upload` couvre reconnaissance du type, bornes, nettoyage
+  d'un dépôt refusé, périmètre d'agence et passage du job.
 
 ### L'authentification du back-office
 
@@ -688,7 +699,7 @@ Telegram, `/stop`, garde-fous, et les pages.
 
 ## Tâches planifiées
 
-Trois tâches tournent en dehors de l'application, sur un socle commun
+Quatre tâches tournent en dehors de l'application, sur un socle commun
 (`ops/lib/job-runner.sh`) :
 
 | Tâche | Cadence visée | Rôle |
@@ -906,5 +917,7 @@ Hors périmètre de la phase 1, conformément à la roadmap :
 - **médias réels** — le pipeline est en place (variantes AVIF/WebP/JPEG par
   `ops/process-media.sh`, stockage abstrait local/S3 signé SigV4, `<picture>`
   sur les fiches et les cartes), mais les visuels de développement restent
-  générés par `/api/photo/[seed]` : le bucket réel, son CDN devant `/media/`
-  et l'envoi direct de photos depuis le back-office restent à brancher.
+  générés par `/api/photo/[seed]` ; l'envoi depuis le back-office est en
+  place et exerce la même couche de stockage. Le bucket réel et son CDN
+  devant `/media/` (`MEDIA_STORAGE=s3`, `MEDIA_PUBLIC_URL`) restent à
+  configurer sur l'hébergement.

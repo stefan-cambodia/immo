@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { queryOne, withTransaction } from "@/lib/db";
+import { pool, queryOne, withTransaction } from "@/lib/db";
 import { AuthError, requireUser, type SessionUser } from "@/lib/auth";
 import { actorFromUser, recordAudit } from "@/lib/audit";
 // Socle d'ingestion en ESM simple, partagé avec les jobs : la même logique
@@ -18,6 +18,10 @@ import { createApiPartner as insertApiPartner, issueApiKey as insertApiKey,
 import { createAccount as insertAccount, issueToken, setAccountActive as setActive }
   from "../../../../db/lib/accounts.mjs";
 import { generateTotpSecret, verifyTotp } from "../../../../db/lib/totp.mjs";
+import { createMediaStore } from "../../../../db/lib/media-store.mjs";
+import { canManageProperty, MAX_PHOTO_BYTES, MAX_PHOTOS_PER_UPLOAD,
+         removePhoto as deletePhoto, storePhotos, validatePhotos }
+  from "../../../../db/lib/media-upload.mjs";
 import { sendAccountEmail, setPasswordLink } from "@/lib/account-mail";
 import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n";
 
@@ -110,6 +114,22 @@ export async function createProperty(form: FormData) {
      FROM agencies a WHERE a.id = $1`, [agent.agency_id]);
   if (quota?.full) fail(locale, "quota_exceeded");
 
+  // Photos jointes (facultatives) : validées AVANT toute écriture — type
+  // reconnu aux premiers octets, taille et nombre bornés — puis déposées
+  // sur le stockage dans la même transaction que le bien.
+  const photoFiles = form.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+  if (photoFiles.length > MAX_PHOTOS_PER_UPLOAD) fail(locale, "too_many");
+  if (photoFiles.some((f) => f.size > MAX_PHOTO_BYTES)) fail(locale, "too_large");
+  let photos: ReturnType<typeof validatePhotos> = [];
+  if (photoFiles.length > 0) {
+    try {
+      photos = validatePhotos(await Promise.all(
+        photoFiles.map(async (f) => Buffer.from(await f.arrayBuffer()))));
+    } catch (err) {
+      fail(locale, (err as Error).message);
+    }
+  }
+
   let reference: string;
   try {
     reference = await withTransaction(async (client) => {
@@ -146,6 +166,10 @@ export async function createProperty(form: FormData) {
          JSON.stringify({ [sourceLang]: description }), sourceLang, description.trim()]
       );
 
+      const stored = photos.length > 0
+        ? await storePhotos(client, createMediaStore(), { propertyId, photos, userId: user.id })
+        : [];
+
       await recordAudit(client, actorFromUser(user), {
         action: "property_created",
         targetType: "property",
@@ -161,6 +185,7 @@ export async function createProperty(form: FormData) {
           // processus, sa provenance doit être vérifiable.
           pin: { lng, lat },
           locationSlug,
+          photos: stored.length,
         },
       });
 
@@ -1166,4 +1191,45 @@ export async function disableTotp(form: FormData) {
   });
 
   revalidatePath("/[locale]/backoffice", "page");
+}
+
+// ------------------------------------------------------------ Photos (§7)
+
+/**
+ * Retire une photo envoyée depuis le back-office. Seuls les envois manuels
+ * se retirent ici : une photo venue du bot ou d'un flux se traite avec
+ * l'annonce dont elle dépend, pas isolément.
+ */
+export async function removePhoto(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale);
+  const mediaId = String(form.get("media") ?? "");
+  if (!UUID.test(mediaId)) fail(locale, "invalid_input");
+
+  const media = await queryOne<{ propertyId: string }>(
+    `SELECT property_id AS "propertyId" FROM media WHERE id = $1 AND uploaded_by IS NOT NULL`,
+    [mediaId]);
+  if (!media) fail(locale, "invalid_input");
+  if (!(await canManageProperty(pool, user, media.propertyId))) fail(locale, "forbidden");
+
+  try {
+    const store = createMediaStore();
+    await withTransaction(async (client) => {
+      const removed = await deletePhoto(client, store, mediaId);
+      if (!removed) return;
+      await recordAudit(client, actorFromUser(user), {
+        action: "media_removed",
+        targetType: "media",
+        targetId: mediaId,
+        targetLabel: removed.reference,
+        details: { propertyId: removed.propertyId, position: removed.position, url: removed.url },
+      });
+    });
+  } catch {
+    fail(locale, "db_error");
+  }
+
+  revalidatePath("/[locale]/backoffice", "page");
+  revalidatePath("/[locale]/property/[reference]", "page");
+  redirect(`/${locale}/backoffice#photos`);
 }

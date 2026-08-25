@@ -353,7 +353,9 @@
     "account_status_changed": "Compte activé/désactivé",
     "password_set": "Mot de passe enregistré",
     "totp_enabled": "Second facteur activé",
-    "totp_disabled": "Second facteur désactivé"
+    "totp_disabled": "Second facteur désactivé",
+    "media_uploaded": "Photos envoyées",
+    "media_removed": "Photo retirée"
   },
   "landing": {
     "forSaleIn": "{type} à vendre à {area}",
@@ -619,5 +621,23 @@
     "usedToday": "aujourd'hui :",
     "noPartners": "Aucun partenaire pour l'instant.",
     "duplicate": "Un partenaire porte déjà ce nom."
+  },
+  "photos": {
+    "panelTitle": "Photos",
+    "panelHint": "Envoi direct de photos vers un bien existant (référence), ou jointes à la création ci-dessus. Le type est reconnu aux premiers octets (JPEG, PNG, WebP, AVIF) ; les variantes AVIF/WebP sont produites par la tâche planifiée, la source est servie en attendant.",
+    "reference": "Référence du bien (ex. BK-3F7A123)",
+    "attach": "Photos (JPEG, PNG, WebP, AVIF — {max} au plus, {mb} Mo chacune)",
+    "send": "Envoyer les photos",
+    "uploaded": "{n} photo(s) reçue(s) — les variantes suivront au prochain passage de la tâche.",
+    "empty": "Aucun envoi manuel pour l'instant.",
+    "ready": "Variantes prêtes",
+    "pending": "En attente de traitement",
+    "failed": "Traitement échoué",
+    "remove": "Retirer",
+    "no_files": "Aucun fichier reçu.",
+    "too_many": "Trop de photos en un envoi ({max} au plus).",
+    "too_large": "Une photo dépasse {mb} Mo.",
+    "unsupported_type": "Format non reconnu : JPEG, PNG, WebP ou AVIF seulement.",
+    "upload_failed": "L'envoi a échoué côté serveur ; rien n'a été enregistré."
   }
 }
