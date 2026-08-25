@@ -1,0 +1,47 @@
+# Unité modèle : une instance par tâche planifiée, `%i` est le nom du lanceur
+# sous ops/ (send-alerts, process-media, expire-listings, billing,
+# audit-retention). Les timers ci-contre l'instancient ; rien d'autre ne
+# change d'une tâche à l'autre — c'est tout l'intérêt du socle job-runner.
+#
+# Installation : ops/install-scheduler.sh (substitue APP_ROOT et APP_USER).
+[Unit]
+Description=Khmer Estate — tâche planifiée %i
+Documentation=file://__APP_ROOT__/README.md
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=__APP_USER__
+Group=__APP_USER__
+WorkingDirectory=__APP_ROOT__
+ExecStart=__APP_ROOT__/ops/%i.sh
+
+# Le fichier d'environnement de production, hors du dépôt et lisible par le
+# seul utilisateur d'exécution (DATABASE_URL, clés de transport, ARCHIVE_KEY…).
+# Le tiret rend son absence non fatale : le socle lit aussi .env.local.
+EnvironmentFile=-/etc/cambodia-immo/env
+Environment=NODE_ENV=production
+Environment=JOB_ACTOR=systemd:%i
+# Le verrou flock du socle vit sous /tmp ; avec PrivateTmp il est propre à
+# l'unité, ce qui suffit : systemd n'exécute jamais deux fois la même
+# instance en parallèle, et chaque tâche a la sienne.
+PrivateTmp=true
+
+# Une tâche qui écrit ailleurs que dans var/ (journaux, archives, médias
+# locaux) fait quelque chose d'imprévu : le système de fichiers le refuse.
+ProtectSystem=strict
+ReadWritePaths=__APP_ROOT__/var
+ProtectHome=true
+NoNewPrivileges=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+# Le socle écrit déjà var/log/<tâche>.log ; le journal systemd garde la
+# sortie d'erreur pour `systemctl status` et journalctl.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cambodia-immo-%i

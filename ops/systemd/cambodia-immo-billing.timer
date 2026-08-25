@@ -1,0 +1,16 @@
+[Unit]
+Description=Khmer Estate — cycle de facturation et de quotas (quotidien, 01:30)
+
+[Timer]
+Unit=cambodia-immo@billing.service
+OnCalendar=*-*-* 01:30:00
+# Rattrape une exécution manquée pendant un arrêt de la machine — ce que
+# cron ne sait pas faire, et la raison de préférer les unités systemd.
+Persistent=true
+RandomizedDelaySec=5min
+AccuracySec=1min
+# Après l'expiration de 01:00 : les places libérées profitent aux annonces
+# retenues par le quota (ops/billing.sh).
+
+[Install]
+WantedBy=timers.target

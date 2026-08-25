@@ -1,0 +1,15 @@
+[Unit]
+Description=Khmer Estate — variantes des médias (toutes les 15 minutes, décalées)
+
+[Timer]
+Unit=cambodia-immo@process-media.service
+OnCalendar=*:05/15
+# Rattrape une exécution manquée pendant un arrêt de la machine — ce que
+# cron ne sait pas faire, et la raison de préférer les unités systemd.
+Persistent=true
+RandomizedDelaySec=30s
+AccuracySec=1min
+
+
+[Install]
+WantedBy=timers.target

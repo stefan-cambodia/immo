@@ -1,0 +1,15 @@
+[Unit]
+Description=Khmer Estate — expiration des annonces (horaire)
+
+[Timer]
+Unit=cambodia-immo@expire-listings.service
+OnCalendar=hourly
+# Rattrape une exécution manquée pendant un arrêt de la machine — ce que
+# cron ne sait pas faire, et la raison de préférer les unités systemd.
+Persistent=true
+RandomizedDelaySec=2min
+AccuracySec=1min
+
+
+[Install]
+WantedBy=timers.target

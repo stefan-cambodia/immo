@@ -699,7 +699,7 @@ Telegram, `/stop`, garde-fous, et les pages.
 
 ## Tâches planifiées
 
-Quatre tâches tournent en dehors de l'application, sur un socle commun
+Cinq tâches tournent en dehors de l'application, sur un socle commun
 (`ops/lib/job-runner.sh`) :
 
 | Tâche | Cadence visée | Rôle |
@@ -707,13 +707,29 @@ Quatre tâches tournent en dehors de l'application, sur un socle commun
 | `ops/send-alerts.sh` | **toutes les 15 minutes** | Envoie les alertes dues ; purge les inscriptions non confirmées |
 | `ops/process-media.sh` | **toutes les 15 minutes** | Génère et stocke les variantes WebP/AVIF/JPEG des médias en attente (§7) |
 | `ops/expire-listings.sh` | **horaire** | Bascule à `expired` les annonces passé 45 jours (§6.3) |
+| `ops/billing.sh` | **quotidienne, 01:30** (après l'expiration de 01:00) | Cycle de facturation et de quotas : les places libérées profitent aux annonces retenues (§8) |
 | `ops/audit-retention.sh` | **hebdomadaire** | Archive puis purge le journal d'audit, et vérifie l'archive |
 
-Aucun ordonnanceur n'est fourni : les tâches s'exécutent à la demande, ou
-depuis l'ordonnanceur de votre choix (unité systemd, `/etc/cron.d`,
-ordonnanceur de la plateforme d'hébergement). Elles ne supposent rien de leur
-appelant — ni répertoire courant, ni `PATH`, ni environnement de shell de
-connexion — ce qui est précisément le rôle du socle décrit plus bas.
+L'ordonnancement est fourni sous `ops/systemd/` — une unité modèle
+`cambodia-immo@.service` (instanciée par tâche, durcie : `ProtectSystem=strict`,
+seule `var/` est inscriptible, environnement dans `/etc/cambodia-immo/env`)
+et cinq timers `Persistent=true` — avec un repli `ops/cron.d/cambodia-immo`
+pour les hôtes sans systemd. `ops/install-scheduler.sh` rend les fichiers
+(chemin et utilisateur d'exécution substitués), les installe, recharge et
+active les timers ; `--dry-run` montre le rendu, `--cron` écrit le cron.d,
+`--status` liste les timers :
+
+```bash
+sudo ops/install-scheduler.sh --user immo --root /opt/cambodia-immo
+sudo ops/install-scheduler.sh --user immo --root /opt/cambodia-immo --dry-run
+sudo ops/install-scheduler.sh --status
+```
+
+Les heures des timers suivent le fuseau de l'hôte (à poser sur
+`Asia/Phnom_Penh`) ; le cron.d pose `CRON_TZ` lui-même. Les tâches ne
+supposent rien de leur appelant — ni répertoire courant, ni `PATH`, ni
+environnement de shell de connexion — ce qui est précisément le rôle du socle
+décrit plus bas.
 
 ```bash
 npm run alerts:send              # ops/send-alerts.sh
@@ -770,8 +786,8 @@ Ce sont les manières habituelles dont un cron échoue en silence :
 
 - **Verrou `flock` par tâche** — deux exécutions simultanées se marcheraient
   dessus. Un chevauchement se termine avec le code 0 et une ligne de journal :
-  l'exécution précédente fait déjà le travail, ce n'est pas une erreur. Les
-  deux tâches ont des verrous distincts et ne se bloquent pas l'une l'autre.
+  l'exécution précédente fait déjà le travail, ce n'est pas une erreur. Chaque
+  tâche a son propre verrou et ne bloque pas les autres.
 - **Résolution explicite de `node`** — cron n'hérite pas du `PATH` d'un shell
   de connexion, donc nvm, asdf et volta sont invisibles. Le binaire est cherché
   via `NODE_BIN`, puis le `PATH`, puis les emplacements standard.

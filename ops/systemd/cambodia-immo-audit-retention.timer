@@ -1,0 +1,15 @@
+[Unit]
+Description=Khmer Estate — rétention du journal d'audit (hebdomadaire, dimanche 03:00)
+
+[Timer]
+Unit=cambodia-immo@audit-retention.service
+OnCalendar=Sun *-*-* 03:00:00
+# Rattrape une exécution manquée pendant un arrêt de la machine — ce que
+# cron ne sait pas faire, et la raison de préférer les unités systemd.
+Persistent=true
+RandomizedDelaySec=10min
+AccuracySec=1min
+
+
+[Install]
+WantedBy=timers.target
