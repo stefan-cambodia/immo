@@ -17,7 +17,9 @@ interface Labels {
   finishPolygon: string;
   autoSearch: string;
   loading: string;
-  agencies: string;
+  bedrooms: string;
+  /** Gabarit `{n} agences` : la substitution se fait dans la bulle. */
+  agencyCount: string;
   unavailable: string;
   unavailableHint: string;
 }
@@ -172,11 +174,25 @@ export function ResultsMap({
           const f = e.features?.[0];
           if (!f) return;
           const p = f.properties as Record<string, string>;
+          // Sous le prix : ce qui distingue ce bien, et rien d'autre. Un
+          // nombre de chambres nu se lisait « $120k / 4 » ; à zéro — un
+          // terrain — il n'a rien à dire. Le nombre d'agences est un signal
+          // (« le même bien, plusieurs annonces ») : à une seule agence il
+          // n'en est pas un, comme le badge des cartes de résultats.
+          const beds = Number(p.beds) || 0;
+          const agencies = Number(p.agencies) || 0;
+          const facts = [
+            beds > 0 ? `${beds} ${labels.bedrooms}` : null,
+            agencies > 1 ? labels.agencyCount.replace("{n}", String(agencies)) : null,
+          ].filter(Boolean).join(" · ");
+
           new maplibre.Popup({ offset: 12, closeButton: false })
             .setLngLat((f.geometry as GeoJSON.Point).coordinates as [number, number])
             .setHTML(
               `<a href="/${locale}/property/${p.reference}" style="display:block;font:600 13px system-ui;color:#0f6a5f;text-decoration:none">
-                 ${p.label}<br><span style="font-weight:400;color:#4a5560">${p.beds} · ${p.agencies} ${labels.agencies}</span>
+                 ${p.label}${facts
+                   ? `<br><span style="font-weight:400;color:#4a5560">${facts}</span>`
+                   : ""}
                </a>`
             )
             .addTo(m);

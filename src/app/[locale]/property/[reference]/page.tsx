@@ -476,7 +476,8 @@ export default async function PropertyPage({
                   finishPolygon: t("map.finishDraw"),
                   autoSearch: t("map.autoSearch"),
                   loading: t("common.loading"),
-                  agencies: t("map.agencies"),
+                  bedrooms: t("common.bedrooms"),
+                  agencyCount: t("property.agencyCountShort", { n: "{n}" }),
                   unavailable: t("map.unavailable"),
                   unavailableHint: t("map.unavailableHint"),
                 }}

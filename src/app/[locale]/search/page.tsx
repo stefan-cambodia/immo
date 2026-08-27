@@ -235,7 +235,9 @@ export default async function SearchPage({
             finishPolygon: t("map.finishDraw"),
             autoSearch: t("map.autoSearch"),
             loading: t("common.loading"),
-            agencies: t("map.agencies"),
+            bedrooms: t("common.bedrooms"),
+            // Le gabarit part tel quel : la bulle y substitue le nombre.
+            agencyCount: t("property.agencyCountShort", { n: "{n}" }),
             unavailable: t("map.unavailable"),
             unavailableHint: t("map.unavailableHint"),
           }}

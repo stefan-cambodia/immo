@@ -256,7 +256,6 @@
     "finishDraw": "确认区域",
     "clearDraw": "清除区域",
     "autoSearch": "移动地图时自动搜索",
-    "agencies": "家代理",
     "unavailable": "地图无法显示",
     "unavailableHint": "此浏览器未提供地图所需的 WebGL。列表中的结果仍可正常查看。"
   },
