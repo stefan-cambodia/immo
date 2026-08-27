@@ -18,6 +18,8 @@ interface Labels {
   autoSearch: string;
   loading: string;
   agencies: string;
+  unavailable: string;
+  unavailableHint: string;
 }
 
 const compactUsd = (n: number) =>
@@ -43,6 +45,13 @@ export function ResultsMap({
   const paramString = params.toString();
 
   const [ready, setReady] = useState(false);
+  // MapLibre est un moteur WebGL : sans contexte WebGL, il lève à la
+  // construction. Un navigateur ancien, une accélération matérielle coupée ou
+  // un pilote sur liste noire suffisent. Sans ce drapeau, l'exception n'est
+  // rattrapée nulle part et le panneau reste indéfiniment vide sous un
+  // « Chargement… » qui ne s'éteint jamais — le pire des deux mondes, puisque
+  // le visiteur attend quelque chose qui ne viendra pas.
+  const [failed, setFailed] = useState(false);
   // Le chargement est un état dérivé : « les points affichés correspondent-ils
   // aux filtres courants ? » — pas un drapeau posé/levé dans l'effet.
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
@@ -58,17 +67,27 @@ export function ResultsMap({
     let cancelled = false;
     (async () => {
       // Import différé : maplibre ne pèse pas sur le bundle initial (budget §7).
-      const maplibre = (await import("maplibre-gl")).default;
-      if (cancelled || !container.current || map.current) return;
+      let maplibre;
+      let m: MlMap;
+      try {
+        maplibre = (await import("maplibre-gl")).default;
+        if (cancelled || !container.current || map.current) return;
 
-      const m = new maplibre.Map({
-        container: container.current,
-        style: style as never,
-        center,
-        zoom,
-        maxZoom,
-        attributionControl: { compact: true, customAttribution: attribution },
-      });
+        m = new maplibre.Map({
+          container: container.current,
+          style: style as never,
+          center,
+          zoom,
+          maxZoom,
+          attributionControl: { compact: true, customAttribution: attribution },
+        });
+      } catch {
+        // Pas de WebGL, ou le module n'a pas pu être chargé : on le dit, et la
+        // page reste utilisable — la carte n'est pas le seul chemin vers les
+        // biens, la liste de résultats est à côté.
+        if (!cancelled) setFailed(true);
+        return;
+      }
       m.addControl(new maplibre.NavigationControl({ showCompass: false }), "top-right");
       map.current = m;
 
@@ -272,6 +291,22 @@ export function ResultsMap({
   };
 
   const hasPolygon = params.get("polygon") !== null || draftCount > 0;
+
+  if (failed) {
+    return (
+      <div style={{
+        position: "relative", width: "100%", height: "100%", minHeight: 320,
+        display: "flex", flexDirection: "column", alignItems: "center",
+        justifyContent: "center", gap: "0.375rem", padding: "1.5rem",
+        textAlign: "center", background: "var(--color-surface-alt)",
+      }} role="status">
+        <strong style={{ fontSize: "0.9375rem" }}>{labels.unavailable}</strong>
+        <span style={{ fontSize: "0.8125rem", color: "var(--color-ink-soft)", maxWidth: "28rem" }}>
+          {labels.unavailableHint}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 320 }}>

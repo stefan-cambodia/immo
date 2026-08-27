@@ -1076,6 +1076,13 @@ définitifs — ils restent à confirmer avec les chiffres réels.
    Protomaps ou Google ne demande que deux variables d'environnement ; le champ
    `renderer` documente explicitement que Google exigerait un second moteur de
    rendu. Aucun composant ne connaît le fournisseur.
+
+   MapLibre est un moteur **WebGL** : sans contexte WebGL — navigateur ancien,
+   accélération matérielle coupée, pilote sur liste noire — il lève à la
+   construction. L'exception est rattrapée et le panneau affiche « la carte ne
+   peut pas s'afficher », plutôt que de rester vide sous un « Chargement… » qui
+   ne s'éteint jamais. La liste de résultats reste le chemin principal vers les
+   biens ; la carte ne l'a jamais été.
 2. **Périmètre v1** — Phnom Penh + Siem Reap + Sihanoukville, avec Kampot,
    Battambang, Kep et Ta Khmau amorcés. Le modèle couvre déjà les 25 provinces.
 3. **Location incluse dès la v1** — le modèle et l'interface gèrent vente et

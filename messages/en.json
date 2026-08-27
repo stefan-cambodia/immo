@@ -256,7 +256,9 @@
     "finishDraw": "Apply area",
     "clearDraw": "Clear area",
     "autoSearch": "Search as I move the map",
-    "agencies": "agencies"
+    "agencies": "agencies",
+    "unavailable": "The map cannot be displayed",
+    "unavailableHint": "This browser does not expose WebGL, which the map needs. The results are still available in the list."
   },
   "auth": {
     "signIn": "Sign in",

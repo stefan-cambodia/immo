@@ -256,7 +256,9 @@
     "finishDraw": "Valider la zone",
     "clearDraw": "Effacer la zone",
     "autoSearch": "Rechercher en déplaçant la carte",
-    "agencies": "agences"
+    "agencies": "agences",
+    "unavailable": "La carte ne peut pas s'afficher",
+    "unavailableHint": "Ce navigateur n'expose pas WebGL, dont la carte a besoin. Les résultats restent consultables dans la liste."
   },
   "auth": {
     "signIn": "Se connecter",

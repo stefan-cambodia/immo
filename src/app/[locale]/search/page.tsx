@@ -225,6 +225,8 @@ export default async function SearchPage({
             autoSearch: t("map.autoSearch"),
             loading: t("common.loading"),
             agencies: t("map.agencies"),
+            unavailable: t("map.unavailable"),
+            unavailableHint: t("map.unavailableHint"),
           }}
         />
       </div>
