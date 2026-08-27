@@ -1,0 +1,17 @@
+[Unit]
+Description=Khmer Estate — réévaluation de la file de déduplication (horaire, après les médias)
+
+[Timer]
+Unit=cambodia-immo@rescan-duplicates.service
+# À :25, soit après le passage des médias de :20 : la réévaluation n'a de sens
+# qu'une fois les empreintes calculées (ops/rescan-duplicates.sh).
+OnCalendar=*-*-* *:25:00
+# Rattrape une exécution manquée pendant un arrêt de la machine — ce que
+# cron ne sait pas faire, et la raison de préférer les unités systemd.
+Persistent=true
+RandomizedDelaySec=2min
+AccuracySec=1min
+
+
+[Install]
+WantedBy=timers.target

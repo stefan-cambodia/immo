@@ -1118,7 +1118,7 @@ le point de santé signalant tout schéma en retard entre les deux derniers.
 
 ## Tâches planifiées
 
-Six tâches tournent en dehors de l'application, sur un socle commun
+Huit tâches tournent en dehors de l'application, sur un socle commun
 (`ops/lib/job-runner.sh`) :
 
 | Tâche | Cadence visée | Rôle |
@@ -1135,7 +1135,7 @@ Six tâches tournent en dehors de l'application, sur un socle commun
 L'ordonnancement est fourni sous `ops/systemd/` — une unité modèle
 `cambodia-immo@.service` (instanciée par tâche, durcie : `ProtectSystem=strict`,
 seule `var/` est inscriptible, environnement dans `/etc/cambodia-immo/env`)
-et cinq timers `Persistent=true` — avec un repli `ops/cron.d/cambodia-immo`
+et huit timers `Persistent=true` — avec un repli `ops/cron.d/cambodia-immo`
 pour les hôtes sans systemd. `ops/install-scheduler.sh` rend les fichiers
 (chemin et utilisateur d'exécution substitués), les installe, recharge et
 active les timers ; `--dry-run` montre le rendu, `--cron` écrit le cron.d,
@@ -1159,13 +1159,23 @@ npm run media:process            # ops/process-media.sh
 npm run listings:expire          # ops/expire-listings.sh
 npm run db:backup                # ops/backup-db.sh
 npm run audit:retention          # archive puis purge
+npm run dedup:rescan             # ops/rescan-duplicates.sh
+npm run metrics:purge            # ops/purge-metrics.sh
 
 npm run alerts:send-check        # simulation, aucune modification
 npm run media:process-check      # simulation, aucune modification
 npm run listings:expire-check    # simulation, aucune modification
 npm run db:backup-check          # simulation, aucune modification
 npm run audit:retention-check    # simulation, aucune modification
+npm run dedup:rescan-check       # simulation, aucune modification
+npm run metrics:purge-check      # simulation, aucune modification
 ```
+
+`npm run check:scheduler` vérifie, hors ligne, que chaque tâche posée sur le
+socle a bien son timer, sa ligne cron.d et sa ligne dans la table ci-dessus —
+et que rien ne planifie une tâche disparue. Une purge écrite et documentée
+mais jamais lancée promet une rétention que rien ne tient ; c'est arrivé, et
+c'est ce que ce contrôle empêche de se reproduire en silence.
 
 Les unités systemd sont préférables : `Persistent=true` rattrape une exécution
 manquée pendant un arrêt de la machine, ce que cron ne fait pas. Un fichier
@@ -1358,6 +1368,7 @@ db/
   seed/activity.mjs           Audience, contacts et dossiers sur les biens présents
   checks/portal.mjs           Collecte : traduction en faits, écarts, parcours (hors ligne)
   checks/indicators.mjs       Indicateurs §10 : définitions, accès, valeurs affichées
+  checks/scheduler.mjs        Chaque tâche ops/ a son timer, sa ligne cron et sa cadence documentée
   checks/dedup.mjs            Règles du moteur de déduplication (hors ligne)
   jobs/rescan-duplicates.mjs  Réévaluation de la file une fois les photos hachées
 ops/systemd/user/             Unités systemd d'utilisateur : serveur local, modèle de tâche

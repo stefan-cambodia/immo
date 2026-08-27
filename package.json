@@ -63,6 +63,7 @@
     "check:media": "node db/checks/media.mjs",
     "check:upload": "node db/checks/upload.mjs",
     "check:backup": "node db/checks/backup.mjs",
+    "check:scheduler": "node db/checks/scheduler.mjs",
     "check:health": "node db/checks/health.mjs",
     "check:indicators": "node db/checks/indicators.mjs",
     "check:dedup": "node db/checks/dedup.mjs",
