@@ -24,7 +24,9 @@ TimeoutStopSec=20s
 
 EnvironmentFile=-/etc/cambodia-immo/env
 Environment=NODE_ENV=production
-Environment=PORT=3000
+# Rendu par l'installateur (--port, 3000 par défaut) ; le Caddyfile fourni
+# pointe sur 3000 et doit suivre si l'on change ici.
+Environment=PORT=__APP_PORT__
 PrivateTmp=true
 
 # Next écrit son cache d'exécution sous .next/cache ; les médias locaux,

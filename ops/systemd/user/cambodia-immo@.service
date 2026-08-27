@@ -11,8 +11,11 @@
 [Unit]
 Description=Khmer Estate — tâche planifiée %i (local)
 Documentation=file://__APP_ROOT__/README.md
-After=network-online.target
-Wants=network-online.target
+# Pas de `network-online.target` : la cible n'existe pas dans le gestionnaire
+# d'utilisateur et la dépendance serait ignorée en silence. Les tâches qui
+# sortent sur le réseau (alertes, copie hors site) tournent ici à des heures
+# où la machine est allumée depuis longtemps ; une exécution ratée au
+# démarrage est rattrapée par `Persistent=true` sur le timer.
 
 [Service]
 Type=oneshot

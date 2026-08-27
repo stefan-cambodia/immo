@@ -129,6 +129,13 @@ fi
 
 [[ $DRY -eq 1 ]] && exit 0
 
+# `--no-timers` sans `--web` ne désigne rien : mieux vaut le dire que laisser
+# `systemctl enable` échouer sur une liste vide.
+if [[ ${#timers[@]} -eq 0 && ${#units[@]} -eq 0 ]]; then
+  echo "rien à installer : --no-timers sans --web." >&2
+  exit 2
+fi
+
 # Le fichier d'environnement n'est jamais créé ici : il contient des secrets
 # et se pose à la main (root:APP_USER, 0640).
 if [[ $SCOPE == system ]]; then

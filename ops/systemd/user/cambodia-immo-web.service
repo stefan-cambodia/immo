@@ -14,8 +14,11 @@
 [Unit]
 Description=Khmer Estate — serveur web (local)
 Documentation=file://__APP_ROOT__/README.md
-After=network-online.target
-Wants=network-online.target
+# Pas de `network-online.target` : cette cible n'existe pas dans le
+# gestionnaire d'utilisateur (`systemctl --user` la voit « not-found », et la
+# dépendance serait ignorée en silence). Le serveur n'écoute que sur
+# 127.0.0.1 ; ce qu'il attend vraiment, c'est la base — et c'est
+# `Restart=always` qui s'en charge, voir ci-dessous.
 
 [Service]
 Type=simple
