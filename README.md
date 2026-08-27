@@ -39,6 +39,35 @@ npm run dev                    # http://localhost:3000
 Le jeu de données est **déterministe** : un même seed rejoué produit
 exactement la même base.
 
+#### Partir de vraies annonces plutôt que du jeu engendré
+
+```bash
+npm run setup:real
+```
+
+Cette variante construit le socle (localités, immeubles, agences, comptes,
+facturation) **sans fabriquer de biens**, va chercher ~1 000 annonces réellement
+publiées sur un portail cambodgien, puis rejoue l'activité de démonstration
+(audience, contacts, dossiers de titre) sur ces biens-là. Voir « La collecte de
+portails » pour ce qui est repris et ce qui ne l'est pas.
+
+| Commande | Effet |
+|---|---|
+| `npm run db:seed-base` | Le socle seul, sans biens engendrés |
+| `npm run portal:import -- --pages 25` | Collecte et importe les annonces |
+| `npm run portal:photos` | Complète les galeries depuis la page de chaque annonce |
+| `npm run media:process` | Télécharge les images et produit les variantes locales |
+| `npm run portal:import-check` | Simulation d'une page, rien n'est écrit |
+| `npm run portal:purge` | Retire tout ce qui provient d'un portail |
+| `npm run seed:activity` | Rejoue vues, contacts et dossiers sur les biens présents |
+
+**Les contrôles `db/checks/` visent le jeu engendré**, pas celui-ci : plusieurs
+d'entre eux cherchent un bien précis — un projet neuf avec annonces, un condo
+en titre strata, un bien proposé par plusieurs agences — que des données
+réelles collectées sur un seul portail ne contiennent pas. Les lancer après
+`npm run setup` ; `npm run check:portal` est le seul qui porte sur la collecte
+elle-même, et il tourne hors ligne.
+
 Le seed crée aussi les comptes du back-office et les affiche en fin
 d'exécution. Mot de passe commun en développement : `cambodia-dev`.
 
@@ -123,7 +152,8 @@ bot Telegram :
 - **recherches sans résultat** à traiter en alias ;
 - **relance J-7** — « toujours disponible ? » en un clic, qui repousse
   `expires_at` de 45 jours ;
-- **photos réutilisées** — biens non liés partageant un hash perceptuel ;
+- **photos réutilisées** — biens non liés partageant un hash perceptuel ; les
+  paires servent bien la même image (voir « Les photos de démonstration ») ;
 - **envoi de photos** — jointes à la création d'un bien, ou envoyées vers un
   bien existant par sa référence (`POST /api/backoffice/photos`, formulaire
   multipart sans JavaScript). Le type est reconnu aux premiers octets (JPEG,
@@ -310,6 +340,7 @@ Objectif du brief : « l'offre s'alimente sans intervention interne ».
 | Moteur de déduplication + file de validation | **fait** |
 | Hash perceptuel des photos | **fait** — dHash réel |
 | Import XML / CSV | **fait** |
+| Collecte d'un portail public | **fait** — realestate.com.kh, faits seuls |
 | Cycle d'expiration 45 j | fait (phase 1) |
 | Historique de prix | fait (phase 1) |
 | Dessin de polygone | fait (phase 1) |
@@ -320,10 +351,11 @@ Objectif du brief : « l'offre s'alimente sans intervention interne ».
 
 ### L'entonnoir commun
 
-Les trois canaux — bot Telegram, flux XML/CSV, back-office — déposent la même
-chose : une **soumission**. C'est `db/lib/ingest.mjs` qui décide ensuite où elle
-atterrit. Faire passer les trois par le même entonnoir est ce qui garantit
-qu'aucun ne peut contourner la règle du pin manuel.
+Les quatre canaux — bot Telegram, flux XML/CSV, back-office, collecte de
+portails — déposent la même chose : une **soumission**. C'est
+`db/lib/ingest.mjs` qui décide ensuite où elle atterrit. Faire passer les quatre
+par le même entonnoir est ce qui garantit qu'aucun ne peut contourner la règle
+du pin manuel.
 
 Le socle est en ESM simple et prend son client PostgreSQL en paramètre : la
 même logique sert au job d'import, à l'action du back-office et, demain, au
@@ -387,6 +419,164 @@ grossière. Deux photos réellement différentes mais de composition très proch
 deux studios identiques du même immeuble, pris au même endroit — tombent à une
 distance nulle. Le hash est donc une **corroboration, jamais une preuve** : le
 moteur ne fusionne jamais sur ce seul signal.
+
+### Les photos de démonstration
+
+Cette section décrit le jeu de données **engendré** ; les annonces collectées
+sur un portail montrent, elles, les photographies de l'annonce d'origine (voir
+« La collecte de portails »).
+
+Le jeu de données n'invente pas d'images : il pioche dans **83 photographies
+libres de droits** (licence Unsplash — usage commercial autorisé, aucune
+attribution obligatoire) déposées dans `public/demo-photos/`, créditées une à
+une dans `public/demo-photos/CREDITS.md`. Toutes sont recadrées en 1600 × 1067,
+JPEG progressif qualité 80 — les dimensions que le seed déclare dans
+`media.width` / `media.height`, pour ~21 Mo au total.
+
+Elles sont rangées par catégorie : `condo`, `villa`, `borey`, `shophouse`,
+`flat`, `land`, `penthouse`, `commercial`, `warehouse`, `building-exterior`.
+
+Le seed n'enregistre pas un chemin de fichier mais une **graine** :
+
+```
+/api/photo/{property_type}-{8 premiers caractères de l'id du bien}-{index}
+```
+
+`src/app/api/photo/[seed]/route.ts` la relit et sert le JPEG correspondant :
+
+- le **type** choisit la catégorie — un condo montre des intérieurs
+  d'appartement, un terrain une parcelle, un entrepôt un hall industriel ;
+- l'**index 0** est la vue extérieure de la fiche : la façade d'immeuble pour
+  les biens en étage (`condo`, `whole_building`), la catégorie du type sinon,
+  puisqu'elle est déjà faite de vues extérieures ;
+- l'**identifiant** fige la sélection. Un mélange déterministe donne à chaque
+  bien son propre ordre de parcours dans la catégorie : les photos d'une fiche
+  sont stables d'un rechargement à l'autre et distinctes entre elles.
+
+Une graine dont le type est inconnu retombe sur l'ancien visuel synthétique en
+SVG : la route ne renvoie jamais 404 dans une fiche.
+
+**Le point qui n'est pas cosmétique** : le seed fabrique volontairement des
+photos repiquées d'une agence à l'autre, avec des empreintes à quelques bits de
+distance, pour alimenter la file « photos réutilisées ». Une photo repiquée
+reprend donc **la graine de l'image d'origine**, pas seulement son empreinte
+dérivée. Sans cela, deux médias à distance ≤ 6 afficheraient deux images sans
+rapport et la file de modération n'aurait aucun sens à l'œil. La règle tient
+sur le jeu courant : les 754 paires de médias à distance ≤ 6 pointent
+**toutes** vers le même fichier local — c'est vérifiable en une requête.
+
+```sql
+SELECT count(*) AS paires, count(*) FILTER (WHERE a.url = b.url) AS meme_fichier
+FROM media a JOIN media b ON b.id > a.id AND b.property_id <> a.property_id
+ AND phash_distance(a.phash, b.phash) <= 6;
+```
+
+Conséquence assumée : ~2 % des médias portent dans leur URL le type d'un autre
+bien. C'est exactement la définition d'une photo volée, et le seul endroit où
+l'image ne correspond pas au type de la fiche.
+
+### La collecte de portails (canal 4)
+
+Le jeu de démonstration engendré reste utile pour développer, mais il ne prouve
+rien sur des données réelles. Le quatrième canal va donc chercher les annonces
+déjà publiques sur un portail cambodgien — aujourd'hui **realestate.com.kh** —
+et les fait entrer par le même entonnoir que les autres.
+
+```bash
+npm run portal:import-check          # simulation, une page, rien d'écrit
+npm run portal:import -- --pages 25  # ~1 000 annonces, vente et location
+npm run portal:purge                 # retire tout ce qui vient d'un portail
+```
+
+**Ce qui est repris, et ce qui ne l'est pas.** C'est la décision structurante,
+et elle est autant juridique que technique :
+
+| | |
+|---|---|
+| Repris | prix, transaction, type, chambres, salles d'eau, surfaces, étage, commune, coordonnées, référence, URL d'origine, **adresse des photographies** |
+| Non repris | le titre et le texte de l'annonce, le nom, le téléphone et le courriel des agents |
+
+La description est **régénérée** dans les quatre langues depuis les seuls
+champs structurés (`db/lib/describe.mjs`, le même code que le seed) : c'est le
+principe n°3 appliqué à la lettre, et cela évite de recopier le travail
+éditorial d'un tiers. Une seule agence est créée par portail, sans
+interlocuteur nommé : la voie de contact affichée sur la fiche est un lien vers
+l'annonce d'origine, qui sert en même temps d'attribution.
+
+**Les photos sont celles du bien.** `media.url` retient l'adresse de l'image
+chez la source — c'est la référence et la trace de provenance — puis le
+pipeline des médias la télécharge et en produit nos variantes AVIF/WebP/JPEG,
+exactement comme pour une photo arrivée par le bot.
+
+Ce détour n'est pas de la coquetterie d'architecture. **Le serveur d'images de
+la source répond 403 à un navigateur qui affiche l'image depuis un autre site**
+(protection anti-hotlink Cloudflare : `curl` obtient 200, Chrome reçoit une
+page HTML de refus, que le navigateur bloque en `ERR_BLOCKED_BY_ORB`). Une
+fiche qui pointerait directement chez elle n'afficherait que des cadres vides.
+C'est ce qui rend les variantes indispensables ici — et elles vivent sous
+`var/media/`, hors dépôt, ou sur le stockage S3 en production : le dépôt ne
+transporte aucune image.
+
+Le texte alternatif publié par la source n'est pas repris : la fiche fabrique
+le sien depuis le type de bien et le quartier. Les vignettes de carte
+engendrées que la source mêle à ses galeries (`type: "map"`) sont écartées :
+ce ne sont pas des photos du bien, et son serveur les refuse d'ailleurs.
+
+La page de liste ne porte que la photo mise en avant, ce qui suffit aux cartes
+de résultats. La galerie complète — cinq photos au plus — demande d'ouvrir la
+page de chaque annonce, donc une passe séparée, reprenable et lancée à la main,
+suivie du pipeline :
+
+```bash
+npm run portal:photos      # galeries, une requête par annonce
+npm run media:process      # téléchargement et variantes locales
+```
+
+`process-media` accepte désormais `--concurrency` : sur un rattrapage de
+plusieurs milliers d'images, traiter six médias de front fait passer la file de
+deux heures à une vingtaine de minutes.
+
+Une annonce sans aucune photo publiée retombe sur le fonds libre de droits
+maison (voir « Les photos de démonstration »), pour ne pas laisser une fiche
+nue dans les résultats.
+
+**Politesse de collecte.** Un agent utilisateur identifiable, une requête à la
+fois, 2,5 s entre deux pages, un nombre de pages borné par l'appelant, un arrêt
+immédiat si le serveur refuse, et rien en dehors des chemins que le `robots.txt`
+de la source laisse ouverts à `User-agent: *` — pour realestate.com.kh, les
+listes `/buy/` et `/rent/` (relevé du 27/08/2026 ; `/api/`, `/dashboard/`,
+`/admin/`, `/accounts/` et les pages d'impression sont fermés, et ne sont pas
+lus). La collecte est une commande lancée à la main, pas une tâche planifiée.
+
+**Trois pièges, trouvés sur les données réelles.** Ils ont tous la même
+réponse : écarter l'annonce plutôt que publier une valeur fausse.
+
+| Piège | Ce qui se passait | Règle retenue |
+|---|---|---|
+| Prix au m² | `"$740/m²"` lu comme un total mettait un terrain de 2,8 ha à 740 $ | multiplié par la surface, ou annonce écartée si la surface manque |
+| Coordonnée absente | `Number(null)` vaut 0, et 0/0 est un point au large de l'Afrique | une position doit être un nombre, et tomber dans l'emprise du Cambodge |
+| Commune approchante | « Phsar Kandal I » ressemblait assez à « Kandal » pour ranger une annonce de Daun Penh dans une autre province | correspondance quasi exacte exigée, sinon on remonte au district |
+
+`npm run check:portal` couvre tout cela **hors ligne**, sur des pages
+fabriquées à la main : un contrôle ne doit pas dépendre d'un site tiers pour
+passer, et le dépôt n'a pas à embarquer du contenu recopié pour se tester. Il
+vérifie aussi qu'aucun champ de texte libre ni de contact ne survit à la
+traduction en faits.
+
+**Ce qu'on n'invente pas non plus.** Le portail ne publie pas le régime de
+propriété : les biens collectés restent en `title_type = 'unknown'`, et aucun
+dossier de vérification de titre n'est fabriqué sur eux. Le panneau de
+vérification et le badge public sont donc vides sur un jeu réel — attacher un
+dossier fictif à une adresse qui existe serait fabriquer une affirmation
+juridique sur un bien réel, ce qui est une autre affaire que meubler une démo.
+
+**Ce que la collecte a révélé du moteur de déduplication.** Sur ~900 annonces
+réelles, 0 fusion automatique et 301 paires en file de validation. Le chiffre
+est élevé parce que le marché de Phnom Penh est fait d'immeubles où trente
+unités partagent quartier, type, surface et nombre de chambres — précisément
+les cas que le brief interdit de fusionner sans humain (§6.2). C'est le
+comportement voulu, mesuré pour la première fois sur autre chose qu'un jeu
+fabriqué.
 
 ### Le bot Telegram
 
@@ -931,6 +1121,11 @@ db/
   jobs/audit-retention.mjs    Archivage puis purge du journal d'audit
   jobs/audit-verify.mjs       Confrontation archive ↔ journal
   jobs/import-feed.mjs        Import XML / CSV vers l'entonnoir
+  lib/portal.mjs              Collecte de portails : faits seuls, politesse, garde-fous
+  jobs/import-portal.mjs      Import des annonces collectées vers l'entonnoir
+  lib/describe.mjs            Description engendrée depuis les champs structurés
+  seed/activity.mjs           Audience, contacts et dossiers sur les biens présents
+  checks/portal.mjs           Collecte : traduction en faits, écarts, parcours (hors ligne)
   lib/ingest.mjs              Entonnoir commun aux canaux d'ingestion
   lib/dedup.mjs               Moteur de déduplication (§6.2)
   lib/phash.mjs               dHash 64 bits, seuils mesurés
@@ -973,6 +1168,7 @@ src/lib/
 src/components/               Carte, filtres, fiches, badges, pin bloquant
 src/app/[locale]/             Accueil · recherche · fiche · agence · alertes · connexion · back-office
 src/app/api/                  suggest · map · leads · photo · audit/export
+public/demo-photos/           83 photos libres de droits + CREDITS.md
 ```
 
 ---
@@ -1003,10 +1199,27 @@ Hors périmètre de la phase 1, conformément à la roadmap :
   médias), mais la clé vit dans l'environnement : sa garde (coffre, rotation)
   et l'exercice de restauration régulier restent une discipline
   d'exploitation, pas du code.
+- **le socle juridique de la collecte** — la collecte de portails ne reprend
+  que des faits, régénère les descriptions et ne stocke aucune donnée
+  personnelle ; elle respecte le `robots.txt` de la source et se signale par
+  un agent utilisateur identifiable. Elle **reproduit en revanche les
+  photographies des annonces**, redimensionnées, sur notre propre stockage :
+  ce sont des œuvres protégées, et c'est la décision qui demande le plus
+  clairement l'accord de la source. C'est le
+  maximum que le code puisse porter. Ce qu'il ne porte pas : l'examen des
+  conditions d'utilisation du portail, la position à tenir sur le droit
+  *sui generis* du producteur de base de données, et un accord — ou à défaut
+  une notification — avec la source. Une mise en ligne publique demande de
+  trancher ces trois points d'abord ; `npm run portal:purge` retire
+  l'intégralité des données collectées d'une seule commande, ce qui est la
+  contrepartie technique de cette réserve ;
 - **médias réels** — le pipeline est en place (variantes AVIF/WebP/JPEG par
   `ops/process-media.sh`, stockage abstrait local/S3 signé SigV4, `<picture>`
-  sur les fiches et les cartes), mais les visuels de développement restent
-  générés par `/api/photo/[seed]` ; l'envoi depuis le back-office est en
-  place et exerce la même couche de stockage. Le bucket réel et son CDN
-  devant `/media/` (`MEDIA_STORAGE=s3`, `MEDIA_PUBLIC_URL`) restent à
-  configurer sur l'hébergement.
+  sur les fiches et les cartes), et les visuels de démonstration sont
+  désormais de vraies photographies libres de droits servies par
+  `/api/photo/[seed]` (voir « Les photos de démonstration ») ; l'envoi depuis
+  le back-office est en place et exerce la même couche de stockage. Mais ces
+  photos illustrent des biens fictifs : elles ne sont pas les médias des
+  annonces. Le bucket réel et son CDN devant `/media/`
+  (`MEDIA_STORAGE=s3`, `MEDIA_PUBLIC_URL`) restent à configurer sur
+  l'hébergement.

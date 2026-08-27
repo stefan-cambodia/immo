@@ -388,6 +388,18 @@ export default async function PropertyPage({
                           {t("property.expiresIn", { n: expiring })}
                         </span>
                       )}
+                      {/* Annonce collectée sur un portail public (§6.1) : la
+                          source est citée et reste accessible d'un clic. Les
+                          faits viennent d'elle ; le texte et les photos non. */}
+                      {o.sourceUrl && (
+                        <a href={o.sourceUrl} target="_blank" rel="noopener nofollow"
+                           title={t("property.sourceListingHint")}
+                           className="chip" style={{
+                             border: "1px solid var(--color-line)", color: "var(--color-ink-soft)",
+                           }}>
+                          {t("property.sourceListing")} ↗
+                        </a>
+                      )}
                     </div>
 
                     {o.description && (
@@ -422,11 +434,13 @@ export default async function PropertyPage({
                         phone={o.phone}
                         telegram={o.telegram}
                         wechat={o.wechat}
+                        sourceUrl={o.sourceUrl}
                         labels={{
                           reveal: t("property.revealPhone"),
                           call: t("property.callAgent"),
                           telegram: t("property.telegram"),
                           wechat: t("property.wechat"),
+                          source: t("property.seeSourceListing"),
                         }}
                       />
                     </div>
@@ -464,7 +478,10 @@ export default async function PropertyPage({
               />
             </div>
             <p style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)", marginTop: "0.5rem", lineHeight: 1.6 }}>
-              {t("property.pinNote")}
+              {/* La provenance du pin est inscrite dans `geo_pin_by` : une
+                  annonce collectée n'a pas été pointée par une agence chez
+                  nous, et la légende ne doit pas le laisser croire. */}
+              {t(p.geoPinBy?.startsWith("portal:") ? "property.pinNoteSource" : "property.pinNote")}
               {p.geoPinAt && ` — ${formatDate(p.geoPinAt, locale)}`}
             </p>
 

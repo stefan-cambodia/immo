@@ -176,9 +176,13 @@ async function attachPhotos(client, input, propertyId) {
   const photos = input.photos ?? [];
   for (const [position, photo] of photos.entries()) {
     await client.query(
-      `INSERT INTO media(property_id, url, position, width, height, phash)
-       VALUES ($1,$2,$3,$4,$5,$6::bit(64))`,
-      [propertyId, photo.url, position, photo.width ?? null, photo.height ?? null, photo.phash]
+      `INSERT INTO media(property_id, url, position, width, height, phash, variants)
+       VALUES ($1,$2,$3,$4,$5,$6::bit(64),$7)`,
+      // Un canal qui connaît déjà les tailles disponibles les apporte : c'est
+      // le cas d'une annonce collectée, dont la source publie ses propres
+      // vignettes. Sinon la colonne reste vide et `process-media` la remplira.
+      [propertyId, photo.url, position, photo.width ?? null, photo.height ?? null,
+       photo.phash, JSON.stringify(photo.variants ?? [])]
     );
   }
 }

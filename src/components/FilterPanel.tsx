@@ -36,34 +36,28 @@ export function FilterPanel({
       )}
       {f.sort !== "relevance" && <input type="hidden" name="sort" value={f.sort} />}
 
-      <div role="group" aria-label={t("filters.transaction")} style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.25rem",
-        background: "var(--color-surface-alt)", padding: "0.25rem", borderRadius: "0.5rem",
-      }}>
+      {/* Soumission implicite : la touche Entrée dans un champ active le premier
+          bouton d'envoi du formulaire. Sans ce bouton-ci, ce serait « acheter »,
+          et Entrée ferait basculer le marché à l'insu de l'utilisateur. */}
+      <button type="submit" name="txn" value={f.transaction} tabIndex={-1} aria-hidden="true"
+              style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} />
+
+      {/* Acheter / louer n'est pas un filtre parmi d'autres : c'est le marché
+          regardé. Un clic l'applique immédiatement, sans passer par
+          « Appliquer » — d'où deux boutons d'envoi plutôt que deux radios, qui
+          se seraient contentés de cocher un contrôle invisible. */}
+      <div role="group" aria-label={t("filters.transaction")} className="seg">
         {(["sale", "rent"] as const).map((txn) => (
-          <label key={txn} style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            padding: "0.4375rem 0.5rem", borderRadius: "0.375rem", cursor: "pointer",
-            fontSize: "0.875rem", fontWeight: 600, textAlign: "center",
-            background: f.transaction === txn ? "var(--color-surface)" : "transparent",
-            color: f.transaction === txn ? "var(--color-ink)" : "var(--color-ink-soft)",
-            boxShadow: f.transaction === txn ? "0 1px 3px rgb(0 0 0 / 0.08)" : undefined,
-          }}>
-            <input type="radio" name="txn" value={txn} defaultChecked={f.transaction === txn}
-                   style={{ position: "absolute", opacity: 0, pointerEvents: "none" }} />
+          <button key={txn} type="submit" name="txn" value={txn} className="seg-btn"
+                  aria-pressed={f.transaction === txn}>
             {t(txn === "sale" ? "common.forSale" : "common.forRent")}
-          </label>
+          </button>
         ))}
       </div>
 
       {/* Le filtre le plus important pour l'audience expatriée : en tête, pas
           caché dans les filtres avancés (§5.3). */}
-      <label style={{
-        display: "flex", gap: "0.625rem", alignItems: "start", padding: "0.75rem",
-        border: `1px solid ${f.foreignEligible ? "var(--color-brand)" : "var(--color-line)"}`,
-        background: f.foreignEligible ? "var(--color-brand-soft)" : "var(--color-surface)",
-        borderRadius: "0.625rem", cursor: "pointer",
-      }}>
+      <label className="filter-card">
         <input type="checkbox" name="foreign" value="1" defaultChecked={f.foreignEligible}
                style={{ marginTop: "0.1875rem" }} />
         <span>
@@ -90,13 +84,7 @@ export function FilterPanel({
           {PROPERTY_TYPES.map((type) => {
             const on = f.types.includes(type);
             return (
-              <label key={type} className="chip" style={{
-                cursor: "pointer", padding: "0.3125rem 0.6875rem", fontSize: "0.8125rem",
-                border: `1px solid ${on ? "var(--color-brand)" : "var(--color-line)"}`,
-                background: on ? "var(--color-brand-soft)" : "var(--color-surface)",
-                color: on ? "var(--color-brand)" : "var(--color-ink-soft)",
-                whiteSpace: "normal",
-              }}>
+              <label key={type} className="chip chip-toggle">
                 <input type="checkbox" name="type" value={type} defaultChecked={on}
                        style={{ position: "absolute", opacity: 0, pointerEvents: "none" }} />
                 {t(`propertyType.${type}`)}
@@ -133,13 +121,7 @@ export function FilterPanel({
           {TITLE_TYPES.map((title) => {
             const on = f.titles.includes(title);
             return (
-              <label key={title} className="chip" title={t(`titleType.${title}Hint`)} style={{
-                cursor: "pointer", padding: "0.3125rem 0.6875rem", fontSize: "0.8125rem",
-                border: `1px solid ${on ? "var(--color-brand)" : "var(--color-line)"}`,
-                background: on ? "var(--color-brand-soft)" : "var(--color-surface)",
-                color: on ? "var(--color-brand)" : "var(--color-ink-soft)",
-                whiteSpace: "normal",
-              }}>
+              <label key={title} className="chip chip-toggle" title={t(`titleType.${title}Hint`)}>
                 <input type="checkbox" name="title" value={title} defaultChecked={on}
                        style={{ position: "absolute", opacity: 0, pointerEvents: "none" }} />
                 {t(`titleType.${title}`)}
@@ -161,12 +143,7 @@ export function FilterPanel({
 
       <Section label={t("filters.amenities")}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
-          <label className="chip" style={{
-            cursor: "pointer", padding: "0.3125rem 0.6875rem", fontSize: "0.8125rem",
-            border: `1px solid ${f.furnished ? "var(--color-brand)" : "var(--color-line)"}`,
-            background: f.furnished ? "var(--color-brand-soft)" : "var(--color-surface)",
-            color: f.furnished ? "var(--color-brand)" : "var(--color-ink-soft)",
-          }}>
+          <label className="chip chip-toggle">
             <input type="checkbox" name="furnished" value="1" defaultChecked={f.furnished}
                    style={{ position: "absolute", opacity: 0, pointerEvents: "none" }} />
             {t("filters.furnished")}
@@ -174,13 +151,7 @@ export function FilterPanel({
           {AMENITIES.map((a) => {
             const on = f.amenities.includes(a);
             return (
-              <label key={a} className="chip" style={{
-                cursor: "pointer", padding: "0.3125rem 0.6875rem", fontSize: "0.8125rem",
-                border: `1px solid ${on ? "var(--color-brand)" : "var(--color-line)"}`,
-                background: on ? "var(--color-brand-soft)" : "var(--color-surface)",
-                color: on ? "var(--color-brand)" : "var(--color-ink-soft)",
-                whiteSpace: "normal",
-              }}>
+              <label key={a} className="chip chip-toggle">
                 <input type="checkbox" name="amenity" value={a} defaultChecked={on}
                        style={{ position: "absolute", opacity: 0, pointerEvents: "none" }} />
                 {t(`amenity.${a}`)}

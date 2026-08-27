@@ -6,6 +6,8 @@ import { randomBytes, scrypt as scryptCb } from "node:crypto";
 import { promisify } from "node:util";
 import { locations } from "./locations.mjs";
 import { createApiPartner, issueApiKey } from "../lib/partner-api.mjs";
+import { describe } from "../lib/describe.mjs";
+import { seedActivity } from "./activity.mjs";
 
 const scrypt = promisify(scryptCb);
 
@@ -229,6 +231,8 @@ const flipBits = (bits, count) => {
   return out.join("");
 };
 
+// Réservoir des photos « repiquables » : chaque entrée retient l'empreinte ET
+// la graine d'image, pour qu'un vol reproduise le même fichier local.
 const stolenPool = [];
 
 const AMENITIES = ["pool", "gym", "parking", "elevator", "security_24h", "generator", "balcony",
@@ -267,34 +271,10 @@ const sqmPrice = {
   "krong-kampot": 800, "krong-battambang": 650, "krong-kep": 750, "takhmao": 700,
 };
 
-const TYPE_LABEL = {
-  condo: { fr: "Appartement", en: "Condo", zh: "公寓", km: "ខុនដូ" },
-  borey_house: { fr: "Maison en borey", en: "Borey house", zh: "别墅区住宅", km: "ផ្ទះក្នុងបុរី" },
-  villa: { fr: "Villa", en: "Villa", zh: "别墅", km: "វីឡា" },
-  flat_shophouse: { fr: "Flat / shophouse", en: "Flat / shophouse", zh: "排屋", km: "ផ្ទះល្វែង" },
-  land: { fr: "Terrain", en: "Land", zh: "土地", km: "ដីធ្លី" },
-  commercial: { fr: "Local commercial", en: "Commercial space", zh: "商铺", km: "អគារពាណិជ្ជកម្ម" },
-  warehouse: { fr: "Entrepôt", en: "Warehouse", zh: "仓库", km: "ឃ្លាំង" },
-  whole_building: { fr: "Immeuble entier", en: "Whole building", zh: "整栋楼", km: "អគារទាំងមូល" },
-};
-
-// §4.1 : la description est générée depuis les champs structurés, dans les
-// quatre langues. Le contenu libre est réduit au minimum, donc le coût de
-// traduction aussi.
-function describe(p, hoodNames, txn) {
-  const t = TYPE_LABEL[p.property_type];
-  const bd = p.bedrooms, ar = p.indoor_area_sqm ?? p.land_area_sqm;
-  const verb = { sale: { fr: "à vendre", en: "for sale", zh: "出售", km: "សម្រាប់លក់" },
-                 rent: { fr: "à louer", en: "for rent", zh: "出租", km: "សម្រាប់ជួល" } }[txn];
-  return {
-    fr: `${t.fr} ${verb.fr} à ${hoodNames.fr}${bd ? `, ${bd} chambre${bd > 1 ? "s" : ""}` : ""}${ar ? `, ${ar} m²` : ""}.${p.furnished ? " Entièrement meublé." : ""}${p.floor ? ` Étage ${p.floor}.` : ""}`,
-    en: `${t.en} ${verb.en} in ${hoodNames.en}${bd ? `, ${bd} bedroom${bd > 1 ? "s" : ""}` : ""}${ar ? `, ${ar} sqm` : ""}.${p.furnished ? " Fully furnished." : ""}${p.floor ? ` Floor ${p.floor}.` : ""}`,
-    zh: `${hoodNames.zh}${t.zh}${verb.zh}${bd ? `，${bd}房` : ""}${ar ? `，${ar}平方米` : ""}。${p.furnished ? "全装修家具齐全。" : ""}${p.floor ? `${p.floor}层。` : ""}`,
-    km: `${t.km}${verb.km}នៅ${hoodNames.km}${bd ? ` បន្ទប់គេង ${bd}` : ""}${ar ? ` ទំហំ ${ar} ម២` : ""}។${p.furnished ? " មានគ្រឿងសង្ហារិមគ្រប់គ្រាន់។" : ""}${p.floor ? ` ជាន់ទី ${p.floor}។` : ""}`,
-  };
-}
-
-const TARGET = 500;
+// `--no-demo-properties` construit le socle (localités, immeubles, agences,
+// comptes, facturation) SANS fabriquer de biens : c'est le point de départ
+// d'une base alimentée par de vraies annonces (db/jobs/import-portal.mjs).
+const TARGET = process.argv.includes("--no-demo-properties") ? 0 : 500;
 const hoodMeta = new Map(locations.map((l) => [l[0], { names: l[3], center: l[5] }]));
 let propCount = 0, listingCount = 0, mediaCount = 0;
 const now = Date.now();
@@ -391,23 +371,41 @@ for (let i = 0; i < TARGET; i++) {
   // Photos : 4 à 9 visuels par bien, avec hash perceptuel simulé. Deux biens
   // distincts peuvent partager un hash — c'est exactement le signal que la
   // modération doit remonter (§6.3).
+  //
+  // La graine porte le type du bien : c'est elle, et elle seule, qui décide
+  // quelle photo de `public/demo-photos` est servie (voir la route
+  // `/api/photo/[seed]`). Un condo montre donc des intérieurs de condo, et
+  // l'index 0 reste une vue extérieure.
   const photoCount = type === "land" ? int(2, 4) : int(4, 9);
+  const usedSeeds = new Set();
   for (let m = 0; m < photoCount; m++) {
     // Les photos repiquées ne sont pas des copies bit à bit : elles sont
     // recompressées, recadrées, filigranées. Le jeu de données reflète cela en
     // dérivant l'empreinte volée à quelques bits près, ce qui exerce vraiment
     // `phash_distance` au lieu d'une égalité stricte.
-    let phash;
-    if (chance(0.04) && stolenPool.length) {
-      phash = flipBits(pick(stolenPool), int(0, 4));
+    //
+    // Le repiquage reprend AUSSI la graine de la photo d'origine : sans cela,
+    // deux médias aux empreintes voisines afficheraient deux images sans
+    // rapport et la file « photos réutilisées » du back-office n'aurait aucun
+    // sens à l'œil. Empreinte proche ⇒ même fichier local.
+    let phash, seed;
+    const source = chance(0.04) && stolenPool.length ? pick(stolenPool) : null;
+    // Un vol n'a de sens que sur une image que la fiche n'a pas déjà : sinon
+    // la galerie afficherait deux fois le même cliché sans que la modération
+    // ait quoi que ce soit à y voir.
+    if (source && !usedSeeds.has(source.seed)) {
+      phash = flipBits(source.phash, int(0, 4));
+      seed = source.seed;
     } else {
       phash = randomPhash();
-      if (stolenPool.length < 12) stolenPool.push(phash);
+      seed = `${type}-${propertyId.slice(0, 8)}-${m}`;
+      if (stolenPool.length < 12) stolenPool.push({ phash, seed });
     }
+    usedSeeds.add(seed);
     await db.query(
       `INSERT INTO media(property_id, url, position, width, height, phash, variants)
        VALUES ($1,$2,$3,$4,$5,$6::bit(64),$7)`,
-      [propertyId, `/api/photo/${propertyId.slice(0, 8)}-${m}`, m, 1600, 1067, phash,
+      [propertyId, `/api/photo/${seed}`, m, 1600, 1067, phash,
        JSON.stringify([{ w: 400 }, { w: 800 }, { w: 1600 }])]);
     mediaCount++;
   }
@@ -472,142 +470,7 @@ for (let i = 0; i < TARGET; i++) {
   }
 }
 
-// ------------------------------------------------------ Audience et contacts
-// Le tableau de bord agence n'a de sens qu'avec du trafic à montrer. La
-// distribution imite ce qu'on observe : quelques fiches captent l'essentiel
-// des vues, et le contact reste rare — un ordre de grandeur de 2 à 6 %.
-const { rows: viewable } = await db.query(
-  `SELECT p.id, p.reference,
-          (SELECT count(*) FROM listings l WHERE l.property_id = p.id AND l.status='active')::int AS n
-   FROM properties p WHERE EXISTS (
-     SELECT 1 FROM listings l WHERE l.property_id = p.id AND l.status='active')`);
-
-let viewCount = 0, leadCount = 0;
-for (const prop of viewable) {
-  // Loi très inégale : la plupart des fiches font peu de vues, quelques-unes
-  // beaucoup. Un tirage exponentiel approché suffit à le rendre.
-  const base = Math.round(Math.exp(rnd() * 4.2)) + int(0, 5);
-  const views = Math.min(400, base * (1 + prop.n * 0.25));
-
-  for (let v = 0; v < views; v++) {
-    const daysAgo = int(0, 59);
-    const at = new Date(now - daysAgo * 86400000 - int(0, 23) * 3600000 - int(0, 59) * 60000);
-    await db.query(
-      `INSERT INTO property_views(property_id, session_id, locale, referrer_host, created_at)
-       VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,
-      [prop.id, `s${int(1, 40000)}`,
-       pick(["en", "en", "en", "km", "zh", "fr"]),
-       pick(["www.google.com", "www.google.com", "www.google.com.kh", "www.facebook.com",
-             "t.me", null, null, "www.baidu.com"]),
-       at]);
-    viewCount++;
-  }
-
-  // Contacts : une fraction des vues, sur les annonces actives du bien.
-  const { rows: offers } = await db.query(
-    `SELECT id, agency_id, agent_id FROM listings
-     WHERE property_id = $1 AND status = 'active'`, [prop.id]);
-  const leads = Math.floor(views * (0.02 + rnd() * 0.04));
-  for (let k = 0; k < leads && offers.length; k++) {
-    const offer = pick(offers);
-    const daysAgo = int(0, 59);
-    await db.query(
-      `INSERT INTO leads(listing_id, property_id, agency_id, agent_id, channel,
-                         action_type, locale, session_id, referrer, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-      [offer.id, prop.id, offer.agency_id, offer.agent_id,
-       pick(["phone", "phone", "phone", "telegram", "wechat", "form"]),
-       pick(["reveal_phone", "reveal_phone", "call", "message"]),
-       pick(["en", "en", "km", "zh", "fr"]), `s${int(1, 40000)}`, null,
-       new Date(now - daysAgo * 86400000 - int(0, 23) * 3600000)]);
-    leadCount++;
-  }
-}
-console.log(`  ${viewCount} vues, ${leadCount} contacts`);
-
-// Les compteurs dénormalisés utilisés par la page d'accueil et les filtres.
-await db.query(`
-  UPDATE locations SET listing_count = sub.n FROM (
-    SELECT loc.id, count(DISTINCT p.id) AS n
-    FROM locations loc
-    JOIN locations descendant ON descendant.id = loc.id
-      OR descendant.parent_id = loc.id
-      OR descendant.parent_id IN (SELECT id FROM locations WHERE parent_id = loc.id)
-    JOIN properties p ON p.location_id = descendant.id
-    JOIN listings l ON l.property_id = p.id AND l.status = 'active'
-    GROUP BY loc.id
-  ) sub WHERE locations.id = sub.id`);
-
-// File de déduplication : signatures identiques entre biens distincts.
-await db.query(`
-  INSERT INTO dedup_candidates(property_a_id, property_b_id, score, reasons)
-  SELECT LEAST(a.id, b.id), GREATEST(a.id, b.id), 0.82, ARRAY['signature_identique']
-  FROM properties a JOIN properties b
-    ON a.dedup_signature = b.dedup_signature AND a.id < b.id
-  ON CONFLICT DO NOTHING`);
-
-// ------------------------------------- Vérification des titres (phase 4)
-// Des partenaires juridiques et un dossier à chaque étape du cycle, pour que
-// le panneau de modération et le badge public aient chacun quelque chose à
-// montrer. La conclusion confirmée alimente le badge du bien.
-const partners = [];
-for (const [slug, name, contact] of [
-  ["bng-legal", "BNG Legal", "titles@bnglegal.com"],
-  ["dfdl-cambodia", "DFDL Cambodia", "realestate@dfdl.com"],
-  ["sok-siphana", "Sok Siphana & Associates", "land@soksiphana.com"],
-]) {
-  const { rows } = await db.query(
-    `INSERT INTO verification_partners(slug, name, contact) VALUES ($1,$2,$3)
-     RETURNING id, name`, [slug, name, contact]);
-  partners.push(rows[0]);
-}
-
-// Quatre condos strata en vente, BKK1 d'abord : un dossier par état.
-const { rows: verifiable } = await db.query(`
-  SELECT p.id, p.reference, p.title_type::text AS claimed
-  FROM properties p
-  JOIN locations loc ON loc.id = p.location_id
-  WHERE p.property_type = 'condo' AND p.title_type = 'strata'
-    AND EXISTS (SELECT 1 FROM listings l WHERE l.property_id = p.id
-                  AND l.status = 'active' AND l.transaction_type = 'sale')
-  ORDER BY loc.slug = 'bkk1' DESC, p.reference LIMIT 4`);
-
-let dossierCount = 0;
-const dossier = (property, partner, fields) => db.query(
-  `INSERT INTO title_verifications(property_id, partner_id, property_reference,
-     partner_name, claimed_title, status, requested_by, requested_at,
-     documents_received_at, concluded_at, confirmed_title, note)
-   VALUES ($1,$2,$3,$4,$5::title_type,$6,$7,
-           now() - make_interval(days => $8),
-           CASE WHEN $9::int  IS NULL THEN NULL ELSE now() - make_interval(days => $9::int)  END,
-           CASE WHEN $10::int IS NULL THEN NULL ELSE now() - make_interval(days => $10::int) END,
-           $11::title_type, $12)`,
-  [property.id, partner.id, property.reference, partner.name, property.claimed,
-   fields.status, "seed@khmerestate.kh", fields.requestedDays,
-   fields.documentsDays ?? null, fields.concludedDays ?? null,
-   fields.confirmedTitle ?? null, fields.note ?? null]).then(() => dossierCount++);
-
-if (verifiable.length >= 4) {
-  const [confirmed, rejected, inReview, requested] = verifiable;
-  await dossier(confirmed, partners[0], {
-    status: "confirmed", requestedDays: 20, documentsDays: 16, concludedDays: 12,
-    confirmedTitle: confirmed.claimed,
-    note: "Titre strata inscrit au registre foncier, sans charge.",
-  });
-  await db.query(
-    `UPDATE properties SET title_verified_at = now() - interval '12 days',
-            title_verified_by = $2 WHERE id = $1`,
-    [confirmed.id, partners[0].name]);
-  await dossier(rejected, partners[1], {
-    status: "rejected", requestedDays: 30, concludedDays: 9,
-    note: "Documents jamais fournis par l'agence.",
-  });
-  await dossier(inReview, partners[1], {
-    status: "in_review", requestedDays: 8, documentsDays: 5,
-  });
-  await dossier(requested, partners[2], { status: "requested", requestedDays: 2 });
-}
-console.log(`  ${partners.length} partenaires, ${dossierCount} dossiers de titre`);
+await seedActivity(db, { rnd, pick, int, now });
 
 // ------------------------------------------- API partenaires (phase 4)
 // Deux partenaires avec chacun une clé active — les clés en clair sont

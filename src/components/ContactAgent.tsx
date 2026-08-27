@@ -18,18 +18,33 @@ async function trackLead(payload: {
 }
 
 export function ContactAgent({
-  listingId, locale, phone, telegram, wechat, labels,
+  listingId, locale, phone, telegram, wechat, sourceUrl, labels,
 }: {
   listingId: string;
   locale: string;
   phone: string;
   telegram: string | null;
   wechat: string | null;
-  labels: { reveal: string; call: string; telegram: string; wechat: string };
+  /** Annonce d'origine, pour les annonces collectées sur un portail (§6.1). */
+  sourceUrl?: string | null;
+  labels: { reveal: string; call: string; telegram: string; wechat: string; source: string };
 }) {
   const [revealed, setRevealed] = useState(false);
 
   const masked = phone.replace(/\d(?=\d{3})/g, "•");
+  // Une annonce collectée n'apporte aucun numéro : les pages sources exposent
+  // des coordonnées personnelles qui n'ont pas à entrer chez nous. La voie de
+  // contact est alors l'annonce d'origine, et le clic n'est pas compté comme
+  // un contact — ce n'en est pas un pour nous.
+  const dialable = /\d/.test(phone);
+
+  if (!dialable) {
+    return sourceUrl ? (
+      <a className="btn btn-primary" href={sourceUrl} target="_blank" rel="noopener nofollow">
+        {labels.source} ↗
+      </a>
+    ) : null;
+  }
 
   return (
     <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>

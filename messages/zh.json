@@ -181,7 +181,11 @@
     "negotiable": "价格可议",
     "pricePerSqm": "{price} / 平方米",
     "agencyCountShort": "{n} 家代理",
-    "oneAgency": "1 家代理"
+    "oneAgency": "1 家代理",
+    "sourceListing": "原始房源",
+    "sourceListingHint": "此房源采集自公开门户网站。事实数据来自原站，文字与照片为本站自有。",
+    "pinNoteSource": "坐标来自原始房源发布方——绝不由地址自动地理编码。",
+    "seeSourceListing": "查看原始房源"
   },
   "agency": {
     "verified": "已认证代理",

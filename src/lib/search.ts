@@ -425,6 +425,8 @@ export interface OfferDetail {
   pricePeriod: string | null;
   negotiable: boolean | null;
   source: string;
+  /** Lien vers l'annonce d'origine, pour les annonces collectées (§6.1). */
+  sourceUrl: string | null;
   lastConfirmed: string;
   expiresAt: string;
   description: Record<string, string> | null;
@@ -479,6 +481,7 @@ export async function getProperty(reference: string) {
     `
     SELECT l.id, l.transaction_type AS "transactionType", l.price_usd AS "price",
            l.price_period AS "pricePeriod", l.negotiable, l.source,
+           l.source_url AS "sourceUrl",
            l.last_confirmed_at AS "lastConfirmed", l.expires_at AS "expiresAt",
            l.description_i18n AS "description", l.description_source_lang AS "sourceLang",
            l.machine_translated AS "machineTranslated", l.featured,

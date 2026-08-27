@@ -23,6 +23,8 @@ const LIMIT = Number(opt("limit", "200"));
 // Restreint la file à un bien : retraiter les photos d'une fiche précise
 // sans attendre le tour du reste.
 const PROPERTY = opt("property", null);
+/** Médias traités de front. Voir la boucle plus bas. */
+const CONCURRENCY = Math.max(1, Number(opt("concurrency", "1")));
 const SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
 const db = new pg.Client({
@@ -48,7 +50,21 @@ if (DRY) {
 const store = createMediaStore();
 let processed = 0, failed = 0;
 
-for (const media of pending) {
+// Un média se traite indépendamment des autres : téléchargement puis encodage,
+// sans état partagé. Les traiter un par un laisse le réseau et les cœurs à
+// l'arrêt à tour de rôle — sur un rattrapage de plusieurs milliers d'images,
+// c'est la différence entre dix minutes et deux heures. Le défaut reste 1,
+// pour que le comportement de la file ne change pas sans qu'on le demande.
+const queue = pending.slice();
+
+async function worker() {
+  while (queue.length) {
+    const media = queue.shift();
+    await handle(media);
+  }
+}
+
+async function handle(media) {
   try {
     const source = media.url.startsWith("/") ? `${SITE}${media.url}` : media.url;
     const res = await fetch(source);
@@ -82,6 +98,8 @@ for (const media of pending) {
     failed++;
   }
 }
+
+await Promise.all(Array.from({ length: CONCURRENCY }, worker));
 
 const summary = { pending: pending.length, backlog: Number(backlog), processed, failed };
 console.log(has("json") ? JSON.stringify(summary)

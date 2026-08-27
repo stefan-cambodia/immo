@@ -13,6 +13,13 @@
     "db:migrate": "node db/migrate.mjs",
     "db:seed": "node db/seed/seed.mjs",
     "db:reset": "node db/migrate.mjs --reset && node db/seed/seed.mjs",
+    "db:seed-base": "node db/seed/seed.mjs --no-demo-properties",
+    "seed:activity": "node db/seed/activity.mjs",
+    "portal:import": "node db/jobs/import-portal.mjs",
+    "portal:photos": "node db/jobs/import-portal.mjs --photos",
+    "portal:import-check": "node db/jobs/import-portal.mjs --dry-run --pages 1",
+    "portal:purge": "node db/jobs/import-portal.mjs --purge",
+    "setup:real": "npm run db:up && node db/migrate.mjs --reset && npm run db:seed-base && node db/jobs/import-portal.mjs --pages 25 --txn both && node db/jobs/import-portal.mjs --photos && npm run seed:activity",
     "setup": "npm run db:up && npm run db:migrate && npm run db:seed",
     "audit:retention": "node db/jobs/audit-retention.mjs",
     "audit:verify": "node db/jobs/audit-verify.mjs",
@@ -50,7 +57,8 @@
     "check:media": "node db/checks/media.mjs",
     "check:upload": "node db/checks/upload.mjs",
     "check:backup": "node db/checks/backup.mjs",
-    "check:health": "node db/checks/health.mjs"
+    "check:health": "node db/checks/health.mjs",
+    "check:portal": "node db/checks/portal.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

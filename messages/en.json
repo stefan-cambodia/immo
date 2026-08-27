@@ -181,7 +181,11 @@
     "negotiable": "Negotiable",
     "pricePerSqm": "{price} / sqm",
     "agencyCountShort": "{n} agencies",
-    "oneAgency": "1 agency"
+    "oneAgency": "1 agency",
+    "sourceListing": "Original listing",
+    "sourceListingHint": "This listing was collected from a public portal. The facts are reproduced; the wording and photos are ours.",
+    "pinNoteSource": "Position published by the original listing — never geocoded automatically from an address.",
+    "seeSourceListing": "See the original listing"
   },
   "agency": {
     "verified": "Verified agency",

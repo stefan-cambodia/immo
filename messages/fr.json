@@ -181,7 +181,11 @@
     "negotiable": "Négociable",
     "pricePerSqm": "{price} / m²",
     "agencyCountShort": "{n} agences",
-    "oneAgency": "1 agence"
+    "oneAgency": "1 agence",
+    "sourceListing": "Annonce d'origine",
+    "sourceListingHint": "Cette annonce a été collectée sur un portail public. Les faits sont repris ; le texte et les photos sont les nôtres.",
+    "pinNoteSource": "Position publiée par l'annonce d'origine — jamais géocodée automatiquement depuis une adresse.",
+    "seeSourceListing": "Voir l'annonce d'origine"
   },
   "agency": {
     "verified": "Agence vérifiée",
