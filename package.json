@@ -59,6 +59,8 @@
     "check:backup": "node db/checks/backup.mjs",
     "check:health": "node db/checks/health.mjs",
     "check:indicators": "node db/checks/indicators.mjs",
+    "metrics:purge": "ops/purge-metrics.sh",
+    "metrics:purge-check": "ops/purge-metrics.sh --dry-run",
     "check:portal": "node db/checks/portal.mjs"
   },
   "dependencies": {

@@ -12,12 +12,13 @@ import { query, queryOne } from "./db";
  *
  * Deux principes ont guidé les définitions :
  *
- * 1. UN INDICATEUR QU'ON NE SAIT PAS MESURER SE DÉCLARE NON MESURÉ. Deux des
- *    huit le sont : le LCP demande une mesure côté navigateur qui n'existe pas
- *    encore, et le taux de recherches sans résultat demande un dénominateur —
- *    le nombre de recherches abouties — qui n'est pas journalisé. Afficher un
- *    chiffre faux serait pire que de montrer un trou, puisque c'est
- *    précisément ce trou qui dit quoi instrumenter ensuite.
+ * 1. UN INDICATEUR QU'ON NE SAIT PAS MESURER SE DÉCLARE NON MESURÉ. C'est ce
+ *    qui a fait instrumenter les deux qui manquaient : le LCP se mesure
+ *    désormais dans les navigateurs réels (`web_vitals`), et le taux de
+ *    recherches sans résultat a gagné son dénominateur (`search_events`). Les
+ *    deux restent muets tant que la donnée n'est pas là — sous le seuil
+ *    d'échantillon pour le centile, sans aucune recherche mesurée pour le
+ *    taux. Afficher un chiffre faux serait pire que de montrer un trou.
  *
  * 2. UNE APPROXIMATION SE DIT COMME TELLE. Les « doublons résiduels » ne sont
  *    pas observables directement : on ne connaît pas les doublons que le
@@ -28,6 +29,13 @@ import { query, queryOne } from "./db";
 
 /** Fenêtre d'observation par défaut, en jours. */
 export const WINDOW_DAYS = 30;
+
+/**
+ * En dessous de ce nombre de mesures, un centile ne dit rien. Même discipline
+ * que l'estimation de prix : mieux vaut se taire que produire un chiffre
+ * précis à partir de trois relevés.
+ */
+export const MIN_VITALS_SAMPLE = 20;
 
 export type IndicatorStatus = "met" | "close" | "off" | "unmeasured";
 
@@ -60,6 +68,10 @@ interface Raw {
   recentListings: number;
   leads: number;
   sessions: number;
+  searches: number;
+  searchesFailed: number;
+  lcpSamples: number;
+  lcpP75: number | null;
 }
 
 /**
@@ -109,7 +121,19 @@ export async function indicators(days = WINDOW_DAYS): Promise<Indicator[]> {
       (SELECT count(*) FROM leads
         WHERE created_at > now() - make_interval(days => $1::int))::int AS leads,
       (SELECT count(DISTINCT session_id) FROM property_views
-        WHERE created_at > now() - make_interval(days => $1::int))::int AS sessions
+        WHERE created_at > now() - make_interval(days => $1::int))::int AS sessions,
+      (SELECT count(*) FROM search_events
+        WHERE created_at > now() - make_interval(days => $1::int))::int AS searches,
+      (SELECT count(*) FROM search_events
+        WHERE NOT resolved
+          AND created_at > now() - make_interval(days => $1::int))::int AS "searchesFailed",
+      (SELECT count(*) FROM web_vitals
+        WHERE metric = 'lcp' AND form_factor = 'mobile'
+          AND created_at > now() - make_interval(days => $1::int))::int AS "lcpSamples",
+      (SELECT percentile_cont(0.75) WITHIN GROUP (ORDER BY value_ms)
+         FROM web_vitals
+        WHERE metric = 'lcp' AND form_factor = 'mobile'
+          AND created_at > now() - make_interval(days => $1::int))::int AS "lcpP75"
     `,
     [days]
   );
@@ -121,6 +145,8 @@ export async function indicators(days = WINDOW_DAYS): Promise<Indicator[]> {
   const leadsPerK = d.sessions > 0
     ? Math.round((d.leads / d.sessions) * 1000 * 10) / 10
     : null;
+  const missRate = pct(d.searchesFailed, d.searches);
+  const lcp = d.lcpSamples >= MIN_VITALS_SAMPLE ? d.lcpP75 : null;
 
   const list: Indicator[] = [
     {
@@ -142,12 +168,16 @@ export async function indicators(days = WINDOW_DAYS): Promise<Indicator[]> {
       detail: `${d.dedupOpen} / ${d.properties} biens, ${d.dedupPairs} paires en file`,
     },
     {
-      // Le taux demanderait le nombre de recherches abouties, qui n'est pas
-      // journalisé — seuls les échecs le sont. On montre donc le volume brut,
-      // qui reste la matière première de la table d'alias (§5.2).
-      key: "searchMisses", group: "quality", value: null,
-      unit: "percent", target: 8, direction: "down", status: "unmeasured",
-      detail: `${d.misses} recherches sans résultat sur ${days} j`,
+      // Le dénominateur vient de `search_events` : les recherches en texte
+      // libre, dédoublonnées par session et par jour. `search_misses` garde à
+      // part le TEXTE des échecs, qui sert à écrire les alias (§5.2) ; ici
+      // c'est le taux qui compte.
+      key: "searchMisses", group: "quality", value: missRate,
+      unit: "percent", target: 8, direction: "down",
+      status: statusFor(missRate, 8, "down"),
+      detail: d.searches > 0
+        ? `${d.searchesFailed} / ${d.searches} recherches, ${d.misses} textes retenus`
+        : `aucune recherche mesurée sur ${days} j`,
     },
     {
       key: "botShare", group: "ingestion", value: botShare,
@@ -162,9 +192,13 @@ export async function indicators(days = WINDOW_DAYS): Promise<Indicator[]> {
       detail: `${d.leads} contacts / ${d.sessions} sessions`,
     },
     {
-      // Mesure de terrain : elle ne peut venir que des navigateurs réels.
-      key: "lcp", group: "technical", value: null,
-      unit: "ms", target: 3000, direction: "down", status: "unmeasured",
+      // Mesure de terrain, remontée par les navigateurs réels (§7). En
+      // dessous du seuil d'échantillon, le centile n'est pas publié.
+      key: "lcp", group: "technical", value: lcp,
+      unit: "ms", target: 3000, direction: "down",
+      status: statusFor(lcp, 3000, "down"),
+      detail: `${d.lcpSamples} mesures mobiles sur ${days} j`
+        + (d.lcpSamples < MIN_VITALS_SAMPLE ? `, minimum ${MIN_VITALS_SAMPLE}` : ""),
     },
   ];
 

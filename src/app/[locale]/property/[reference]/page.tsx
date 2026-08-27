@@ -14,6 +14,7 @@ import { AgencyCountBadge, ForeignEligibleBadge, FreshnessBadge, TitleBadge,
          TitleVerifiedBadge } from "@/components/Badges";
 import { PropertyGrid } from "@/components/PropertyCard";
 import { ViewBeacon } from "@/components/ViewBeacon";
+import { WebVitals } from "@/components/WebVitals";
 
 export const revalidate = 120;
 
@@ -130,6 +131,9 @@ export default async function PropertyPage({
               dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* Mesure d'audience : côté client, la fiche étant servie en ISR. */}
       <ViewBeacon propertyId={p.id} locale={locale} />
+      {/* Budget de performance (§7) : la fiche porte la galerie, c'est elle
+          qui décide du LCP mobile. */}
+      <WebVitals locale={locale} route="property" />
 
       <div style={{ maxWidth: "72rem", margin: "0 auto", padding: "1rem clamp(0.75rem, 3vw, 1.5rem) 3rem" }}>
         <nav aria-label="breadcrumb" style={{

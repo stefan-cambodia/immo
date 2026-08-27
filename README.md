@@ -728,13 +728,13 @@ jours (`src/lib/indicators.ts`).
 Deux décisions ont plus compté que le reste.
 
 **Un indicateur qu'on ne sait pas mesurer se déclare non mesuré.** Deux des
-huit le sont, et le resteront jusqu'à ce qu'on les instrumente : le LCP p75
-demande une mesure côté navigateur qui n'existe pas, et le taux de recherches
-sans résultat demande un dénominateur — le nombre de recherches abouties — qui
-n'est pas journalisé, puisque seuls les échecs le sont (§5.2). Le volume brut
-d'échecs est affiché à la place. Remplir ces deux cases au jugé donnerait
-l'illusion de piloter, alors que le trou est justement ce qui dit quoi
-instrumenter ensuite.
+huit l'étaient : le LCP p75, qui demande une mesure côté navigateur, et le taux
+de recherches sans résultat, qui demande un dénominateur — le nombre de
+recherches abouties — que rien ne journalisait, puisque seuls les échecs le
+sont (§5.2). Montrer les trous plutôt que de les remplir au jugé a dit quoi
+instrumenter, et les deux le sont désormais (voir « L'instrumentation des deux
+mesures manquantes »). Ils restent muets tant que la donnée n'est pas là :
+sous vingt mesures pour le centile, sans aucune recherche mesurée pour le taux.
 
 **Une approximation se dit comme telle.** Les « doublons résiduels » ne sont
 pas observables : on ne connaît pas les doublons que le moteur a laissés
@@ -748,6 +748,44 @@ affiché dépasse 100.
 Sur le jeu réel collecté, le panneau est franchement rouge — 898 biens pour une
 cible de 3 000, 0 % d'annonces via le bot, 71 % de biens en file de
 déduplication — et c'est précisément ce qu'on lui demande de dire.
+
+### L'instrumentation des deux mesures manquantes
+
+Les deux trous du panneau n'étaient pas des oublis d'affichage : la donnée
+n'existait pas. `db/migrations/021_instrumentation.sql` la crée.
+
+**Le dénominateur des recherches.** `search_misses` ne retient que les échecs —
+c'est ce qu'il faut pour écrire les alias, mais un numérateur seul ne fait pas
+un taux. `search_events` compte désormais toute recherche en texte libre,
+aboutie ou non. Trois décisions :
+
+- **Mesure côté navigateur**, comme l'audience : une page de résultats se rend
+  aussi à la pagination, au rechargement et au préchargement, sans que
+  personne n'ait cherché quoi que ce soit.
+- **Dédoublonnage par session et par jour** : quelqu'un qui reprend « bkk1 »
+  toute la matinée en changeant ses filtres fait une recherche, pas quinze.
+  Sans cela le dénominateur enflerait sur les recherches qui marchent — celles
+  qu'on affine — et le taux d'échec paraîtrait meilleur qu'il n'est.
+- **Le texte n'est pas conservé** : le serveur en prend une empreinte, qui
+  suffit au dédoublonnage. Le texte des échecs est déjà gardé par
+  `search_misses`, là où il sert.
+
+**Le LCP.** Voir « Budget de performance » : la mesure est prise sur le
+terrain, le facteur de forme déduit de l'agent utilisateur côté serveur — un
+client peut se tromper ou mentir, et c'est lui qui sépare le p75 mobile du p75
+de bureau, autrement flatté par les postes fixes.
+
+Les deux tables sont des **mesures, pas des archives** : `ops/purge-metrics.sh`
+les purge au-delà de soixante jours, le double de la fenêtre d'observation. Un
+identifiant de session, même opaque, reste un identifiant ; le garder des
+années après que la mesure a servi est exactement ce que le portail s'interdit
+ailleurs. Ni adresse IP, ni URL complète, ni identifiant durable n'entrent dans
+l'une ou l'autre.
+
+`npm run check:indicators` couvre les deux bouts de la chaîne : dédoublonnage,
+non-conservation du texte, robots écartés du dénominateur, facteur de forme
+déduit du serveur, mesures aberrantes refusées, et la règle de silence des deux
+indicateurs quand la donnée manque.
 
 ### Le tableau de bord agence
 
@@ -970,6 +1008,7 @@ Six tâches tournent en dehors de l'application, sur un socle commun
 | `ops/billing.sh` | **quotidienne, 01:30** (après l'expiration de 01:00) | Cycle de facturation et de quotas : les places libérées profitent aux annonces retenues (§8) |
 | `ops/backup-db.sh` | **quotidienne, 02:15** | Sauvegarde de la base : dump vérifié par `pg_restore`, chiffré, copié hors site, rotation |
 | `ops/audit-retention.sh` | **hebdomadaire** | Archive puis purge le journal d'audit, et vérifie l'archive |
+| `ops/purge-metrics.sh` | **hebdomadaire** | Purge recherches et mesures de terrain au-delà de 60 jours (§10) |
 
 L'ordonnancement est fourni sous `ops/systemd/` — une unité modèle
 `cambodia-immo@.service` (instanciée par tâche, durcie : `ProtectSystem=strict`,
@@ -1158,8 +1197,21 @@ Mesuré sur la construction de production, réponses gzippées :
 | HTML page de résultats | 43–50 ko | — |
 | MapLibre dans le bundle initial | **absent** — importé à la demande | — |
 
-Le LCP sur 4G réelle depuis le Cambodge reste à mesurer sur l'hébergement
-cible (Singapour) ; les chiffres locaux ne le prédisent pas.
+Ces chiffres viennent de la construction locale et ne prédisent pas le LCP sur
+4G réelle depuis le Cambodge — c'est pourtant lui que le brief vise. La mesure
+est donc **prise sur le terrain** : les navigateurs réels remontent leur LCP à
+`POST /api/vitals` (`src/components/WebVitals.tsx`), le facteur de forme est
+déduit de l'agent utilisateur côté serveur, et le p75 mobile apparaît dans les
+indicateurs de santé. Il reste muet sous vingt mesures : un centile tiré de
+trois relevés serait une précision inventée.
+
+Trois précautions dans la collecte, chacune corrigeant une manière classique
+de se mentir sur cette mesure : le LCP n'est envoyé qu'au masquage de la page,
+parce que le navigateur en propose plusieurs candidats successifs et que
+remonter le premier flatte le chiffre ; une page ouverte en arrière-plan n'est
+pas mesurée, sa peinture ne disant rien de l'expérience ; et les valeurs
+aberrantes sont refusées avant d'entrer en base, une mesure absurde faussant un
+centile autant qu'une mesure manquante.
 
 ---
 
@@ -1184,6 +1236,8 @@ db/
   seed/activity.mjs           Audience, contacts et dossiers sur les biens présents
   checks/portal.mjs           Collecte : traduction en faits, écarts, parcours (hors ligne)
   checks/indicators.mjs       Indicateurs §10 : définitions, accès, valeurs affichées
+  migrations/021_instrumentation.sql  Recherches mesurées et LCP de terrain
+  jobs/purge-metrics.mjs      Purge des mesures au-delà de la fenêtre d'observation
   lib/ingest.mjs              Entonnoir commun aux canaux d'ingestion
   lib/dedup.mjs               Moteur de déduplication (§6.2)
   lib/phash.mjs               dHash 64 bits, seuils mesurés
@@ -1212,7 +1266,7 @@ ops/
   send-alerts.sh              Lanceur — envoi des alertes
   expire-listings.sh          Lanceur — expiration des annonces
   audit-retention.sh          Lanceur — rétention du journal d'audit
-messages/                     fr · en · zh · km — 349 clés, parité vérifiée
+messages/                     fr · en · zh · km — 609 clés, parité vérifiée
 src/lib/
   search.ts                   Filtres, requêtes, résolution d'alias, fiche bien
   i18n.ts                     Locales, traducteur, négociation, champs JSONB
@@ -1226,7 +1280,7 @@ src/lib/
   format.ts                   USD par défaut, KHR secondaire, fraîcheur
 src/components/               Carte, filtres, fiches, badges, pin bloquant
 src/app/[locale]/             Accueil · recherche · fiche · agence · alertes · connexion · back-office
-src/app/api/                  suggest · map · leads · photo · audit/export
+src/app/api/                  suggest · map · leads · photo · searches · vitals · audit/export
 public/demo-photos/           83 photos libres de droits + CREDITS.md
 ```
 

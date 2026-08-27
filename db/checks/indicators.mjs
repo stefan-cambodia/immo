@@ -102,6 +102,68 @@ check("sans session : renvoi vers la connexion",
       anon.status === 307 || anon.status === 303 || anon.status === 302,
       String(anon.status));
 
+// --------------------------------------------------------- Instrumentation
+console.log("Instrumentation (§10)");
+
+const post = (path, body, headers = {}) => fetch(`${BASE}${path}`, {
+  method: "POST",
+  headers: { "content-type": "application/json",
+             "user-agent": "Mozilla/5.0 (Linux; Android 12) Chrome/141 Mobile Safari/537.36",
+             ...headers },
+  body: JSON.stringify(body),
+});
+
+const probeSession = "chk" + randomBytes(12).toString("hex");
+const probeQuery = `contrôle-${randomBytes(4).toString("hex")}`;
+
+const first = await post("/api/searches",
+  { q: probeQuery, locale: "fr", resolved: false, session: probeSession });
+const again = await post("/api/searches",
+  { q: `  ${probeQuery.toUpperCase()}  `, locale: "fr", resolved: false, session: probeSession });
+check("une recherche est comptée", first.status === 200 && (await first.json()).counted === true);
+check("la même recherche affinée dans la journée ne compte pas deux fois",
+      again.status === 200);
+
+const { rows: [probe] } = await db.query(
+  `SELECT count(*)::int AS n FROM search_events WHERE session_id = $1`, [probeSession]);
+check("casse et espaces ne font pas deux recherches", probe.n === 1, `${probe.n} lignes`);
+
+const { rows: [stored] } = await db.query(
+  `SELECT query_hash FROM search_events WHERE session_id = $1`, [probeSession]);
+check("le texte de la recherche n'est pas conservé",
+      !stored.query_hash.includes("contrôle") && /^[0-9a-f]{32}$/.test(stored.query_hash),
+      stored.query_hash);
+
+const botSearch = await post("/api/searches",
+  { q: probeQuery, locale: "fr", resolved: true, session: probeSession + "bot" },
+  { "user-agent": "Googlebot/2.1 (+http://www.google.com/bot.html)" });
+check("un robot ne gonfle pas le dénominateur",
+      (await botSearch.json()).counted === false);
+
+// Le facteur de forme est déduit de l'agent utilisateur, jamais annoncé par
+// le client : c'est lui qui sépare le p75 mobile du p75 de bureau.
+const mobile = await post("/api/vitals", { metric: "lcp", value: 2400, locale: "fr", route: "search" });
+const desktop = await post("/api/vitals", { metric: "lcp", value: 900, locale: "fr", route: "search" },
+  { "user-agent": "Mozilla/5.0 (X11; Linux x86_64) Chrome/141 Safari/537.36" });
+check("une mesure de LCP est acceptée", mobile.status === 200 && desktop.status === 200);
+
+const { rows: [ff] } = await db.query(`
+  SELECT count(*) FILTER (WHERE form_factor = 'mobile' AND value_ms = 2400)::int AS m,
+         count(*) FILTER (WHERE form_factor = 'desktop' AND value_ms = 900)::int AS d
+  FROM web_vitals WHERE created_at > now() - interval '2 minutes'`);
+check("le facteur de forme vient de l'agent utilisateur, pas du client",
+      ff.m >= 1 && ff.d >= 1, JSON.stringify(ff));
+
+const absurd = await post("/api/vitals", { metric: "lcp", value: 999999, locale: "fr", route: "search" });
+check("une mesure aberrante est refusée avant d'entrer en base", absurd.status === 400);
+const unknown = await post("/api/vitals", { metric: "fcp", value: 1200, locale: "fr", route: "search" });
+check("une métrique inconnue est refusée", unknown.status === 400);
+
+// Nettoyage : le contrôle ne laisse pas ses propres mesures fausser un centile.
+await db.query(`DELETE FROM search_events WHERE session_id LIKE 'chk%'`);
+await db.query(`DELETE FROM web_vitals WHERE value_ms IN (2400, 900) AND route = 'search'
+                  AND created_at > now() - interval '2 minutes'`);
+
 // ------------------------------------------------------------------ Valeurs
 console.log("Valeurs affichées");
 
@@ -116,12 +178,44 @@ const shown = (label) => {
 check("les biens actifs affichent le compte de la base",
       (shown("Biens actifs") ?? "").includes(String(n.active)),
       `attendu ${n.active}`);
+// L'invariant, et non un état : aucune ligne ne doit rester nue. Une valeur
+// sans cible ni mention explicite ne se lit pas — 71 %, mais par rapport à quoi ?
+const ROWS = ["Biens actifs", "Annonces confirmées récemment",
+              "Doublons résiduels (majorant)", "Recherches sans résultat",
+              "Part via bot Telegram", "Contacts pour 1 000 sessions",
+              "LCP p75 mobile"];
+const bare = ROWS.filter((label) => {
+  const row = shown(label) ?? "";
+  return !["cible ≥", "cible ≤", "non mesuré", "à établir"].some((mark) => row.includes(mark));
+});
 check("chaque indicateur porte sa cible ou son absence de mesure",
-      ["cible ≥", "cible ≤", "non mesuré", "à établir"].every((s) => html.includes(s)));
-check("le LCP est déclaré non mesuré, pas inventé",
-      (shown("LCP p75 mobile") ?? "").includes("non mesuré"));
-check("les recherches sans résultat le sont aussi, faute de dénominateur",
-      (shown("Recherches sans résultat") ?? "").includes("non mesuré"));
+      bare.length === 0, bare.join(", "));
+check("les sept indicateurs du brief sont présents",
+      ROWS.every((label) => html.includes(label)),
+      ROWS.filter((label) => !html.includes(label)).join(", "));
+// Les deux indicateurs instrumentés ne se vérifient pas par un état figé mais
+// par leur RÈGLE : ils parlent quand la donnée est là, se taisent sinon.
+const MIN_SAMPLE = 20;
+const { rows: [m] } = await db.query(`
+  SELECT (SELECT count(*) FROM web_vitals
+           WHERE metric = 'lcp' AND form_factor = 'mobile'
+             AND created_at > now() - interval '30 days')::int AS lcp,
+         (SELECT count(*) FROM search_events
+           WHERE created_at > now() - interval '30 days')::int AS searches`);
+
+const lcpRow = shown("LCP p75 mobile") ?? "";
+check(m.lcp >= MIN_SAMPLE
+        ? `le LCP est publié (${m.lcp} mesures)`
+        : `le LCP se tait sous le seuil d'échantillon (${m.lcp} mesures)`,
+      m.lcp >= MIN_SAMPLE ? /\d\s*ms/.test(lcpRow) : lcpRow.includes("non mesuré"),
+      lcpRow.slice(0, 120));
+
+const missRow = shown("Recherches sans résultat") ?? "";
+check(m.searches > 0
+        ? `le taux d'échec est publié (${m.searches} recherches)`
+        : "le taux d'échec se tait sans recherche mesurée",
+      m.searches > 0 ? /%/.test(missRow) : missRow.includes("non mesuré"),
+      missRow.slice(0, 120));
 check("aucun pourcentage affiché ne dépasse 100",
       [...html.matchAll(/([\d  ,.]+)\s*%/g)]
         .map((m) => Number(m[1].replace(/[  \s]/g, "").replace(",", ".")))

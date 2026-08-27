@@ -12,6 +12,8 @@ import { getMapProvider, PHNOM_PENH } from "@/lib/map-provider";
 import { FilterPanel } from "@/components/FilterPanel";
 import { PropertyGrid } from "@/components/PropertyCard";
 import { MapPanel } from "@/components/MapPanel";
+import { SearchBeacon } from "@/components/SearchBeacon";
+import { WebVitals } from "@/components/WebVitals";
 
 type SP = Record<string, string | string[] | undefined>;
 
@@ -102,6 +104,11 @@ export default async function SearchPage({
 
   return (
     <div className={`search-shell${view === "map" ? " search-shell--map" : ""}`}>
+      {/* Mesures : la recherche en texte libre alimente le dénominateur du
+          taux d'échec (§10), le LCP la cible de performance (§7). Les deux
+          sont mesurées côté navigateur — voir les composants. */}
+      {f.q && <SearchBeacon q={f.q} locale={locale} resolved={!unresolved} />}
+      <WebVitals locale={locale} route="search" />
       {/* Bascule liste / carte. Elle vit ICI, au niveau de la coquille, et non
           dans l'en-tête des résultats : en vue carte la colonne des résultats
           est masquée, et une bascule qui disparaît en même temps qu'elle

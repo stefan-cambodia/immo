@@ -379,6 +379,7 @@ export default async function BackofficePage({
                   }}>
                     {i.value === null ? "—"
                       : i.unit === "percent" ? `${formatNumber(i.value, locale)} %`
+                      : i.unit === "ms" ? `${formatNumber(i.value, locale)} ms`
                       : formatNumber(i.value, locale)}
                   </span>
                   <span style={{ display: "block", fontSize: "0.6875rem",
@@ -388,7 +389,9 @@ export default async function BackofficePage({
                       : i.target === null
                         ? t("indicators.noTarget")
                         : t(i.direction === "up" ? "indicators.targetUp" : "indicators.targetDown",
-                            { n: i.unit === "percent" ? `${i.target} %` : formatNumber(i.target, locale) })}
+                            { n: i.unit === "percent" ? `${i.target} %`
+                                 : i.unit === "ms" ? `${formatNumber(i.target, locale)} ms`
+                                 : formatNumber(i.target, locale) })}
                   </span>
                 </div>
               </li>
