@@ -94,13 +94,34 @@ export async function seedActivity(db, r) {
       GROUP BY loc.id
     ) sub WHERE locations.id = sub.id`);
 
-  // File de déduplication : signatures identiques entre biens distincts.
+  // File de déduplication : de quoi peupler le panneau de modération, et rien
+  // de plus.
+  //
+  // La première version joignait chaque bien à tous ceux de même signature.
+  // Sur le jeu engendré, où les signatures se heurtent rarement, cela donnait
+  // une poignée de paires. Sur des annonces réelles, où trente unités d'un
+  // même immeuble partagent quartier, type, chambres et surface, le même
+  // produit cartésien en fabriquait 3 786 — et l'indicateur « doublons
+  // résiduels » (§10) mesurait alors surtout la façon dont le seed avait été
+  // écrit.
+  //
+  // Deux bornes le corrigent, et rapprochent au passage la file de ce que le
+  // moteur produit vraiment : UNE paire par signature — `findDuplicates` ne
+  // met en file que le meilleur candidat d'une soumission, jamais un groupe
+  // entier — et un plafond, parce qu'une file de validation est travaillée à
+  // la main et se compte en dizaines.
+  const FABRICATED_PAIRS = 40;
   await db.query(`
+    WITH pair AS (
+      SELECT DISTINCT ON (a.dedup_signature) a.id AS a_id, b.id AS b_id
+      FROM properties a
+      JOIN properties b ON b.dedup_signature = a.dedup_signature AND b.id > a.id
+      ORDER BY a.dedup_signature, a.id, b.id
+    )
     INSERT INTO dedup_candidates(property_a_id, property_b_id, score, reasons)
-    SELECT LEAST(a.id, b.id), GREATEST(a.id, b.id), 0.82, ARRAY['signature_identique']
-    FROM properties a JOIN properties b
-      ON a.dedup_signature = b.dedup_signature AND a.id < b.id
-    ON CONFLICT DO NOTHING`);
+    SELECT a_id, b_id, 0.82, ARRAY['signature_identique']
+    FROM pair ORDER BY a_id LIMIT $1
+    ON CONFLICT DO NOTHING`, [FABRICATED_PAIRS]);
 
   // ------------------------------------- Vérification des titres (phase 4)
   // Des partenaires juridiques et un dossier à chaque étape du cycle, pour que

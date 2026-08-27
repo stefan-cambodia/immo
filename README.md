@@ -745,9 +745,25 @@ qualité. La première version rapportait les PAIRES aux BIENS et annonçait
 un taux. `npm run check:indicators` interdit désormais qu'un pourcentage
 affiché dépasse 100.
 
-Sur le jeu réel collecté, le panneau est franchement rouge — 898 biens pour une
-cible de 3 000, 0 % d'annonces via le bot, 71 % de biens en file de
-déduplication — et c'est précisément ce qu'on lui demande de dire.
+**Et un indicateur ne doit pas mesurer le seed.** Le premier chiffre publié —
+71 % des biens en file — venait à 92 % d'une requête de `db/seed/activity.mjs`
+qui joignait chaque bien à *tous* ceux de même signature, pour peupler le
+panneau de modération. Sur le jeu engendré, où les signatures se heurtent
+rarement, cela donnait une trentaine de paires ; sur des annonces réelles, où
+trente unités d'un même immeuble partagent quartier, type, chambres et surface,
+le même produit cartésien en fabriquait 3 786. L'indicateur mesurait donc
+surtout la façon dont le seed avait été écrit. La fabrication est désormais
+bornée à une paire par signature — ce que le moteur produit vraiment, puisque
+`findDuplicates` ne met en file que le meilleur candidat d'une soumission — et
+plafonnée, une file de validation se travaillant à la main. Restent 301 paires
+décidées par l'entonnoir sur les annonces collectées, contre 27 fabriquées.
+
+Sur le jeu réel, le panneau est franchement rouge — 898 biens pour une cible de
+3 000, 0 % d'annonces via le bot, 48 % de biens en file de déduplication — et
+c'est précisément ce qu'on lui demande de dire. Ce dernier chiffre est le
+comportement réel du moteur sur un marché où les unités se ressemblent : c'est
+la situation que le brief décrit pour interdire toute fusion automatique
+(§6.2).
 
 ### L'instrumentation des deux mesures manquantes
 
