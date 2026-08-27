@@ -983,6 +983,14 @@ exactement le même ensemble**, tous deux dérivés de la même requête. Annonc
 une page qu'on demande par ailleurs à Google d'ignorer coûte du budget
 d'exploration et de la crédibilité. C'est vérifié, pas supposé.
 
+Encore faut-il que les deux soient calculés au même moment. La balise l'est à
+chaque requête ; le sitemap, lui, est une route que Next pré-rend à la
+construction et servirait figée jusqu'au `build` suivant — l'invariant
+n'aurait tenu qu'à la sortie du build. Il est donc régénéré au plus toutes
+les heures (`revalidate` dans `src/app/sitemap.ts`), au rythme du cycle
+d'expiration des annonces : entre deux régénérations, une page peut avoir
+changé de côté du seuil, ce qui est l'écart accepté.
+
 ### Ce qui rend ces pages non dupliquées
 
 Le texte est écrit depuis les chiffres réels de la combinaison — nombre de

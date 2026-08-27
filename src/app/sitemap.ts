@@ -5,6 +5,14 @@ import { indexableCombos, landingPath } from "@/lib/seo";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
+// Sans cette directive, Next pré-rend le sitemap UNE fois, à `next build`, et
+// le sert figé jusqu'à la construction suivante : une page d'atterrissage qui
+// franchit le seuil n'y entrerait jamais, une qui repasse dessous y resterait
+// annoncée en `noindex` — l'invariant que `npm run check:seo` protège ne
+// tiendrait qu'à la sortie du build. Régénéré au plus toutes les heures, le
+// rythme du cycle d'expiration des annonces (ops/expire-listings.sh).
+export const revalidate = 3600;
+
 /**
  * Sitemap multilingue avec alternates par locale. Le SEO multilingue est un
  * canal d'acquisition majeur (principe n°5) : chaque fiche existe dans les
