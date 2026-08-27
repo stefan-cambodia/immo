@@ -122,5 +122,32 @@ check("… sauf face à sa propre annonce, qui passe par un humain",
 const nothing = await findDuplicates(fakeDb([]), { ...input(), phashes: [] });
 check("aucun bien comparable → création", nothing.decision === "new");
 
+// --------------------------------------------------- Réévaluation d'un bien
+console.log("\nRéévaluation d'un bien déjà en base (rescan-duplicates)");
+
+// Repassé par le moteur, un bien se trouve lui-même : immeuble, étage, surface
+// et photo à distance 0 — score maximal, devant son vrai doublon. La
+// présélection doit donc pouvoir l'exclure, et le job doit le demander.
+const captured = [];
+const spyDb = (rows) => ({ query: async (_sql, params) => { captured.push(params); return { rows }; } });
+const self = row({ id: "moi", building_id: "imm-1", photo_distance: 0 });
+const twin = row({ id: "jumeau", building_id: "imm-1", photo_distance: 2 });
+
+const blind = await findDuplicates(spyDb([self, twin]),
+  { ...input({ buildingId: "imm-1" }), phashes: ["0".repeat(64)] });
+check("sans exclusion, le bien se trouve lui-même en tête",
+      blind.propertyId === "moi", String(blind.propertyId));
+check("… et la présélection reçoit une exclusion nulle",
+      captured.at(-1).length === 5 && captured.at(-1)[4] === null, JSON.stringify(captured.at(-1)));
+
+// La base en trompe-l'œil ne filtre pas : on vérifie que l'exclusion est
+// TRANSMISE, et que le moteur retient le jumeau une fois le bien écarté.
+const seeing = await findDuplicates(spyDb([twin]),
+  { ...input({ buildingId: "imm-1" }), phashes: ["0".repeat(64)], excludeId: "moi" });
+check("avec exclusion, la présélection reçoit l'identifiant à écarter",
+      captured.at(-1)[4] === "moi", JSON.stringify(captured.at(-1)));
+check("… et le jumeau photo-identique est retenu",
+      seeing.propertyId === "jumeau" && seeing.decision !== "new", `${seeing.decision} ${seeing.propertyId}`);
+
 console.log(`\n${pass} réussite(s), ${fail} échec(s).`);
 process.exit(fail ? 1 : 0);

@@ -475,9 +475,20 @@ Trois changements, tous mesurés plutôt que devinés :
    les photos ne soutiennent pas, rattrapage de celles qu'elles révèlent. Le
    job ne fusionne jamais : il dépose, un humain tranche.
 
-Résultat sur le même jeu : **48 paires au lieu de 328, dont 47 partagent une
-photographie**, et l'indicateur passe de 48 % à 9,7 % des biens. Une file qui
-se travaille.
+Résultat sur le même jeu : **65 paires au lieu de 328, et toutes partagent
+une photographie**, pour 112 biens sur 898 — l'indicateur passe de 48 % à
+12,5 %. Une file qui se travaille.
+
+Le rattrapage a d'abord été aveugle, et il a fallu le mesurer pour le voir :
+93 paires photo-identiques dans le périmètre de présélection, 45 hors de la
+file après son passage. La cause : un bien déjà en base, repassé par
+`findDuplicates`, se trouvait **lui-même** — même immeuble, même étage, photo
+à distance 0, score maximal — et masquait son vrai doublon, classé second ;
+le job sautait alors la paire. La présélection sait désormais exclure le bien
+réévalué (`excludeId`), et `check:dedup` vérifie que l'exclusion est transmise
+et que le jumeau est retenu. Même relecture pour l'élagage : « les deux côtés
+hachés » se vérifie côté par côté, pas sur un total de photos qui pouvait
+venir d'un seul bien.
 
 Il reste un angle mort assumé : la présélection ne regarde que « même immeuble »
 ou « même quartier et même type ». Vingt-cinq paires photo-identiques portent un
@@ -860,7 +871,8 @@ Sur le jeu réel, le panneau est franchement rouge — 898 biens pour une cible 
 dire. Le troisième chiffre, lui, a rendu service autrement : les 48 % de biens
 en file de déduplication ont conduit à examiner la file, à y trouver 95 % de
 faux positifs, et à corriger le moteur (voir « Ce que les annonces réelles ont
-appris au moteur »). Il est retombé à 9,7 %.
+appris au moteur »). Il est retombé à 12,5 % — une file dont chaque paire
+partage une photographie.
 
 ### L'instrumentation des deux mesures manquantes
 

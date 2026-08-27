@@ -71,6 +71,8 @@ const asInput = (row, phashes) => ({
   landAreaSqm: row.land_area_sqm === null ? null : Number(row.land_area_sqm),
   phashes,
   agencyId: row.agency_ids[0] ?? null,
+  // Sans cela le bien se trouve lui-même en tête et masque son doublon.
+  excludeId: row.id,
 });
 
 await db.query("BEGIN");
@@ -82,9 +84,10 @@ const { rows: pairs } = await db.query(`
             FROM media ma, media mb
            WHERE ma.property_id = d.property_a_id AND mb.property_id = d.property_b_id
              AND ma.phash IS NOT NULL AND mb.phash IS NOT NULL) AS photo_distance,
-         (SELECT count(*) FROM media m
-           WHERE m.property_id IN (d.property_a_id, d.property_b_id)
-             AND m.phash IS NOT NULL)::int AS hashed,
+         EXISTS (SELECT 1 FROM media m
+                  WHERE m.property_id = d.property_a_id AND m.phash IS NOT NULL) AS a_hashed,
+         EXISTS (SELECT 1 FROM media m
+                  WHERE m.property_id = d.property_b_id AND m.phash IS NOT NULL) AS b_hashed,
          a.id AS a_id, a.building_id AS a_building, a.location_id AS a_location,
          a.property_type::text AS a_type, a.floor AS a_floor, a.bedrooms AS a_bedrooms,
          a.indoor_area_sqm AS a_indoor, a.land_area_sqm AS a_land,
@@ -101,7 +104,9 @@ for (const p of pairs) {
   summary.pairsReviewed++;
   // Les deux côtés doivent être hachés pour que l'absence de ressemblance ait
   // valeur de contre-indice. Sinon on ne sait rien, et on ne touche à rien.
-  const bothHashed = p.hashed >= 2;
+  // Chaque côté, pas un total : deux photos hachées d'un seul bien ne disent
+  // rien de l'autre.
+  const bothHashed = p.a_hashed && p.b_hashed;
   const input = {
     buildingId: p.a_building, locationId: p.a_location, propertyType: p.a_type,
     floor: p.a_floor, bedrooms: p.a_bedrooms,
@@ -139,7 +144,6 @@ for (const row of properties) {
   summary.scanned++;
   const verdict = await findDuplicates(db, asInput(row, row.phashes));
   if (verdict.decision === "new" || !verdict.propertyId) continue;
-  if (verdict.propertyId === row.id) continue;
   // Jamais de fusion depuis un job : la décision appartient à un humain.
   if (verdict.decision === "merge") summary.merged++;
   // En simulation, la transaction est annulée mais l'insertion a bien lieu :

@@ -115,6 +115,10 @@ export async function findDuplicates(db, input) {
       FROM properties p
       WHERE (($1::uuid IS NOT NULL AND p.building_id = $1::uuid)
              OR (p.location_id = $2::uuid AND p.property_type = $3::property_type))
+        -- Un bien déjà en base repassé par le moteur (rescan-duplicates) se
+        -- trouverait lui-même : même immeuble, même étage, photo à distance 0,
+        -- score maximal. Il masquerait alors son vrai doublon, classé second.
+        AND ($5::uuid IS NULL OR p.id <> $5::uuid)
     )
     SELECT c.*,
            (SELECT min(phash_distance(m.phash, x.h))
@@ -124,7 +128,8 @@ export async function findDuplicates(db, input) {
     LIMIT 500
     `,
     [input.buildingId, input.locationId, input.propertyType,
-     input.phashes?.length ? input.phashes : null]
+     input.phashes?.length ? input.phashes : null,
+     input.excludeId ?? null]
   );
 
   // Les photos n'ont pu être regardées que si le canal en a fourni : c'est ce
