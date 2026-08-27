@@ -475,9 +475,10 @@ Trois changements, tous mesurés plutôt que devinés :
    les photos ne soutiennent pas, rattrapage de celles qu'elles révèlent. Le
    job ne fusionne jamais : il dépose, un humain tranche.
 
-Résultat sur le même jeu : **65 paires au lieu de 328, et toutes partagent
-une photographie**, pour 112 biens sur 898 — l'indicateur passe de 48 % à
-12,5 %. Une file qui se travaille.
+Résultat sur le même jeu, une fois les galeries complètes et hachées :
+**79 paires au lieu de 328, et toutes partagent une photographie**, pour
+127 biens sur 898 — l'indicateur passe de 48 % à 14,1 %. Une file qui se
+travaille.
 
 Le rattrapage a d'abord été aveugle, et il a fallu le mesurer pour le voir :
 93 paires photo-identiques dans le périmètre de présélection, 45 hors de la
@@ -881,7 +882,7 @@ Sur le jeu réel, le panneau est franchement rouge — 898 biens pour une cible 
 dire. Le troisième chiffre, lui, a rendu service autrement : les 48 % de biens
 en file de déduplication ont conduit à examiner la file, à y trouver 95 % de
 faux positifs, et à corriger le moteur (voir « Ce que les annonces réelles ont
-appris au moteur »). Il est retombé à 12,5 % — une file dont chaque paire
+appris au moteur »). Il est retombé à 14,1 % — une file dont chaque paire
 partage une photographie.
 
 ### L'instrumentation des deux mesures manquantes
