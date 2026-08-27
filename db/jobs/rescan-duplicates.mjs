@@ -29,7 +29,11 @@
  *      sans corroboration alors que les photos ont pu être regardées, sort de
  *      la file. Rien qui ait déjà été tranché par un humain n'est touché.
  *   2. RATTRAPAGE — chaque bien dont les médias portent une empreinte est
- *      repassé par `findDuplicates`, qui voit cette fois les photos.
+ *      repassé par `findDuplicates`, qui voit cette fois les photos. Par
+ *      lots, en rotation : les biens jamais réévalués d'abord, puis les
+ *      passages les plus anciens (`properties.dedup_rescanned_at`), pour
+ *      qu'un plafond de lot ne devienne pas un angle mort sur les derniers
+ *      arrivés.
  *
  * Le job ne fusionne jamais : c'est la règle qui prime sur tout le reste
  * (§6.2). Une correspondance forte est déposée en file comme une autre.
@@ -137,7 +141,7 @@ const { rows: properties } = await db.query(`
                 WHERE m.property_id = p.id AND m.phash IS NOT NULL) AS phashes
   FROM properties p
   WHERE EXISTS (SELECT 1 FROM media m WHERE m.property_id = p.id AND m.phash IS NOT NULL)
-  ORDER BY p.created_at
+  ORDER BY p.dedup_rescanned_at NULLS FIRST, p.created_at
   LIMIT $1`, [limit]);
 
 for (const row of properties) {
@@ -151,6 +155,13 @@ for (const row of properties) {
   if (await queueForReview(db, row.id, verdict.propertyId, verdict.score, verdict.reasons)) {
     summary.queued++;
   }
+}
+
+// Le passage est daté même quand il n'a rien déposé : c'est ce qui fait
+// tourner le lot. En simulation, la transaction est annulée avec le reste.
+if (properties.length) {
+  await db.query(`UPDATE properties SET dedup_rescanned_at = now() WHERE id = ANY($1::uuid[])`,
+                 [properties.map((r) => r.id)]);
 }
 
 const { rows: [after] } = await db.query(

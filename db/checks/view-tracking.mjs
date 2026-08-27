@@ -103,7 +103,8 @@ const { rows: [shared] } = await db.query(`
   FROM property_views v JOIN listings l ON l.property_id = v.property_id AND l.status='active'
   GROUP BY v.property_id HAVING count(DISTINCT l.agency_id) > 1 LIMIT 1`);
 check("une vue sur un bien partagé profite à plusieurs agences",
-      Boolean(shared) && shared.agencies > 1, String(shared?.agencies));
+      Boolean(shared) && shared.agencies > 1,
+      shared ? String(shared.agencies) : "aucun bien proposé par plusieurs agences — lancer npm run db:seed");
 
 await db.query(`DELETE FROM property_views WHERE session_id LIKE $1`, [session.slice(0, 6) + "%"]);
 await db.end();

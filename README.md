@@ -471,9 +471,14 @@ Trois changements, tous mesurés plutôt que devinés :
    fournit pas retombe sur le comportement d'origine, parce qu'une file trop
    large vaut mieux qu'un doublon publié sans que personne ne l'ait vu.
 3. **La file est réévaluée quand la preuve arrive** — `ops/rescan-duplicates.sh`,
-   à lancer après `ops/process-media.sh`. Deux passes : élagage des paires que
-   les photos ne soutiennent pas, rattrapage de celles qu'elles révèlent. Le
-   job ne fusionne jamais : il dépose, un humain tranche.
+   toutes les heures après `ops/process-media.sh`. Deux passes : élagage des
+   paires que les photos ne soutiennent pas, rattrapage de celles qu'elles
+   révèlent. Le job ne fusionne jamais : il dépose, un humain tranche. Le
+   rattrapage travaille par lots de 5 000 biens, en rotation
+   (`properties.dedup_rescanned_at` : jamais réévalués d'abord, puis passages
+   les plus anciens) — sans quoi le plafond du lot aurait été un angle mort
+   sur les derniers biens arrivés, ceux dont les empreintes viennent
+   justement d'être calculées.
 
 Résultat sur le même jeu, une fois les galeries complètes et hachées :
 **79 paires au lieu de 328, et toutes partagent une photographie**, pour
@@ -1396,6 +1401,7 @@ db/
   jobs/rescan-duplicates.mjs  Réévaluation de la file une fois les photos hachées
 ops/systemd/user/             Unités systemd d'utilisateur : serveur local, modèle de tâche
   migrations/021_instrumentation.sql  Recherches mesurées et LCP de terrain
+  migrations/022_dedup_rescan_rotation.sql  Rotation du rattrapage de déduplication
   jobs/purge-metrics.mjs      Purge des mesures au-delà de la fenêtre d'observation
   lib/ingest.mjs              Entonnoir commun aux canaux d'ingestion
   lib/dedup.mjs               Moteur de déduplication (§6.2)
