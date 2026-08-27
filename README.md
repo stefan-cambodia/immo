@@ -68,6 +68,43 @@ réelles collectées sur un seul portail ne contiennent pas. Les lancer après
 `npm run setup` ; `npm run check:portal` est le seul qui porte sur la collecte
 elle-même, et il tourne hors ligne.
 
+#### Tenir le site allumé sur sa machine
+
+`npm run dev` sert au développement et meurt avec le terminal. Pour que le
+portail reste joignable — et revienne après un redémarrage — le même
+installateur que la production sait poser une unité **d'utilisateur** :
+
+```bash
+npm run build            # le service sert la construction, pas le mode dev
+npm run service:install  # unité systemd utilisateur, port 3111
+npm run service:status
+```
+
+Trois choses en découlent, et chacune avait besoin d'être réglée :
+
+- **L'unité n'est pas celle de production.** Sur un serveur, l'application vit
+  sous `/opt`, tourne sous un compte dédié et se voit refuser l'accès au
+  `/home` ; sur une machine de travail elle EST dans le `/home`. Reprendre
+  `User=`, `Group=` et `ProtectHome=true` lui interdirait de lire son propre
+  répertoire. Le reste du durcissement — `ProtectSystem=strict`,
+  `ReadWritePaths` limité à `var/` et `.next/cache` — est conservé tel quel
+  (`ops/systemd/user/`).
+- **Le `linger` est activé.** Sans lui, les unités d'utilisateur s'arrêtent à
+  la déconnexion et ne sont pas démarrées au boot : le service ne survivrait
+  pas au redémarrage, ce qui est précisément ce qu'on installe.
+- **La base repart seule.** `docker-compose.yml` porte
+  `restart: unless-stopped` : sans cela, le service redémarrerait devant une
+  base éteinte. `/api/health` répond alors 503 le temps que PostgreSQL revienne,
+  et l'unité réessaie — c'est le comportement voulu, pas une panne.
+
+Les tâches planifiées ne sont **pas** installées (`--no-timers`) : personne ne
+veut voir sa machine de travail lancer des sauvegardes, un cycle de facturation
+et des envois d'alertes. Les retirer : `--no-timers` en moins.
+
+Après une modification du code : `npm run build && systemctl --user restart
+cambodia-immo-web`. Le port 3111 appartient désormais au service — inutile de
+lancer `next dev` dessus en parallèle.
+
 Le seed crée aussi les comptes du back-office et les affiche en fin
 d'exécution. Mot de passe commun en développement : `cambodia-dev`.
 
@@ -1315,6 +1352,7 @@ db/
   checks/indicators.mjs       Indicateurs §10 : définitions, accès, valeurs affichées
   checks/dedup.mjs            Règles du moteur de déduplication (hors ligne)
   jobs/rescan-duplicates.mjs  Réévaluation de la file une fois les photos hachées
+ops/systemd/user/             Unités systemd d'utilisateur : serveur local, modèle de tâche
   migrations/021_instrumentation.sql  Recherches mesurées et LCP de terrain
   jobs/purge-metrics.mjs      Purge des mesures au-delà de la fenêtre d'observation
   lib/ingest.mjs              Entonnoir commun aux canaux d'ingestion

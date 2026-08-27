@@ -2,6 +2,11 @@ services:
   db:
     image: postgis/postgis:17-3.5
     container_name: cambodia-immo-db
+    # Le service web local est géré par systemd et redémarre au démarrage de
+    # la machine : sans politique de redémarrage ici, il repartirait devant une
+    # base éteinte. `unless-stopped` ne rallume que ce qui tournait — un
+    # `docker compose down` volontaire reste respecté.
+    restart: unless-stopped
     environment:
       POSTGRES_USER: immo
       POSTGRES_PASSWORD: immo

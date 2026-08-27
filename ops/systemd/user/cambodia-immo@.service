@@ -1,0 +1,35 @@
+# Modèle des tâches planifiées, version « service d'utilisateur ».
+# Installation : ops/install-scheduler.sh --scope user
+#
+# Mêmes tâches et même socle que l'unité de production ; ce qui change tient
+# à l'endroit où l'application vit. Sur un serveur, elle est sous /opt, tourne
+# sous un compte dédié et n'a rien à faire dans un /home — d'où `User=`,
+# `Group=` et `ProtectHome=true`. Sur une machine de travail, elle EST dans le
+# /home : ces trois directives y interdiraient à la tâche de lire son propre
+# répertoire, et `User=` n'a de toute façon aucun sens dans une unité
+# d'utilisateur. Le reste du durcissement est conservé tel quel.
+[Unit]
+Description=Khmer Estate — tâche planifiée %i (local)
+Documentation=file://__APP_ROOT__/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=__APP_ROOT__
+ExecStart=__APP_ROOT__/ops/%i.sh
+
+EnvironmentFile=-%h/.config/cambodia-immo/env
+Environment=NODE_ENV=production
+Environment=JOB_ACTOR=systemd:%i
+PrivateTmp=true
+
+ProtectSystem=strict
+ReadWritePaths=__APP_ROOT__/var
+NoNewPrivileges=true
+PrivateDevices=true
+LockPersonality=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cambodia-immo-%i

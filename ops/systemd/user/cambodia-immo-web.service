@@ -1,0 +1,50 @@
+# Le serveur web en service d'utilisateur, pour une machine de travail.
+# Installation : ops/install-scheduler.sh --scope user --web
+#
+# Pourquoi une unité distincte de celle de production plutôt qu'un rendu
+# conditionnel : les deux ne protègent pas la même chose. Sur le serveur,
+# l'application vit sous /opt, tourne sous un compte dédié et se voit refuser
+# l'accès au /home ; ici elle vit DANS le /home de la personne qui développe.
+# Reprendre `User=`, `Group=` et `ProtectHome=true` interdirait au service de
+# lire son propre répertoire — les durcissements se transposent, ils ne se
+# recopient pas.
+#
+# Prérequis : `npm run build` (le service sert la construction, pas le mode
+# développement) et la base démarrée — docker-compose la redémarre seule.
+[Unit]
+Description=Khmer Estate — serveur web (local)
+Documentation=file://__APP_ROOT__/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__APP_ROOT__
+ExecStart=__APP_ROOT__/node_modules/.bin/next start --port ${PORT} --hostname 127.0.0.1
+# La base peut mettre quelques secondes à se rallumer après un démarrage :
+# le service réessaie plutôt que d'abandonner.
+Restart=always
+RestartSec=3s
+KillSignal=SIGTERM
+TimeoutStopSec=20s
+
+# Les variables restent dans .env.local, que Next lit au démarrage. Ce fichier
+# facultatif permet de surcharger le port sans toucher au dépôt.
+EnvironmentFile=-%h/.config/cambodia-immo/env
+Environment=NODE_ENV=production
+Environment=PORT=__APP_PORT__
+
+# Next écrit son cache d'exécution sous .next/cache ; les médias locaux, les
+# journaux et les archives vivent sous var/.
+ProtectSystem=strict
+ReadWritePaths=__APP_ROOT__/var __APP_ROOT__/.next/cache
+NoNewPrivileges=true
+PrivateDevices=true
+LockPersonality=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cambodia-immo-web
+
+[Install]
+WantedBy=default.target
