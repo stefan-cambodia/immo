@@ -393,6 +393,66 @@ fusionner seul les cas ambigus ».
 Une agence face à sa propre annonce n'est jamais fusionnée automatiquement :
 c'est une mise à jour, pas un doublon inter-agences.
 
+#### Ce que les annonces réelles ont appris au moteur
+
+Sur le jeu engendré, la file de validation comptait une trentaine de paires et
+tout paraissait sain. Sur ~900 annonces collectées, elle est montée à 328 —
+48 % des biens —, et l'indicateur de santé (§10) a rendu le chiffre visible. En
+regardant ce qu'elle contenait, une fois les vraies empreintes de photos
+calculées :
+
+| | |
+|---|---|
+| Paires mises en file par l'entonnoir | 301 |
+| … partageant une photographie | **14** |
+| … dont les photos n'ont aucun rapport | **286 (95 %)** |
+| Paires réellement photo-identiques dans la base | 116 |
+| … présentes dans la file | **15** |
+
+Une file **à la fois bruyante et aveugle**, donc, et pour une seule raison : la
+déduplication **décidait avant que la preuve n'existe**. `ingest()` reçoit les
+empreintes de `input.photos` ; les canaux qui n'apportent qu'une URL — collecte
+de portail, flux CRM — n'en ont aucune à ce moment-là, puisque les images ne
+sont téléchargées et hachées que plus tard par `process-media`. Le seul signal
+que le brief qualifie de vraie corroboration était absent au moment de la
+décision.
+
+Ne restaient que les signaux faibles. Et 0,20 (même étage) + 0,10 (mêmes
+chambres) tombe **exactement** sur le seuil de mise en file : « même commune,
+même type, même numéro d'étage, même nombre de chambres » suffisait. À Siem
+Reap, cela décrit un quartier. Second défaut, indépendant : le score
+**n'additionnait que des accords**. Une villa de 184 m² à 250 000 $ était
+appariée à une de 684 m² à 4 500 $/mois, le désaccord ne pesant rien.
+
+Trois changements, tous mesurés plutôt que devinés :
+
+1. **Le désaccord compte.** Au-delà de 25 % d'écart de surface, la note baisse
+   au lieu d'ignorer la contradiction.
+2. **Sans immeuble identifié, l'accord structurel ne suffit plus** : il faut
+   une corroboration — photo à distance ≤ 10, ou immeuble commun. La règle ne
+   s'applique QUE si les photos ont pu être regardées ; un canal qui n'en
+   fournit pas retombe sur le comportement d'origine, parce qu'une file trop
+   large vaut mieux qu'un doublon publié sans que personne ne l'ait vu.
+3. **La file est réévaluée quand la preuve arrive** — `ops/rescan-duplicates.sh`,
+   à lancer après `ops/process-media.sh`. Deux passes : élagage des paires que
+   les photos ne soutiennent pas, rattrapage de celles qu'elles révèlent. Le
+   job ne fusionne jamais : il dépose, un humain tranche.
+
+Résultat sur le même jeu : **48 paires au lieu de 328, dont 47 partagent une
+photographie**, et l'indicateur passe de 48 % à 9,7 % des biens. Une file qui
+se travaille.
+
+Il reste un angle mort assumé : la présélection ne regarde que « même immeuble »
+ou « même quartier et même type ». Vingt-cinq paires photo-identiques portent un
+type de bien différent chez la source, cinq un quartier différent — elles
+échappent encore au rattrapage. Les rattraper demanderait d'élargir la
+présélection à l'empreinte photographique seule, ce qui change le coût de
+chaque ingestion : à faire quand le volume le justifiera.
+
+`npm run check:dedup` couvre les règles hors ligne, sur des paires fabriquées —
+c'est le seul moyen d'atteindre les cas limites qu'un jeu de données ne fournit
+pas à volonté.
+
 ### Le hash perceptuel, et sa limite
 
 Les agences se repiquent les images — fait de marché, donc signal exploitable.
@@ -759,11 +819,11 @@ plafonnée, une file de validation se travaillant à la main. Restent 301 paires
 décidées par l'entonnoir sur les annonces collectées, contre 27 fabriquées.
 
 Sur le jeu réel, le panneau est franchement rouge — 898 biens pour une cible de
-3 000, 0 % d'annonces via le bot, 48 % de biens en file de déduplication — et
-c'est précisément ce qu'on lui demande de dire. Ce dernier chiffre est le
-comportement réel du moteur sur un marché où les unités se ressemblent : c'est
-la situation que le brief décrit pour interdire toute fusion automatique
-(§6.2).
+3 000, 0 % d'annonces via le bot — et c'est précisément ce qu'on lui demande de
+dire. Le troisième chiffre, lui, a rendu service autrement : les 48 % de biens
+en file de déduplication ont conduit à examiner la file, à y trouver 95 % de
+faux positifs, et à corriger le moteur (voir « Ce que les annonces réelles ont
+appris au moteur »). Il est retombé à 9,7 %.
 
 ### L'instrumentation des deux mesures manquantes
 
@@ -1020,6 +1080,7 @@ Six tâches tournent en dehors de l'application, sur un socle commun
 |---|---|---|
 | `ops/send-alerts.sh` | **toutes les 15 minutes** | Envoie les alertes dues ; purge les inscriptions non confirmées |
 | `ops/process-media.sh` | **toutes les 15 minutes** | Génère et stocke les variantes WebP/AVIF/JPEG des médias en attente (§7) |
+| `ops/rescan-duplicates.sh` | **toutes les heures**, après le traitement des médias | Réévalue la file de déduplication avec les empreintes désormais calculées (§6.2) |
 | `ops/expire-listings.sh` | **horaire** | Bascule à `expired` les annonces passé 45 jours (§6.3) |
 | `ops/billing.sh` | **quotidienne, 01:30** (après l'expiration de 01:00) | Cycle de facturation et de quotas : les places libérées profitent aux annonces retenues (§8) |
 | `ops/backup-db.sh` | **quotidienne, 02:15** | Sauvegarde de la base : dump vérifié par `pg_restore`, chiffré, copié hors site, rotation |
@@ -1252,6 +1313,8 @@ db/
   seed/activity.mjs           Audience, contacts et dossiers sur les biens présents
   checks/portal.mjs           Collecte : traduction en faits, écarts, parcours (hors ligne)
   checks/indicators.mjs       Indicateurs §10 : définitions, accès, valeurs affichées
+  checks/dedup.mjs            Règles du moteur de déduplication (hors ligne)
+  jobs/rescan-duplicates.mjs  Réévaluation de la file une fois les photos hachées
   migrations/021_instrumentation.sql  Recherches mesurées et LCP de terrain
   jobs/purge-metrics.mjs      Purge des mesures au-delà de la fenêtre d'observation
   lib/ingest.mjs              Entonnoir commun aux canaux d'ingestion
