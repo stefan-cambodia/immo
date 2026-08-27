@@ -247,6 +247,7 @@ export default async function SearchPage({
             agencyCount: t("property.agencyCountShort", { n: "{n}" }),
             unavailable: t("map.unavailable"),
             unavailableHint: t("map.unavailableHint"),
+            loadFailed: t("map.loadFailed"),
           }}
         />
       </div>

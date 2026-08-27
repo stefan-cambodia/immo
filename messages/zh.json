@@ -257,7 +257,8 @@
     "clearDraw": "清除区域",
     "autoSearch": "移动地图时自动搜索",
     "unavailable": "地图无法显示",
-    "unavailableHint": "此浏览器未提供地图所需的 WebGL。列表中的结果仍可正常查看。"
+    "unavailableHint": "此浏览器未提供地图所需的 WebGL。列表中的结果仍可正常查看。",
+    "loadFailed": "地图结果无法加载"
   },
   "auth": {
     "signIn": "登录",

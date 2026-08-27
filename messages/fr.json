@@ -257,7 +257,8 @@
     "clearDraw": "Effacer la zone",
     "autoSearch": "Rechercher en déplaçant la carte",
     "unavailable": "La carte ne peut pas s'afficher",
-    "unavailableHint": "Ce navigateur n'expose pas WebGL, dont la carte a besoin. Les résultats restent consultables dans la liste."
+    "unavailableHint": "Ce navigateur n'expose pas WebGL, dont la carte a besoin. Les résultats restent consultables dans la liste.",
+    "loadFailed": "Les résultats de la carte n'ont pas pu être chargés"
   },
   "auth": {
     "signIn": "Se connecter",

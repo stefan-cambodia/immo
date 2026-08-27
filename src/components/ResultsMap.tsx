@@ -22,6 +22,7 @@ interface Labels {
   agencyCount: string;
   unavailable: string;
   unavailableHint: string;
+  loadFailed: string;
 }
 
 const compactUsd = (n: number) =>
@@ -68,6 +69,9 @@ export function ResultsMap({
   // aux filtres courants ? » — pas un drapeau posé/levé dans l'effet.
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const loading = loadedFor !== paramString;
+  // Même discipline que pour WebGL : un chargement qui échoue le dit, il ne
+  // laisse pas « Chargement… » allumé pour toujours devant des points périmés.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [moved, setMoved] = useState(false);
   const [autoSearch, setAutoSearch] = useState(false);
   const [drawing, setDrawing] = useState(false);
@@ -221,7 +225,7 @@ export function ResultsMap({
     if (!ready) return;
     const ctrl = new AbortController();
     fetch(`/api/map?${paramString}`, { signal: ctrl.signal })
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then((points: Point[]) => {
         const src = map.current?.getSource("properties") as GeoJSONSource | undefined;
         src?.setData({
@@ -238,9 +242,16 @@ export function ResultsMap({
           })),
         });
         setLoadedFor(paramString);
+        setLoadFailed(false);
         setMoved(false);
       })
-      .catch(() => {});
+      .catch(() => {
+        // Une requête annulée par un changement de filtres n'est pas un échec :
+        // la suivante est déjà partie.
+        if (ctrl.signal.aborted) return;
+        setLoadedFor(paramString);
+        setLoadFailed(true);
+      });
     return () => ctrl.abort();
   }, [ready, paramString]);
 
@@ -384,13 +395,13 @@ export function ResultsMap({
       </div>
       )}
 
-      {loading && (
-        <span className="chip" style={{
+      {(loading || loadFailed) && (
+        <span className="chip" role={loadFailed ? "alert" : undefined} style={{
           position: "absolute", bottom: 10, left: 10, zIndex: 5,
           background: "var(--color-surface)", color: "var(--color-ink-soft)",
           border: "1px solid var(--color-line)",
         }}>
-          {labels.loading}
+          {loading ? labels.loading : labels.loadFailed}
         </span>
       )}
     </div>
