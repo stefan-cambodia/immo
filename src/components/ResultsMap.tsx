@@ -28,7 +28,7 @@ const compactUsd = (n: number) =>
   : `$${n}`;
 
 export function ResultsMap({
-  locale, style, attribution, maxZoom, center, zoom, labels,
+  locale, style, attribution, maxZoom, center, zoom, labels, mode = "search",
 }: {
   locale: string;
   style: string | Record<string, unknown>;
@@ -37,6 +37,16 @@ export function ResultsMap({
   center: [number, number];
   zoom: number;
   labels: Labels;
+  /**
+   * `search` : la carte est un outil de recherche — dessin de zone, « chercher
+   * dans cette zone », suivi du déplacement.
+   *
+   * `locate` : la carte SITUE un bien déjà choisi. Les commandes de recherche
+   * n'y ont pas de sens — dessiner un polygone sur la fiche d'un appartement
+   * ne mène nulle part — et elles encombrent une carte qu'on ne regarde que
+   * pour savoir où c'est.
+   */
+  mode?: "search" | "locate";
 }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MlMap | null>(null);
@@ -177,7 +187,10 @@ export function ResultsMap({
           m.on("mouseleave", layer, () => { m.getCanvas().style.cursor = ""; });
         }
 
-        m.on("moveend", () => setMoved(true));
+        // Le déplacement n'est suivi que là où il ouvre sur une action : sans
+        // le bouton « chercher dans cette zone », c'est un rendu par panoramique
+        // pour rien.
+        if (mode === "search") m.on("moveend", () => setMoved(true));
         setReady(true);
       });
     })();
@@ -312,6 +325,8 @@ export function ResultsMap({
     <div style={{ position: "relative", width: "100%", height: "100%", minHeight: 320 }}>
       <div ref={container} style={{ position: "absolute", inset: 0 }} />
 
+      {/* Commandes de recherche : uniquement là où elles mènent quelque part. */}
+      {mode === "search" && (
       <div style={{
         position: "absolute", top: 10, left: 10, display: "flex",
         flexDirection: "column", gap: "0.5rem", alignItems: "start", zIndex: 5,
@@ -351,6 +366,7 @@ export function ResultsMap({
           {labels.autoSearch}
         </label>
       </div>
+      )}
 
       {loading && (
         <span className="chip" style={{

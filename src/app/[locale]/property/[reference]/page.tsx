@@ -466,6 +466,9 @@ export default async function PropertyPage({
                 maxZoom={provider.maxZoom}
                 center={[p.lng, p.lat]}
                 zoom={16}
+                // La fiche situe un bien déjà choisi : pas de dessin de zone
+                // ni de « chercher dans cette zone » ici.
+                mode="locate"
                 labels={{
                   searchThisArea: t("map.searchThisArea"),
                   drawPolygon: t("map.draw"),

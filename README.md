@@ -1077,6 +1077,12 @@ définitifs — ils restent à confirmer avec les chiffres réels.
    `renderer` documente explicitement que Google exigerait un second moteur de
    rendu. Aucun composant ne connaît le fournisseur.
 
+   Le même composant sert deux usages, distingués par `mode` : `search` sur la
+   page de résultats — dessin de zone, « chercher dans cette zone », suivi du
+   déplacement — et `locate` sur la fiche, où la carte ne fait que situer un
+   bien déjà choisi. Dessiner un polygone sur la fiche d'un appartement ne mène
+   nulle part : ces commandes n'y sont plus affichées.
+
    MapLibre est un moteur **WebGL** : sans contexte WebGL — navigateur ancien,
    accélération matérielle coupée, pilote sur liste noire — il lève à la
    construction. L'exception est rattrapée et le panneau affiche « la carte ne
