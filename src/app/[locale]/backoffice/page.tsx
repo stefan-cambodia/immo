@@ -13,6 +13,7 @@ import { TranslationReview, type PendingTranslation } from "@/components/Transla
 import { auditSpan, countAudit, listAudit, parseAuditFilters } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/auth";
 import { billingOverview, listPlans, openInvoices } from "@/lib/billing";
+import { indicators, localeMix, WINDOW_DAYS, type Indicator } from "@/lib/indicators";
 import { signOut } from "../login/actions";
 import { createProperty, resolveDedup, addAlias, confirmListing, pinSubmission,
          approveTranslation, changeTier, issueInvoice, markInvoicePaid,
@@ -132,7 +133,8 @@ export default async function BackofficePage({
   const [locations, agents, dedup, misses, expiring, reuse, leadStats,
          audit, auditTotal, span, pending, translations,
          billingRows, invoicesOpen, plans, verifRows,
-         titleDossiers, titlePartners, apiPartners, accounts, totp, uploads] = await Promise.all([
+         titleDossiers, titlePartners, apiPartners, accounts, totp, uploads,
+         health, localeShare] = await Promise.all([
     query<{ slug: string; name: Record<string, string>; parent: Record<string, string> | null }>(
       `SELECT l.slug, l.name_i18n AS name, p.name_i18n AS parent
        FROM locations l LEFT JOIN locations p ON p.id = l.parent_id
@@ -260,6 +262,11 @@ export default async function BackofficePage({
     // Photos envoyées à la main (§7), dans le périmètre du compte : de quoi
     // vérifier qu'un envoi est passé et retirer une erreur.
     listRecentUploads(pool, { agencyId: scope, limit: 24 }) as Promise<UploadRow[]>,
+    // Indicateurs de santé du portail (§10) : une vue de pilotage, donc
+    // réservée à la modération — une agence n'a pas à voir l'avancement du
+    // produit vers ses cibles.
+    isAdmin ? indicators() : [],
+    isAdmin ? localeMix() : [],
   ]);
 
   return (
@@ -334,6 +341,81 @@ export default async function BackofficePage({
 
       <div style={{ display: "grid", gap: "1.25rem",
                     gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 26rem), 1fr))" }}>
+
+        {/* -------- Indicateurs de santé du portail (§10) — modération -------- */}
+        {isAdmin && (
+        <Panel title={t("indicators.panelTitle")}
+               hint={t("indicators.panelHint", { days: WINDOW_DAYS })}>
+          <ul style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+            {(health as Indicator[]).map((i) => (
+              <li key={i.key} style={{
+                display: "grid", gridTemplateColumns: "1fr auto", gap: "0.5rem",
+                alignItems: "baseline", borderBottom: "1px solid var(--color-line-soft)",
+                paddingBottom: "0.5rem",
+              }}>
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>
+                    {t(`indicators.${i.key}`)}
+                  </span>
+                  <span style={{ fontSize: "0.6875rem", color: "var(--color-ink-faint)",
+                                 marginInlineStart: "0.5rem", textTransform: "uppercase",
+                                 letterSpacing: "0.04em" }}>
+                    {t(`indicators.group_${i.group}`)}
+                  </span>
+                  {i.detail && (
+                    <span style={{ display: "block", fontSize: "0.75rem",
+                                   color: "var(--color-ink-soft)", marginTop: "0.125rem" }}>
+                      {i.detail}
+                    </span>
+                  )}
+                </div>
+                <div style={{ textAlign: "end", whiteSpace: "nowrap" }}>
+                  <span style={{
+                    fontWeight: 800, fontSize: "1rem",
+                    color: i.status === "met" ? "var(--color-fresh)"
+                      : i.status === "close" ? "var(--color-stale)"
+                      : i.status === "off" ? "var(--color-danger)"
+                      : "var(--color-ink-faint)",
+                  }}>
+                    {i.value === null ? "—"
+                      : i.unit === "percent" ? `${formatNumber(i.value, locale)} %`
+                      : formatNumber(i.value, locale)}
+                  </span>
+                  <span style={{ display: "block", fontSize: "0.6875rem",
+                                 color: "var(--color-ink-faint)" }}>
+                    {i.status === "unmeasured"
+                      ? t("indicators.unmeasured")
+                      : i.target === null
+                        ? t("indicators.noTarget")
+                        : t(i.direction === "up" ? "indicators.targetUp" : "indicators.targetDown",
+                            { n: i.unit === "percent" ? `${i.target} %` : formatNumber(i.target, locale) })}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {/* Répartition du trafic par langue : elle pilote les priorités (§10). */}
+          <div style={{ marginTop: "0.875rem" }}>
+            <span style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase",
+                           letterSpacing: "0.04em", color: "var(--color-ink-faint)" }}>
+              {t("indicators.localeMix")}
+            </span>
+            <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap", marginTop: "0.375rem" }}>
+              {localeShare.length === 0 && (
+                <span style={{ fontSize: "0.8125rem", color: "var(--color-ink-soft)" }}>—</span>
+              )}
+              {localeShare.map((l) => (
+                <span key={l.locale} className="chip" style={{
+                  background: "var(--color-surface-alt)", color: "var(--color-ink-soft)",
+                }}>
+                  {l.locale.toUpperCase()} · {formatNumber(l.share, locale)} %
+                </span>
+              ))}
+            </div>
+          </div>
+        </Panel>
+        )}
 
         {/* ------------------------------------------------- Saisie d'un bien */}
         <Panel title={t("backoffice.newProperty")}>

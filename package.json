@@ -58,6 +58,7 @@
     "check:upload": "node db/checks/upload.mjs",
     "check:backup": "node db/checks/backup.mjs",
     "check:health": "node db/checks/health.mjs",
+    "check:indicators": "node db/checks/indicators.mjs",
     "check:portal": "node db/checks/portal.mjs"
   },
   "dependencies": {

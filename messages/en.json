@@ -644,5 +644,26 @@
     "too_large": "A photo exceeds {mb} MB.",
     "unsupported_type": "Unrecognised format: JPEG, PNG, WebP or AVIF only.",
     "upload_failed": "The upload failed on the server; nothing was saved."
+  },
+  "indicators": {
+    "panelTitle": "Health indicators",
+    "panelHint": "The brief's eight indicators (§10), measured over {days} days, against the end-of-phase-2 target. An indicator we cannot measure yet is shown as such rather than filled in by guesswork.",
+    "activeProperties": "Active properties",
+    "confirmedRecent": "Recently confirmed listings",
+    "dedupResidual": "Residual duplicates (upper bound)",
+    "searchMisses": "Searches with no result",
+    "botShare": "Share via Telegram bot",
+    "leadsPerThousand": "Leads per 1,000 sessions",
+    "lcp": "Mobile p75 LCP",
+    "group_supply": "Supply",
+    "group_quality": "Quality",
+    "group_ingestion": "Ingestion",
+    "group_usage": "Usage",
+    "group_technical": "Technical",
+    "targetUp": "target ≥ {n}",
+    "targetDown": "target ≤ {n}",
+    "noTarget": "to be set",
+    "unmeasured": "not measured",
+    "localeMix": "Traffic by language"
   }
 }

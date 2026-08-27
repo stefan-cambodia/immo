@@ -709,12 +709,45 @@ publique affiche « 2 agences proposent ce bien, de 182 500 $ à 185 000 $ ».
 |---|---|
 | Pages SEO par quartier × type × langue | **fait** |
 | Alertes email et Telegram sur critères sauvegardés | **fait** |
-| Facturation des abonnements, gestion des quotas | à faire |
-| Mise en avant payante | partiel — `listings.featured` existe et remonte au tri |
+| Facturation des abonnements, gestion des quotas | **fait** — cycle quotidien, quotas, factures, `npm run check:billing` |
+| Mise en avant payante | **fait** — place achetée à durée limitée, quota par palier |
 | Tableau de bord agence | **fait** |
-| Vérification des agences (badge) | partiel — l'état existe et s'affiche, le circuit non |
-| Évaluation du mini-programme WeChat | à faire |
-| Pages promoteurs / projets neufs | à faire |
+| Vérification des agences (badge) | **fait** — le badge s'attribue depuis la modération, avec trace d'audit |
+| Pages promoteurs / projets neufs | **fait** — `npm run check:projects` |
+| Indicateurs de santé du portail (§10) | **fait** — panneau de modération, `npm run check:indicators` |
+| Évaluation du mini-programme WeChat | à faire — décision produit, pas du code |
+
+### Les indicateurs de santé (§10)
+
+Le brief fixe huit indicateurs et une cible de fin de phase 2 pour chacun. Ils
+n'étaient suivis nulle part : le back-office montrait des files de travail —
+soumissions, doublons, recherches sans résultat — mais aucun chiffre disant si
+le produit avance. Un panneau de modération les calcule désormais sur trente
+jours (`src/lib/indicators.ts`).
+
+Deux décisions ont plus compté que le reste.
+
+**Un indicateur qu'on ne sait pas mesurer se déclare non mesuré.** Deux des
+huit le sont, et le resteront jusqu'à ce qu'on les instrumente : le LCP p75
+demande une mesure côté navigateur qui n'existe pas, et le taux de recherches
+sans résultat demande un dénominateur — le nombre de recherches abouties — qui
+n'est pas journalisé, puisque seuls les échecs le sont (§5.2). Le volume brut
+d'échecs est affiché à la place. Remplir ces deux cases au jugé donnerait
+l'illusion de piloter, alors que le trou est justement ce qui dit quoi
+instrumenter ensuite.
+
+**Une approximation se dit comme telle.** Les « doublons résiduels » ne sont
+pas observables : on ne connaît pas les doublons que le moteur a laissés
+passer. Ce qui est mesuré est la part des biens engagés dans au moins une paire
+non tranchée — un majorant, et un signal d'arriéré de modération autant que de
+qualité. La première version rapportait les PAIRES aux BIENS et annonçait
+455 % : un même bien apparaît dans plusieurs paires, et le rapport n'était pas
+un taux. `npm run check:indicators` interdit désormais qu'un pourcentage
+affiché dépasse 100.
+
+Sur le jeu réel collecté, le panneau est franchement rouge — 898 biens pour une
+cible de 3 000, 0 % d'annonces via le bot, 71 % de biens en file de
+déduplication — et c'est précisément ce qu'on lui demande de dire.
 
 ### Le tableau de bord agence
 
@@ -1150,6 +1183,7 @@ db/
   lib/describe.mjs            Description engendrée depuis les champs structurés
   seed/activity.mjs           Audience, contacts et dossiers sur les biens présents
   checks/portal.mjs           Collecte : traduction en faits, écarts, parcours (hors ligne)
+  checks/indicators.mjs       Indicateurs §10 : définitions, accès, valeurs affichées
   lib/ingest.mjs              Entonnoir commun aux canaux d'ingestion
   lib/dedup.mjs               Moteur de déduplication (§6.2)
   lib/phash.mjs               dHash 64 bits, seuils mesurés
@@ -1185,6 +1219,7 @@ src/lib/
   map-provider.ts             Couche d'abstraction cartographique
   seo.ts                      Pages d'atterrissage : seuil, stats, maillage
   dashboard.ts                Mesures du tableau de bord agence
+  indicators.ts               Indicateurs de santé du portail (§10) et cibles
   alerts.ts                   Alertes : branchement de l'application sur lib/alerts.mjs
   auth.ts                     Mots de passe, sessions, gardes de rôle
   audit.ts                    Écriture du journal, filtres, flux d'export

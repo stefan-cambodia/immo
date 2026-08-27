@@ -644,5 +644,26 @@
     "too_large": "有照片超过 {mb} MB。",
     "unsupported_type": "无法识别的格式：仅支持 JPEG、PNG、WebP 或 AVIF。",
     "upload_failed": "服务器端上传失败，未保存任何内容。"
+  },
+  "indicators": {
+    "panelTitle": "健康指标",
+    "panelHint": "简报中的八项指标（§10），按 {days} 天统计，并对照第二阶段末的目标。尚无法测量的指标如实标注，不作臆测填写。",
+    "activeProperties": "在售房源",
+    "confirmedRecent": "近期确认的房源",
+    "dedupResidual": "残余重复（上限）",
+    "searchMisses": "无结果搜索",
+    "botShare": "Telegram 机器人占比",
+    "leadsPerThousand": "每千次访问的联系数",
+    "lcp": "移动端 LCP p75",
+    "group_supply": "供给",
+    "group_quality": "质量",
+    "group_ingestion": "接入",
+    "group_usage": "使用",
+    "group_technical": "技术",
+    "targetUp": "目标 ≥ {n}",
+    "targetDown": "目标 ≤ {n}",
+    "noTarget": "待定",
+    "unmeasured": "未测量",
+    "localeMix": "各语言流量"
   }
 }

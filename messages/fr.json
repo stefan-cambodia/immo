@@ -644,5 +644,26 @@
     "too_large": "Une photo dépasse {mb} Mo.",
     "unsupported_type": "Format non reconnu : JPEG, PNG, WebP ou AVIF seulement.",
     "upload_failed": "L'envoi a échoué côté serveur ; rien n'a été enregistré."
+  },
+  "indicators": {
+    "panelTitle": "Indicateurs de santé",
+    "panelHint": "Les huit indicateurs du brief (§10), mesurés sur {days} jours, avec la cible de fin de phase 2. Un indicateur qu'on ne sait pas encore mesurer est affiché comme tel plutôt que rempli au jugé.",
+    "activeProperties": "Biens actifs",
+    "confirmedRecent": "Annonces confirmées récemment",
+    "dedupResidual": "Doublons résiduels (majorant)",
+    "searchMisses": "Recherches sans résultat",
+    "botShare": "Part via bot Telegram",
+    "leadsPerThousand": "Contacts pour 1 000 sessions",
+    "lcp": "LCP p75 mobile",
+    "group_supply": "Offre",
+    "group_quality": "Qualité",
+    "group_ingestion": "Ingestion",
+    "group_usage": "Usage",
+    "group_technical": "Technique",
+    "targetUp": "cible ≥ {n}",
+    "targetDown": "cible ≤ {n}",
+    "noTarget": "à établir",
+    "unmeasured": "non mesuré",
+    "localeMix": "Trafic par langue"
   }
 }
