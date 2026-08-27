@@ -59,6 +59,9 @@ check("« POA » n'est pas un prix", parsePrice("POA") === null && parsePrice(""
 check("un prix au m² est reconnu comme tel",
       PER_SQM.test("$740/m²") && !PER_SQM.test("$740"));
 check("une surface est lue", parseArea("300m²") === 300 && parseArea(undefined) === null);
+check("une surface implausible est absente plutôt que fausse",
+      parseArea("1m²") === null && parseArea("0") === null && parseArea("12m²") === 12,
+      `${parseArea("1m²")} ${parseArea("12m²")}`);
 check("une adresse est découpée du plus précis au plus large",
       addressParts("  , Tonle Bassac, Chamkarmon, Phnom Penh")
         .join("|") === "Tonle Bassac|Chamkarmon|Phnom Penh");

@@ -98,18 +98,25 @@ if (purge) {
 }
 
 // ------------------------------------------------- galeries complètes
-// La page de liste ne porte que la photo mise en avant. Compléter la galerie
+// La page de liste ne porte que quelques vignettes. Compléter la galerie
 // demande d'ouvrir la page de chaque annonce : c'est une requête par bien, donc
-// une passe séparée, reprenable, et lancée à la main. Les biens déjà complétés
-// sont sautés — relancer après une interruption reprend là où on s'est arrêté.
+// une passe séparée, reprenable, et lancée à la main.
+//
+// « Déjà complété » se lit sur la soumission (`payload.galleryFetchedAt`), pas
+// sur le nombre de médias : la liste en donne déjà trois, et un critère du
+// type « moins de deux photos » faisait sauter 874 biens sur 898 — la passe
+// tournait à vide en annonçant que tout était fait. Une galerie vide chez la
+// source est marquée aussi : on ne la redemande pas à chaque relance. Seul un
+// échec (réseau, HTTP) laisse le bien sans marque, pour être repris.
 if (photosOnly) {
   const { rows: todo } = await db.query(
     `SELECT DISTINCT ON (l.property_id)
-            l.property_id AS "propertyId", l.source_url AS "sourceUrl"
+            l.property_id AS "propertyId", l.source_url AS "sourceUrl",
+            s.id AS "submissionId"
        FROM listings l
+       JOIN submissions s ON s.listing_id = l.id
       WHERE l.source = 'portal' AND l.source_url IS NOT NULL
-        AND (SELECT count(*) FROM media m
-              WHERE m.property_id = l.property_id AND m.url LIKE 'https://%') < 2
+        AND s.payload->>'galleryFetchedAt' IS NULL
       ORDER BY l.property_id, l.created_at`);
 
   log(`Galeries à compléter : ${todo.length} bien(s) — ${concurrency} en parallèle, `
@@ -118,26 +125,51 @@ if (photosOnly) {
   let done = 0, filled = 0, empty = 0, failed = 0;
   const queue = todo.slice();
 
+  // Les fils partagent UNE connexion. Ce qui peut se faire de front, c'est
+  // attendre la source ; l'écriture, elle, passe par un tour de rôle : deux
+  // transactions ouvertes sur la même connexion s'entrelacent, et le COMMIT
+  // ou le ROLLBACK de l'une clôt celle de l'autre — galerie à moitié écrite,
+  // puis sautée à la relance parce qu'elle compte déjà deux photos.
+  let turn = Promise.resolve();
+  const serialized = (work) => {
+    const mine = turn.then(work, work);
+    turn = mine.catch(() => {});
+    return mine;
+  };
+
   const worker = async () => {
     while (queue.length) {
       const item = queue.shift();
       try {
         const photos = await fetchPhotos(item.sourceUrl);
-        if (photos?.length) {
-          await db.query("BEGIN");
-          await db.query(`DELETE FROM media WHERE property_id = $1`, [item.propertyId]);
-          for (const [position, photo] of photos.entries()) {
+        // `null` : page inaccessible ou illisible — pas de marque, on reprendra.
+        if (photos === null) throw new Error("page d'annonce illisible");
+        await serialized(async () => {
+          try {
+            await db.query("BEGIN");
+            if (photos.length) {
+              await db.query(`DELETE FROM media WHERE property_id = $1`, [item.propertyId]);
+              for (const [position, photo] of photos.entries()) {
+                await db.query(
+                  `INSERT INTO media(property_id, url, position, width, height, variants)
+                   VALUES ($1,$2,$3,$4,$5,$6)`,
+                  [item.propertyId, photo.url, position, photo.width, photo.height,
+                   JSON.stringify(photo.variants ?? [])]);
+              }
+            }
             await db.query(
-              `INSERT INTO media(property_id, url, position, width, height, variants)
-               VALUES ($1,$2,$3,$4,$5,$6)`,
-              [item.propertyId, photo.url, position, photo.width, photo.height,
-               JSON.stringify(photo.variants ?? [])]);
+              `UPDATE submissions
+                  SET payload = payload || jsonb_build_object('galleryFetchedAt', now(),
+                                                              'galleryPhotos', $2::int)
+                WHERE id = $1`, [item.submissionId, photos.length]);
+            await db.query("COMMIT");
+          } catch (e) {
+            await db.query("ROLLBACK").catch(() => {});
+            throw e;
           }
-          await db.query("COMMIT");
-          filled++;
-        } else empty++;
+        });
+        if (photos.length) filled++; else empty++;
       } catch (e) {
-        await db.query("ROLLBACK").catch(() => {});
         failed++;
         note(String(e.message).slice(0, 80));
       }

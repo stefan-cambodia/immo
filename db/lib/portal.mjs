@@ -129,11 +129,19 @@ export function parsePrice(text) {
   return Math.round(n * scale);
 }
 
+/**
+ * En dessous, ce n'est pas une surface : la base réelle a montré un
+ * appartement de deux chambres à « 1 m² ». Une valeur absente vaut mieux
+ * qu'une valeur fausse — elle n'entre ni dans la description, ni dans le prix
+ * au mètre carré, ni dans la déduplication.
+ */
+export const MIN_AREA_SQM = 10;
+
 /** `"300m²"` → 300. Les surfaces du portail sont toujours en mètres carrés. */
 export function parseArea(text) {
   if (!text) return null;
   const n = Number(String(text).replace(/[^\d.]/g, ""));
-  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+  return Number.isFinite(n) && n >= MIN_AREA_SQM ? Math.round(n) : null;
 }
 
 /**

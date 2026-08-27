@@ -630,8 +630,8 @@ le sien depuis le type de bien et le quartier. Les vignettes de carte
 engendrées que la source mêle à ses galeries (`type: "map"`) sont écartées :
 ce ne sont pas des photos du bien, et son serveur les refuse d'ailleurs.
 
-La page de liste ne porte que la photo mise en avant, ce qui suffit aux cartes
-de résultats. La galerie complète — cinq photos au plus — demande d'ouvrir la
+La page de liste ne porte que trois vignettes, ce qui suffit aux cartes de
+résultats. La galerie complète — cinq photos au plus — demande d'ouvrir la
 page de chaque annonce, donc une passe séparée, reprenable et lancée à la main,
 suivie du pipeline :
 
@@ -639,6 +639,16 @@ suivie du pipeline :
 npm run portal:photos      # galeries, une requête par annonce
 npm run media:process      # téléchargement et variantes locales
 ```
+
+« Reprenable » a demandé une correction. La passe décidait qu'un bien était
+déjà complété dès qu'il comptait deux photos — or la liste en donne trois :
+elle sautait 874 biens sur 898 et annonçait que tout était fait. Elle lit
+désormais une marque posée sur la soumission (`payload.galleryFetchedAt`,
+avec le nombre de photos trouvées) ; une galerie vide chez la source est
+marquée aussi, seul un échec réseau laisse le bien à reprendre. Et les deux
+fils de la passe partagent une connexion : la lecture chez la source se fait
+de front, l'écriture passe par un tour de rôle — deux transactions ouvertes
+sur la même connexion s'entrelacent, et le `COMMIT` de l'une clôt l'autre.
 
 `process-media` accepte désormais `--concurrency` : sur un rattrapage de
 plusieurs milliers d'images, traiter six médias de front fait passer la file de
