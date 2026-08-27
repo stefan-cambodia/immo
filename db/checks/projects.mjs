@@ -46,12 +46,17 @@ check("les chantiers en cours existent en base", wip.length > 0, "aucun");
 
 // ------------------------------------------------------- Fiche projet
 console.log("\nFiche projet");
+// Les annonces collectées ne sont pas rattachées à un immeuble : seul le jeu
+// engendré fournit un projet avec annonces.
 const withListings = buildings.find((b) => b.listings > 0);
-const rich = await (await fetch(`${BASE}/en/project/${withListings.slug}`)).text();
-check(`la fiche porte le nom du projet (${withListings.slug})`,
-      rich.includes(withListings.name), withListings.name);
-check("données structurées ApartmentComplex", rich.includes("ApartmentComplex"), "");
-check("la fiche liste des annonces", rich.includes("/en/property/"), "");
+check("le seed fournit un projet avec annonces", Boolean(withListings), "lancer npm run db:seed");
+if (withListings) {
+  const rich = await (await fetch(`${BASE}/en/project/${withListings.slug}`)).text();
+  check(`la fiche porte le nom du projet (${withListings.slug})`,
+        rich.includes(withListings.name), withListings.name);
+  check("données structurées ApartmentComplex", rich.includes("ApartmentComplex"), "");
+  check("la fiche liste des annonces", rich.includes("/en/property/"), "");
+}
 
 // Un projet sans annonce reste consultable et indexable.
 const empty = buildings.find((b) => b.listings === 0);
@@ -68,7 +73,8 @@ const missing = await fetch(`${BASE}/en/project/does-not-exist`);
 check("projet inconnu → 404", missing.status === 404, String(missing.status));
 
 console.log("\nBalises par langue");
-const fr = await (await fetch(`${BASE}/fr/project/${withListings.slug}`)).text();
+const anyProject = withListings ?? buildings[0];
+const fr = await (await fetch(`${BASE}/fr/project/${anyProject.slug}`)).text();
 for (const lang of ["fr", "en", "zh-Hans", "km"]) {
   check(`hreflang ${lang}`, fr.includes(`hrefLang="${lang}"`), "");
 }

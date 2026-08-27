@@ -54,7 +54,11 @@ if (!serverUp) {
   const { rows: [bld] } = await db.query(
     `SELECT b.slug FROM buildings b JOIN properties p ON p.building_id = b.id
      GROUP BY b.slug ORDER BY count(*) DESC LIMIT 1`);
-  const cases = [
+  // Les annonces collectées ne sont pas rattachées à un immeuble : seul le
+  // jeu engendré fournit les trois ancrages de la parité.
+  check("le seed fournit quartier, district et immeuble peuplés",
+        Boolean(hood && city && bld), "lancer npm run db:seed");
+  const cases = !(hood && city && bld) ? [] : [
     { transaction: "sale", locationSlug: hood.slug },
     { transaction: "rent", locationSlug: city.slug, types: ["condo"], bedsMin: 2, priceMax: 2500 },
     { transaction: "sale", foreignEligible: true, amenities: ["pool", "gym"], priceMin: 80000, priceMax: 400000 },

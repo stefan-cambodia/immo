@@ -123,16 +123,21 @@ check("chat non rattaché → refusé", r.action === "unknown_agent", r.action);
 const { rows: [listing] } = await db.query(
   `SELECT id, last_confirmed_at FROM listings WHERE status='active'
    AND last_confirmed_at < now() - interval '10 days' LIMIT 1`);
-r = await handleUpdate(deps, { update_id: 10, callback_query: {
-  id: "cb2", data: `still:${listing.id}`, message: { chat: { id: CHAT } } } });
-check("« toujours disponible ? » reconduit l'annonce", r.action === "listing_confirmed", r.action);
-const { rows: [renewed] } = await db.query(
-  `SELECT last_confirmed_at, expires_at FROM listings WHERE id = $1`, [listing.id]);
-check("la date de confirmation avance",
-      new Date(renewed.last_confirmed_at) > new Date(listing.last_confirmed_at));
-check("l'expiration repart à 45 jours",
-      Math.round((new Date(renewed.expires_at) - Date.now()) / 86400000) === 45,
-      String(Math.round((new Date(renewed.expires_at) - Date.now()) / 86400000)));
+// Les annonces collectées sont toutes fraîches : seul le jeu engendré fournit
+// une annonce à reconduire (voir « Les contrôles visent le jeu engendré »).
+check("le seed fournit une annonce à reconduire", Boolean(listing), "lancer npm run db:seed");
+if (listing) {
+  r = await handleUpdate(deps, { update_id: 10, callback_query: {
+    id: "cb2", data: `still:${listing.id}`, message: { chat: { id: CHAT } } } });
+  check("« toujours disponible ? » reconduit l'annonce", r.action === "listing_confirmed", r.action);
+  const { rows: [renewed] } = await db.query(
+    `SELECT last_confirmed_at, expires_at FROM listings WHERE id = $1`, [listing.id]);
+  check("la date de confirmation avance",
+        new Date(renewed.last_confirmed_at) > new Date(listing.last_confirmed_at));
+  check("l'expiration repart à 45 jours",
+        Math.round((new Date(renewed.expires_at) - Date.now()) / 86400000) === 45,
+        String(Math.round((new Date(renewed.expires_at) - Date.now()) / 86400000)));
+}
 
 // Seul le message texte déclenche une extraction : ni /start, ni la photo
 // seule, ni les rappels de callback ne consomment un appel de modèle.
