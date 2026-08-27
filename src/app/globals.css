@@ -261,7 +261,29 @@ body {
   overflow: hidden;
   border: 1px solid var(--color-line);
 }
-.view-toggle { display: flex; }
+/* Bascule liste / carte : elle traverse la grille, au-dessus des deux
+   panneaux, pour rester atteignable dans l'une comme dans l'autre vue. Elle
+   emprunte l'habillage du sélecteur segmenté des filtres. */
+.view-toggle { grid-column: 1 / -1; }
+
+/* Vue carte sur mobile : la carte EST l'écran.
+   - elle passe devant la colonne de filtres, qui la repoussait sinon sous un
+     écran entier de défilement ;
+   - elle prend la hauteur disponible : à 60 %, on la manipulait dans un
+     hublot, avec du vide en dessous.
+   La bascule reste en tête, sans quoi on arriverait sur une carte sans savoir
+   comment revenir à la liste. */
+@media (max-width: 1179.98px) {
+  .search-shell--map .search-map { min-height: calc(100dvh - 11rem); }
+}
+
+/* Le réordonnancement ne vaut que sur la grille à une colonne. Au-delà de
+   900 px, filtres et carte se placent côte à côte : forcer l'ordre y
+   coincerait la carte dans la colonne étroite des filtres. */
+@media (max-width: 899.98px) {
+  .search-shell--map .view-toggle { order: -2; }
+  .search-shell--map .search-map { order: -1; }
+}
 
 @media (min-width: 900px) {
   .search-shell { grid-template-columns: 16rem minmax(0, 1fr); }

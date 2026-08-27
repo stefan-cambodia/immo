@@ -1083,6 +1083,17 @@ définitifs — ils restent à confirmer avec les chiffres réels.
    bien déjà choisi. Dessiner un polygone sur la fiche d'un appartement ne mène
    nulle part : ces commandes n'y sont plus affichées.
 
+   **Sur mobile**, liste et carte ne tiennent pas côte à côte : en dessous de
+   1180 px une bascule les alterne (`?view=map`). Elle vit au niveau de la
+   coquille, pas dans l'en-tête des résultats — sinon elle disparaissait avec
+   la colonne qu'elle masque, et on se retrouvait enfermé dans la carte sans
+   retour vers la liste. En vue carte sur téléphone, la carte passe devant la
+   colonne de filtres et prend la hauteur de l'écran : à 60 % de la hauteur,
+   sous un panneau de filtres déplié, elle se manipulait dans un hublot après
+   un écran entier de défilement. Le parcours complet tient sans JavaScript
+   côté page : basculer, déplacer, « chercher dans cette zone », toucher un
+   point, ouvrir la fiche.
+
    MapLibre est un moteur **WebGL** : sans contexte WebGL — navigateur ancien,
    accélération matérielle coupée, pilote sur liste noire — il lève à la
    construction. L'exception est rattrapée et le panneau affiche « la carte ne

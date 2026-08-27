@@ -101,8 +101,29 @@ export default async function SearchPage({
       : t(f.transaction === "rent" ? "common.forRent" : "common.forSale");
 
   return (
-    <div className="search-shell">
+    <div className={`search-shell${view === "map" ? " search-shell--map" : ""}`}>
+      {/* Bascule liste / carte. Elle vit ICI, au niveau de la coquille, et non
+          dans l'en-tête des résultats : en vue carte la colonne des résultats
+          est masquée, et une bascule qui disparaît en même temps qu'elle
+          enferme le visiteur dans la carte. Au-delà de 1180 px les deux
+          panneaux cohabitent et la bascule n'a plus d'objet (CSS). */}
+      <div className="view-toggle seg" role="group" aria-label={t("common.map")}>
+        <Link href={link({ view: "list" })} className="seg-btn" aria-pressed={view !== "map"}>
+          {t("common.list")} · {formatNumber(total, locale)}
+        </Link>
+        <Link href={link({ view: "map" })} className="seg-btn" aria-pressed={view === "map"}>
+          {t("common.map")}
+        </Link>
+      </div>
+
       <aside className="search-filters">
+        {/* `open` est porteur : au-delà de 900 px le résumé est masqué et le
+            panneau doit rester déplié. Les navigateurs récents cachent le
+            contenu d'un `<details>` fermé par `::details-content`, hors de
+            portée d'un `display: block` sur l'enfant — la colonne de filtres
+            serait vide sur ordinateur. Sur mobile en vue carte, c'est l'ordre
+            d'affichage qui règle le problème : la carte passe AVANT les
+            filtres (voir `.search-shell--map` dans globals.css). */}
         <details open>
           <summary className="btn btn-outline" style={{ width: "100%", marginBottom: "0.75rem" }}>
             {t("filters.title")}
@@ -144,16 +165,6 @@ export default async function SearchPage({
                 {t("alerts.createButton")}
               </Link>
             )}
-            <div className="view-toggle" style={{ gap: "0.25rem" }}>
-              <Link href={link({ view: "list" })} className="btn btn-outline"
-                    style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}>
-                {t("common.list")}
-              </Link>
-              <Link href={link({ view: "map" })} className="btn btn-outline"
-                    style={{ padding: "0.375rem 0.75rem", fontSize: "0.8125rem" }}>
-                {t("common.map")}
-              </Link>
-            </div>
             <nav aria-label={t("filters.sort")} style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
               {SORTS.map((s) => (
                 <Link key={s} href={link({ sort: s, page: 1 })} className="chip"
