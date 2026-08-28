@@ -453,6 +453,9 @@ export async function collect({ portal, transaction, pages, from = 1, area = nul
   const get = fetchImpl ?? ((url) => fetch(url, { headers: { "user-agent": USER_AGENT } }));
   const records = [];
   const seen = new Set();
+  // Taille d'une page pleine, lue sur la première : une page plus courte est
+  // la dernière de la liste.
+  let pageSize = null;
 
   const first = Math.max(1, Math.floor(from));
   const last = first + Math.max(0, Math.floor(pages)) - 1;
@@ -466,6 +469,7 @@ export async function collect({ portal, transaction, pages, from = 1, area = nul
     const html = await res.text();
     const raws = source.extract(html);
     const total = source.total?.(html) ?? null;
+    if (pageSize === null) pageSize = raws.length;
     let kept = 0;
     for (const raw of raws) {
       const rec = toRecord(raw, source);
@@ -476,12 +480,13 @@ export async function collect({ portal, transaction, pages, from = 1, area = nul
     }
     onPage?.(`${url} → ${raws.length} annonces, ${kept} exploitables`
              + (page === first && total !== null ? ` (${total} annoncées)` : ""));
-    // Une page vide signifie la fin de la liste : inutile d'insister. Et
-    // quand la liste annonce son total, on s'arrête à la dernière page pleine
-    // plutôt que d'aller chercher un 404.
+    // Une page vide ou plus courte qu'une page pleine est la dernière : inutile
+    // d'insister. Et quand la liste annonce son total, on s'arrête à la page
+    // qui l'atteint plutôt que d'aller chercher un 404 — Sihanoukville en
+    // annonce 215 : dix pages de vingt et une de quinze.
     if (!raws.length) break;
-    if (total !== null && page * raws.length >= total) {
-      onPage?.(`fin de liste : ${total} annonces annoncées`);
+    if (raws.length < pageSize || (total !== null && page * pageSize >= total)) {
+      onPage?.(`fin de liste${total !== null ? ` : ${total} annonces annoncées` : ""}`);
       break;
     }
     if (page < last) await sleep(delayMs);

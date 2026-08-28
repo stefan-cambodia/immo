@@ -275,6 +275,22 @@ const bounded = await collect({ portal: "realestate.com.kh", transaction: "sale"
 check("le total annoncé borne la collecte", visited.length === 2 && bounded.length === 4,
       visited.join(" "));
 
+// 5 annonces annoncées par pages de 2 : deux pages pleines, une de 1 — et pas
+// de quatrième requête. La borne se calcule sur une page pleine, pas sur la
+// page courte qui clôt la liste.
+visited.length = 0;
+const uneven = (url) => {
+  visited.push(url);
+  const page = Number(new URL(url).searchParams.get("page") ?? 1);
+  const n = page < 3 ? 2 : page === 3 ? 1 : 0;
+  return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(
+    pageHtml(Array.from({ length: n }, (_, i) => raw({ id: page * 100 + i })), 5)) });
+};
+const tail = await collect({ portal: "realestate.com.kh", transaction: "sale", pages: 10,
+                             delayMs: 0, fetchImpl: uneven });
+check("une dernière page courte clôt la liste sans requête de plus",
+      visited.length === 3 && tail.length === 5, visited.join(" "));
+
 const stopped = [];
 const failing = (url) => {
   stopped.push(url);
