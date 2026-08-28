@@ -106,6 +106,20 @@ Après une modification du code : `npm run build && systemctl --user restart
 cambodia-immo-web`. Le port 3111 appartient désormais au service — inutile de
 lancer `next dev` dessus en parallèle.
 
+Par défaut le service n'écoute que sur `127.0.0.1` : `http://localhost:3111`
+répond, `http://192.168.x.x:3111` ne répond pas — ni depuis un autre poste, ni
+depuis un téléphone. Pour ouvrir le portail au réseau local, l'adresse
+d'écoute se règle hors du dépôt, dans `~/.config/cambodia-immo/env` :
+
+```
+HOST=0.0.0.0
+```
+
+puis `npm run service:install` (qui rend l'unité à nouveau) et `systemctl
+--user restart cambodia-immo-web`. Le pare-feu n'est pas du ressort de l'unité :
+sur une machine sous `ufw`, `sudo ufw allow from 192.168.10.0/24 to any port
+3111` (adapter le réseau) reste à faire une fois.
+
 Le seed crée aussi les comptes du back-office et les affiche en fin
 d'exécution. Mot de passe commun en développement : `cambodia-dev`.
 
@@ -529,6 +543,19 @@ Seuils **mesurés**, pas devinés :
 D'où ≤ 6 pour « même photo », zone grise jusqu'à 10, juste sous le minimum
 observé pour des images différentes.
 
+**Chercher les voisins sans comparer toutes les paires.** Une auto-jointure sur
+`phash_distance()` évalue chaque paire : avec 5 800 empreintes collectées, la
+file « photos réutilisées » coûtait 17 millions d'appels et 13 secondes par
+affichage du back-office — assez pour qu'un clic sur « Fusionner » paraisse
+sans effet. Principe des tiroirs : deux empreintes à distance ≤ 6, découpées
+en 7 blocs, ont au moins un bloc identique. Sept index d'expression (un par
+bloc, migration 023) et `phash_block_match(a, b)` placée avant
+`phash_distance()` ramènent la recherche à quelques consultations d'index par
+empreinte : 0,28 s, mêmes paires. La fonction n'est volontairement pas
+`STRICT` — le planificateur n'insère le corps d'une fonction SQL stricte dans
+une jointure que sous des conditions qu'elle ne remplit pas, et sans cette
+insertion les index ne servent plus.
+
 **La limite, découverte en calibrant** : dHash ne lit que la structure
 grossière. Deux photos réellement différentes mais de composition très proche —
 deux studios identiques du même immeuble, pris au même endroit — tombent à une
@@ -583,7 +610,7 @@ sur le jeu courant : les 754 paires de médias à distance ≤ 6 pointent
 ```sql
 SELECT count(*) AS paires, count(*) FILTER (WHERE a.url = b.url) AS meme_fichier
 FROM media a JOIN media b ON b.id > a.id AND b.property_id <> a.property_id
- AND phash_distance(a.phash, b.phash) <= 6;
+ AND phash_block_match(a.phash, b.phash) AND phash_distance(a.phash, b.phash) <= 6;
 ```
 
 Conséquence assumée : ~2 % des médias portent dans leur URL le type d'un autre

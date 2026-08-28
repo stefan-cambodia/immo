@@ -17,13 +17,13 @@ Documentation=file://__APP_ROOT__/README.md
 # Pas de `network-online.target` : cette cible n'existe pas dans le
 # gestionnaire d'utilisateur (`systemctl --user` la voit « not-found », et la
 # dépendance serait ignorée en silence). Le serveur n'écoute que sur
-# 127.0.0.1 ; ce qu'il attend vraiment, c'est la base — et c'est
-# `Restart=always` qui s'en charge, voir ci-dessous.
+# 127.0.0.1 par défaut (voir HOST plus bas) ; ce qu'il attend vraiment, c'est
+# la base — et c'est `Restart=always` qui s'en charge, voir ci-dessous.
 
 [Service]
 Type=simple
 WorkingDirectory=__APP_ROOT__
-ExecStart=__APP_ROOT__/node_modules/.bin/next start --port ${PORT} --hostname 127.0.0.1
+ExecStart=__APP_ROOT__/node_modules/.bin/next start --port ${PORT} --hostname ${HOST}
 # La base peut mettre quelques secondes à se rallumer après un démarrage :
 # le service réessaie plutôt que d'abandonner.
 Restart=always
@@ -32,10 +32,17 @@ KillSignal=SIGTERM
 TimeoutStopSec=20s
 
 # Les variables restent dans .env.local, que Next lit au démarrage. Ce fichier
-# facultatif permet de surcharger le port sans toucher au dépôt.
+# facultatif permet de surcharger le port et l'adresse d'écoute sans toucher
+# au dépôt (ses valeurs priment sur les Environment= ci-dessous).
+#
+# HOST=127.0.0.1 par défaut : seule cette machine voit le portail. Pour le
+# regarder depuis un téléphone ou un autre poste du réseau local, poser
+# HOST=0.0.0.0 dans ce fichier — et ouvrir le port dans le pare-feu, qui
+# n'est pas du ressort de l'unité.
 EnvironmentFile=-%h/.config/cambodia-immo/env
 Environment=NODE_ENV=production
 Environment=PORT=__APP_PORT__
+Environment=HOST=127.0.0.1
 
 # Next écrit son cache d'exécution sous .next/cache ; les médias locaux, les
 # journaux et les archives vivent sous var/.

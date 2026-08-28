@@ -194,6 +194,9 @@ export default async function BackofficePage({
        FROM media a
        JOIN media b ON b.id > a.id
                    AND b.property_id <> a.property_id
+                   -- Préfiltre indexé (migration 023) : sans lui, toutes les
+                   -- paires passent par phash_distance() — 13 s par affichage.
+                   AND phash_block_match(a.phash, b.phash)
                    AND phash_distance(a.phash, b.phash) <= 6
        JOIN properties pa ON pa.id = a.property_id
        JOIN properties pb ON pb.id = b.property_id
