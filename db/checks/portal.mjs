@@ -47,9 +47,10 @@ const raw = (over = {}) => ({
   ...over,
 });
 
-const pageHtml = (results) =>
+const pageHtml = (results, total) =>
   `<html><body><script id="__NEXT_DATA__" type="application/json">${
-    JSON.stringify({ props: { pageProps: { cacheData: { results: { data: { results } } } } } })
+    JSON.stringify({ props: { pageProps: { cacheData: { results: { data:
+      total === undefined ? { results } : { results, count: total } } } } } })
   }</script></body></html>`;
 
 // ------------------------------------------------------------- Analyseurs
@@ -242,6 +243,37 @@ const collected = await collect({ portal: "realestate.com.kh", transaction: "ren
 check("la collecte s'arrête sur une page vide", visited.length === 4, visited.join(" "));
 check("chaque annonce n'est reprise qu'une fois", collected.length === 6);
 check("la première page n'est pas paginée", !visited[0].includes("page="));
+
+visited.length = 0;
+const resumed = await collect({ portal: "realestate.com.kh", transaction: "rent",
+                                pages: 2, from: 2, delayMs: 0, fetchImpl: fakeFetch });
+check("une reprise commence à la page demandée et n'en lit que le nombre demandé",
+      visited.length === 2 && visited[0].includes("page=2") && visited[1].includes("page=3")
+        && resumed.length === 4, visited.join(" "));
+
+visited.length = 0;
+await collect({ portal: "realestate.com.kh", transaction: "sale", pages: 2, delayMs: 0,
+                area: "siem-reap", fetchImpl: fakeFetch });
+check("une ville cadre la liste sur son chemin",
+      visited[0] === "https://www.realestate.com.kh/buy/siem-reap/"
+        && visited[1] === "https://www.realestate.com.kh/buy/siem-reap/?page=2", visited.join(" "));
+check("une ville qui n'est pas un chemin de la source est refusée",
+      await collect({ portal: "realestate.com.kh", transaction: "sale", pages: 1, delayMs: 0,
+                      area: "../admin", fetchImpl: fakeFetch }).then(() => false, () => true));
+
+// La liste annonce son total : la collecte s'arrête à la dernière page pleine
+// au lieu d'aller chercher un 404.
+visited.length = 0;
+const announced = (url) => {
+  visited.push(url);
+  const page = Number(new URL(url).searchParams.get("page") ?? 1);
+  return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(
+    pageHtml(Array.from({ length: 2 }, (_, i) => raw({ id: page * 100 + i })), 4)) });
+};
+const bounded = await collect({ portal: "realestate.com.kh", transaction: "sale", pages: 10,
+                                delayMs: 0, fetchImpl: announced });
+check("le total annoncé borne la collecte", visited.length === 2 && bounded.length === 4,
+      visited.join(" "));
 
 const stopped = [];
 const failing = (url) => {

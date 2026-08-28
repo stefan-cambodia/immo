@@ -600,7 +600,27 @@ et les fait entrer par le même entonnoir que les autres.
 ```bash
 npm run portal:import-check          # simulation, une page, rien d'écrit
 npm run portal:import -- --pages 25  # ~1 000 annonces, vente et location
+npm run portal:import -- --pages 55 --from 26   # la suite, sans relire les 25 premières
 npm run portal:purge                 # retire tout ce qui vient d'un portail
+```
+
+Une montée en volume reprend après les pages déjà importées (`--from`) : une
+référence connue serait de toute façon « déjà importée », mais chaque page
+relue coûte une requête à la source. La liste bouge entre deux passes — une
+page 26 lue le lendemain porte des annonces vues en page 25 la veille — et
+c'est l'entonnoir qui absorbe ces recouvrements, pas la collecte.
+
+**La source plafonne chaque liste à 50 pages de 20 annonces** : la page 51
+répond 404, quel que soit le total annoncé — et la liste nationale « à
+vendre » en annonce plus de 7 000. Le millier visible par liste ne suffit pas
+à la cible de 3 000 biens de la phase 2 ; ce qui la dépasse, c'est de cadrer
+la liste sur une ville, chacune avec son propre plafond (`--area siem-reap`,
+`sihanoukville`, `kampot`, `battambang` — toutes sous le plafond, donc lues en
+entier). La liste annonce son total, et la collecte s'arrête à la dernière
+page pleine plutôt que d'aller chercher le 404.
+
+```bash
+npm run portal:import -- --pages 50 --area siem-reap   # une ville, en entier
 ```
 
 **Ce qui est repris, et ce qui ne l'est pas.** C'est la décision structurante,
@@ -1519,13 +1539,14 @@ Hors périmètre de la phase 1, conformément à la roadmap :
   trancher ces trois points d'abord ; `npm run portal:purge` retire
   l'intégralité des données collectées d'une seule commande, ce qui est la
   contrepartie technique de cette réserve ;
-- **médias réels** — le pipeline est en place (variantes AVIF/WebP/JPEG par
-  `ops/process-media.sh`, stockage abstrait local/S3 signé SigV4, `<picture>`
-  sur les fiches et les cartes), et les visuels de démonstration sont
-  désormais de vraies photographies libres de droits servies par
-  `/api/photo/[seed]` (voir « Les photos de démonstration ») ; l'envoi depuis
-  le back-office est en place et exerce la même couche de stockage. Mais ces
-  photos illustrent des biens fictifs : elles ne sont pas les médias des
-  annonces. Le bucket réel et son CDN devant `/media/`
-  (`MEDIA_STORAGE=s3`, `MEDIA_PUBLIC_URL`) restent à configurer sur
-  l'hébergement.
+- **stockage des médias sur l'hébergement** — le pipeline est en place
+  (variantes AVIF/WebP/JPEG par `ops/process-media.sh`, stockage abstrait
+  local/S3 signé SigV4, `<picture>` sur les fiches et les cartes) et les
+  biens collectés portent leurs propres photographies, cinq par bien, servies
+  depuis nos variantes (voir « Les photos sont celles du bien ») ; seul le
+  jeu engendré de `db:seed` s'illustre encore de photographies libres de
+  droits servies par `/api/photo/[seed]`. L'envoi depuis le back-office
+  exerce la même couche de stockage. Ce qui reste : le bucket réel et son CDN
+  devant `/media/` (`MEDIA_STORAGE=s3`, `MEDIA_PUBLIC_URL`) sur
+  l'hébergement — et le nettoyage des variantes orphelines n'y est pas porté
+  (`media:prune` ne sait parcourir que le magasin local).

@@ -35,6 +35,8 @@
  *
  *   node db/jobs/import-portal.mjs --pages 10 --dry-run
  *   node db/jobs/import-portal.mjs --pages 25 --txn both
+ *   node db/jobs/import-portal.mjs --pages 55 --from 26   # la suite, sans relire
+ *   node db/jobs/import-portal.mjs --pages 50 --area siem-reap   # liste cadrée sur une ville
  *   node db/jobs/import-portal.mjs --photos          # pages d'annonce : galeries et faits
  *   node db/jobs/import-portal.mjs --photos --limit 3  # un échantillon, pour vérifier
  *   node db/jobs/import-portal.mjs --purge
@@ -54,6 +56,13 @@ const opt = (n, d) => { const i = args.indexOf(`--${n}`); return i >= 0 && args[
 
 const portal = opt("portal", "realestate.com.kh");
 const pages = Number(opt("pages", "5"));
+// Première page lue : une montée en volume reprend après les pages déjà
+// importées au lieu de les relire — une référence connue serait de toute
+// façon « déjà importée », mais chaque page relue coûte une requête à la source.
+const from = Number(opt("from", "1"));
+// Ville de la source : la liste nationale est plafonnée à 50 pages, une liste
+// par ville a le sien — c'est ainsi qu'on dépasse le millier d'annonces.
+const area = opt("area", null);
 const txnArg = opt("txn", "both");
 const delayMs = Number(opt("delay", String(DEFAULT_DELAY_MS)));
 const dryRun = flag("dry-run");
@@ -282,8 +291,9 @@ const agentId = agentRows[0].id;
 // -------------------------------------------------------------- collecte
 const records = [];
 for (const transaction of transactions) {
-  log(`Collecte ${portal} · ${transaction} · ${pages} page(s)`);
-  records.push(...await collect({ portal, transaction, pages, delayMs, onPage: (m) => log(`  ${m}`) }));
+  log(`Collecte ${portal}${area ? ` · ${area}` : ""} · ${transaction} · ${pages} page(s)`);
+  records.push(...await collect({ portal, transaction, pages, from, area, delayMs,
+                                  onPage: (m) => log(`  ${m}`) }));
 }
 log(`${records.length} annonce(s) exploitables`);
 
@@ -338,7 +348,7 @@ function fallbackPhotos(rec) {
 
 // ---------------------------------------------------------------- import
 const summary = {
-  portal, pages, transactions, dryRun,
+  portal, pages, from, area, transactions, dryRun,
   total: records.length, accepted: 0, created: 0, merged: 0, review: 0,
   needsPin: 0, duplicates: 0, skipped: 0, failed: 0, reasons,
 };

@@ -56,8 +56,15 @@ export const MAX_PHOTOS = 5;
  *
  * `robots.txt` de realestate.com.kh (relevé le 27/08/2026) ferme `/api/`,
  * `/dashboard/`, `/admin/`, `/accounts/`, les pages d'impression et les URL
- * d'images redimensionnées. Les listes `/buy/` et `/rent/` restent ouvertes à
+ * d'images redimensionnées. Les listes `/buy/` et `/rent/` — et leurs
+ * déclinaisons par ville, `/buy/siem-reap/` — restent ouvertes à
  * `User-agent: *` : ce sont les seules que ce module lit.
+ *
+ * Chaque liste est plafonnée par la source à 50 pages de 20 annonces : la
+ * page 51 répond 404, quel que soit le total annoncé. La liste nationale
+ * « à vendre » compte plus de 7 000 annonces ; en lire davantage que le
+ * millier visible demande de cadrer la liste sur une ville (`area`) — Siem
+ * Reap, Sihanoukville, Kampot, Battambang tiennent chacune sous le plafond.
  */
 export const SOURCES = {
   "realestate.com.kh": {
@@ -66,6 +73,7 @@ export const SOURCES = {
     origin: "https://www.realestate.com.kh",
     lists: { sale: "/buy/", rent: "/rent/" },
     extract: extractNextData,
+    total: extractTotal,
   },
 };
 
@@ -183,6 +191,19 @@ function extractNextData(html) {
   try { data = JSON.parse(m[1]); } catch { return []; }
   return data?.props?.pageProps?.cacheData?.results?.data?.results ?? [];
 }
+
+/** Total d'annonces que la liste annonce — `null` si la page ne le dit pas. */
+function extractTotal(html) {
+  const m = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
+  if (!m) return null;
+  let data;
+  try { data = JSON.parse(m[1]); } catch { return null; }
+  const total = data?.props?.pageProps?.cacheData?.results?.data?.count;
+  return Number.isInteger(total) && total >= 0 ? total : null;
+}
+
+/** Une ville de la source, telle qu'elle apparaît dans ses URL. */
+const AREA_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
  * Traduit une annonce du portail en fiche de faits.
@@ -411,30 +432,40 @@ export async function fetchPhotos(sourceUrl, opts) {
  * @param {string} o.portal   clé dans SOURCES
  * @param {"sale"|"rent"} o.transaction
  * @param {number} o.pages    nombre de pages à lire (20 annonces par page)
+ * @param {number} [o.from]   première page lue (1 par défaut) — pour reprendre
+ *        une montée en volume sans relire les pages déjà importées
+ * @param {string} [o.area]   ville de la source (`siem-reap`) : la liste est
+ *        cadrée dessus, avec son propre plafond de 50 pages
  * @param {number} [o.delayMs]
  * @param {(url: string) => Promise<{ok: boolean, status: number, text: () => Promise<string>}>} [o.fetchImpl]
  *        injecté par les contrôles hors ligne
  * @param {(msg: string) => void} [o.onPage]
  */
-export async function collect({ portal, transaction, pages, delayMs = DEFAULT_DELAY_MS,
-                                fetchImpl, onPage }) {
+export async function collect({ portal, transaction, pages, from = 1, area = null,
+                                delayMs = DEFAULT_DELAY_MS, fetchImpl, onPage }) {
   const source = SOURCES[portal];
   if (!source) throw new Error(`Portail inconnu : ${portal}`);
-  const path = source.lists[transaction];
-  if (!path) throw new Error(`Transaction inconnue : ${transaction}`);
+  const base = source.lists[transaction];
+  if (!base) throw new Error(`Transaction inconnue : ${transaction}`);
+  if (area !== null && !AREA_SLUG.test(area)) throw new Error(`Ville invalide : ${area}`);
+  const path = area ? `${base}${area}/` : base;
 
   const get = fetchImpl ?? ((url) => fetch(url, { headers: { "user-agent": USER_AGENT } }));
   const records = [];
   const seen = new Set();
 
-  for (let page = 1; page <= pages; page++) {
+  const first = Math.max(1, Math.floor(from));
+  const last = first + Math.max(0, Math.floor(pages)) - 1;
+  for (let page = first; page <= last; page++) {
     const url = page === 1 ? `${source.origin}${path}` : `${source.origin}${path}?page=${page}`;
     const res = await get(url);
     if (!res.ok) {
       onPage?.(`${url} → HTTP ${res.status}, arrêt`);
       break;
     }
-    const raws = source.extract(await res.text());
+    const html = await res.text();
+    const raws = source.extract(html);
+    const total = source.total?.(html) ?? null;
     let kept = 0;
     for (const raw of raws) {
       const rec = toRecord(raw, source);
@@ -443,10 +474,17 @@ export async function collect({ portal, transaction, pages, delayMs = DEFAULT_DE
       records.push(rec);
       kept++;
     }
-    onPage?.(`${url} → ${raws.length} annonces, ${kept} exploitables`);
-    // Une page vide signifie la fin de la liste : inutile d'insister.
+    onPage?.(`${url} → ${raws.length} annonces, ${kept} exploitables`
+             + (page === first && total !== null ? ` (${total} annoncées)` : ""));
+    // Une page vide signifie la fin de la liste : inutile d'insister. Et
+    // quand la liste annonce son total, on s'arrête à la dernière page pleine
+    // plutôt que d'aller chercher un 404.
     if (!raws.length) break;
-    if (page < pages) await sleep(delayMs);
+    if (total !== null && page * raws.length >= total) {
+      onPage?.(`fin de liste : ${total} annonces annoncées`);
+      break;
+    }
+    if (page < last) await sleep(delayMs);
   }
 
   return records;
