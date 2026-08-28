@@ -13,7 +13,8 @@
  *
  *   node db/checks/portal.mjs
  */
-import { collect, toRecord, toPhotos, fetchPhotos, parsePrice, parseArea, addressParts,
+import { collect, toRecord, toPhotos, fetchPhotos, fetchDetail, toFacts,
+         parsePrice, parseArea, addressParts,
          SOURCES, PER_SQM, MAX_PHOTOS } from "../lib/portal.mjs";
 
 let pass = 0, fail = 0;
@@ -94,6 +95,17 @@ check("les catégories du portail tombent sur les types du schéma",
 
 // ------------------------------------------------------- Ce qu'on écarte
 console.log("Ce qui est écarté plutôt que deviné");
+{
+  const base = { id: 1, url: "/buy/x/condo-1/", categoryName: "Condo", listingType: "sale",
+    displayPrice: "$120,000", addressLatitude: 11.55, addressLongitude: 104.92,
+    specifications: { detail: [{ type: "land_area", shortLabel: "32136m²" }, { type: "bedrooms", shortLabel: "1" }] },
+    images: [] };
+  const condo = toRecord(base, { slug: "src", origin: "https://portail.example" });
+  const villa = toRecord({ ...base, categoryName: "Villa" }, { slug: "src", origin: "https://portail.example" });
+  check("un condo n'a pas de surface de terrain — celle du projet n'est pas reprise",
+        condo !== null && condo.landAreaSqm === null, JSON.stringify(condo?.landAreaSqm));
+  check("… mais une villa garde la sienne", villa?.landAreaSqm === 32136, JSON.stringify(villa?.landAreaSqm));
+}
 check("une catégorie inconnue est écartée",
       toRecord(raw({ categoryName: "Houseboat" }), source) === null);
 check("un programme neuf n'est pas une unité à vendre",
@@ -167,6 +179,50 @@ check("une page illisible ne casse pas la passe",
       && await fetchPhotos("https://portail.example/annonce/3", {
         fetchImpl: () => Promise.resolve({ ok: false, status: 404,
                                            text: () => Promise.resolve("") }) }) === null);
+
+// ------------------------------------------------------- Faits de la page
+console.log("Faits de la page d'annonce");
+const features = [
+  { headline: "Property Overview", items: [
+    { label: "Property type: Condo" }, { label: "Title: Hard Title" },
+    { label: "Agency: {link}" }, { label: "Property ID: 267028" }] },
+  { headline: "Property Features", items: [
+    { label: "Air Conditioning" }, { label: "Balcony" }, { label: "Fully Furnished" },
+    { label: "Internet / Wifi" }, { label: "Pet Friendly" }] },
+  { headline: "Security", items: [{ label: "Reception 24/7" }, { label: "Video Security" }] },
+  { headline: "Amenities", items: [
+    { label: "Backup Electricity / Generator" }, { label: "Car Parking" },
+    { label: "Commercial area" }, { label: "Gym/Fitness Center" }, { label: "Lift / Elevator" },
+    { label: "Non-Flooding" }, { label: "Swimming Pool" }] },
+  { headline: "Views", items: [{ label: "Sea / Ocean Views" }] },
+];
+const facts = toFacts(features);
+check("le régime de propriété est lu", facts.titleType === "hard", String(facts.titleType));
+check("« Fully Furnished » vaut meublé", facts.furnished === true);
+check("les équipements arrivent dans le vocabulaire des filtres, triés",
+      facts.amenities.join(",") ===
+        "aircon,balcony,cctv,elevator,generator,gym,parking,pet_friendly,pool,sea_view,security_24h,wifi",
+      facts.amenities.join(","));
+check("un libellé inconnu est ignoré, pas inventé",
+      !facts.amenities.some((a) => /flood|commercial/.test(a)));
+const partial = toFacts([{ headline: "Property Features", items: [{ label: "Partially Furnished" }] },
+                         { headline: "Property Overview", items: [{ label: "Title: LMAP Title" }] }]);
+check("« Partially Furnished » n'est pas meublé", partial.furnished === false);
+check("un régime de propriété qu'on ne sait pas ranger reste inconnu", partial.titleType === null);
+check("sans liste de faits, rien n'est affirmé",
+      JSON.stringify(toFacts(undefined)) === JSON.stringify({ titleType: null, furnished: false, amenities: [] }));
+
+const detail = await fetchDetail("https://portail.example/annonce/4", {
+  fetchImpl: () => Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(
+    `<html><script id="__NEXT_DATA__" type="application/json">${JSON.stringify({ props: { pageProps: {
+      cacheData: { listing: { data: { showCase: { images: gallery }, features } } } } } })}</script></html>`) }) });
+check("la page livre photos et faits ensemble",
+      detail?.photos.length === 2 && detail.facts.titleType === "hard" && detail.facts.amenities.includes("pool"));
+check("une page sans galerie donne une galerie vide, pas un échec",
+      (await fetchDetail("https://portail.example/annonce/5", {
+        fetchImpl: () => Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(
+          `<html><script id="__NEXT_DATA__" type="application/json">${JSON.stringify({ props: { pageProps: {
+            cacheData: { listing: { data: { features } } } } } })}</script></html>`) }) }))?.photos.length === 0);
 
 // ---------------------------------------------------------- Parcours des pages
 console.log("Parcours des pages");

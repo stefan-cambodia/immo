@@ -58,6 +58,8 @@
     "check:archive": "node db/checks/archive.mjs",
     "media:process": "ops/process-media.sh",
     "media:process-check": "ops/process-media.sh --dry-run",
+    "media:prune": "node db/jobs/prune-media.mjs",
+    "media:prune-check": "node db/jobs/prune-media.mjs --dry-run",
     "dedup:rescan": "ops/rescan-duplicates.sh",
     "dedup:rescan-check": "ops/rescan-duplicates.sh --dry-run",
     "check:media": "node db/checks/media.mjs",

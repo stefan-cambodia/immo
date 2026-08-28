@@ -9,7 +9,10 @@
  * ----------------------------------------
  * REPRIS   : prix, transaction, type de bien, chambres, salles d'eau,
  *            surfaces, étage, commune, coordonnées, référence de l'annonce,
- *            URL d'origine, et l'ADRESSE des photographies de l'annonce.
+ *            URL d'origine, l'ADRESSE des photographies de l'annonce, et —
+ *            sur la page de l'annonce — le régime de propriété, l'ameublement
+ *            et les équipements, tels que la source les publie sous forme de
+ *            libellés structurés (voir `toFacts`).
  * NON REPRIS : le titre et le texte de l'annonce (la description est
  *            RÉGÉNÉRÉE depuis les faits par db/lib/describe.mjs), et toute
  *            donnée personnelle — nom, téléphone ou adresse électronique
@@ -208,7 +211,12 @@ export function toRecord(raw, source) {
   const spec = Object.fromEntries(
     (raw.specifications?.detail ?? []).map((s) => [s.type, s.shortLabel]));
   const indoorAreaSqm = parseArea(spec.floor_area);
-  const landAreaSqm = parseArea(spec.land_area);
+  // Un appartement n'a pas de terrain : la « surface de terrain » d'un condo
+  // est celle du projet, la même pour toutes ses unités. Reprise, elle
+  // devenait la surface du bien quand la surface intérieure manquait — un
+  // studio décrit à 32 136 m² — et faisait « surface identique » entre deux
+  // unités quelconques du même immeuble aux yeux de la déduplication.
+  const landAreaSqm = type === "condo" ? null : parseArea(spec.land_area);
 
   let priceUsd = parsePrice(priceText);
   if (priceUsd && PER_SQM.test(String(priceText))) {
@@ -284,12 +292,95 @@ export function toPhotos(images, max = MAX_PHOTOS) {
 }
 
 /**
- * Lit la galerie complète d'une annonce sur sa propre page.
+ * Régime de propriété, d'après le libellé « Title: … » de la page d'annonce.
+ *
+ * Seuls les trois régimes que le schéma connaît sont repris. Un libellé qu'on
+ * ne sait pas ranger — « LMAP Title », un régime rare, une coquille — laisse
+ * le bien en `unknown` : sur un bien réel, affirmer un régime de propriété
+ * qu'on n'a pas lu serait fabriquer une assertion juridique. C'est ce régime,
+ * avec l'étage, qui décide de l'éligibilité aux acheteurs étrangers (§5.3).
+ */
+export const TITLE_LABELS = {
+  "hard title": "hard",
+  "soft title": "soft",
+  "strata title": "strata",
+};
+
+/**
+ * Équipements, du libellé de la source vers le vocabulaire des filtres
+ * (src/lib/search.ts, AMENITIES). Un libellé absent d'ici est ignoré : la
+ * source en publie une quarantaine (« Non-Flooding », « On main road »,
+ * « Commercial area »…) dont le portail n'a pas fait des filtres.
+ */
+export const AMENITY_LABELS = {
+  "swimming pool": "pool",
+  "gym/fitness center": "gym",
+  "gym": "gym",
+  "car parking": "parking",
+  "parking": "parking",
+  "lift/elevator": "elevator",
+  "elevator": "elevator",
+  "lift": "elevator",
+  "reception 24/7": "security_24h",
+  "24/7 security": "security_24h",
+  "24 hour security": "security_24h",
+  "security guard": "security_24h",
+  "backup electricity/generator": "generator",
+  "generator": "generator",
+  "balcony": "balcony",
+  "river views": "river_view",
+  "river view": "river_view",
+  "sea/ocean views": "sea_view",
+  "sea views": "sea_view",
+  "ocean views": "sea_view",
+  "garden": "garden",
+  "playground": "playground",
+  "video security": "cctv",
+  "cctv": "cctv",
+  "internet/wifi": "wifi",
+  "wifi": "wifi",
+  "pet friendly": "pet_friendly",
+  "air conditioning": "aircon",
+};
+
+/** Casse, espaces et espaces autour des barres ne font pas deux libellés. */
+const normalizeLabel = (s) =>
+  String(s ?? "").toLowerCase().replace(/\s*\/\s*/g, "/").replace(/\s+/g, " ").trim();
+
+/**
+ * Traduit les listes de libellés de la page d'annonce (« Property Overview »,
+ * « Property Features », « Amenities », « Security », « Views ») en faits du
+ * schéma. Rien n'est deviné : un libellé inconnu est ignoré, un régime de
+ * propriété non lu reste `null`, et l'ameublement n'est vrai que sur
+ * « Fully Furnished » — « Partially Furnished » ne l'est pas.
+ */
+export function toFacts(features) {
+  const labels = (Array.isArray(features) ? features : [])
+    .flatMap((group) => group?.items ?? [])
+    .map((item) => normalizeLabel(item?.label))
+    .filter(Boolean);
+
+  let titleType = null;
+  let furnished = false;
+  const amenities = new Set();
+  for (const label of labels) {
+    const title = label.match(/^title:\s*(.+)$/);
+    if (title) { titleType = TITLE_LABELS[title[1]] ?? null; continue; }
+    if (label === "fully furnished") { furnished = true; continue; }
+    const amenity = AMENITY_LABELS[label];
+    if (amenity) amenities.add(amenity);
+  }
+  return { titleType, furnished, amenities: [...amenities].sort() };
+}
+
+/**
+ * Lit la page d'une annonce : sa galerie complète et ses faits structurés.
  *
  * C'est une requête par annonce : à n'appeler que sur les annonces déjà
- * retenues, jamais en balayage.
+ * retenues, jamais en balayage. Renvoie `null` si la page est inaccessible ou
+ * illisible — l'appelant distingue ce cas d'une galerie vide.
  */
-export async function fetchPhotos(sourceUrl, { fetchImpl, max = MAX_PHOTOS } = {}) {
+export async function fetchDetail(sourceUrl, { fetchImpl, max = MAX_PHOTOS } = {}) {
   const get = fetchImpl ?? ((url) => fetch(url, { headers: { "user-agent": USER_AGENT } }));
   const res = await get(sourceUrl);
   if (!res.ok) return null;
@@ -298,8 +389,19 @@ export async function fetchPhotos(sourceUrl, { fetchImpl, max = MAX_PHOTOS } = {
   if (!m) return null;
   let data;
   try { data = JSON.parse(m[1]); } catch { return null; }
-  const images = data?.props?.pageProps?.cacheData?.listing?.data?.showCase?.images;
-  return Array.isArray(images) ? toPhotos(images, max) : null;
+  const listing = data?.props?.pageProps?.cacheData?.listing?.data;
+  if (!listing || typeof listing !== "object") return null;
+  const images = listing.showCase?.images;
+  return {
+    photos: Array.isArray(images) ? toPhotos(images, max) : [],
+    facts: toFacts(listing.features),
+  };
+}
+
+/** La galerie seule — `fetchDetail` sans les faits. */
+export async function fetchPhotos(sourceUrl, opts) {
+  const detail = await fetchDetail(sourceUrl, opts);
+  return detail ? detail.photos : null;
 }
 
 /**

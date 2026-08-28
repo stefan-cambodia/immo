@@ -55,7 +55,8 @@ portails » pour ce qui est repris et ce qui ne l'est pas.
 |---|---|
 | `npm run db:seed-base` | Le socle seul, sans biens engendrés |
 | `npm run portal:import -- --pages 25` | Collecte et importe les annonces |
-| `npm run portal:photos` | Complète les galeries depuis la page de chaque annonce |
+| `npm run portal:photos` | Lit la page de chaque annonce : galerie complète et faits (régime, ameublement, équipements) |
+| `npm run media:prune` | Retire du magasin local les variantes que plus aucune ligne ne référence |
 | `npm run media:process` | Télécharge les images et produit les variantes locales |
 | `npm run portal:import-check` | Simulation d'une page, rien n'est écrit |
 | `npm run portal:purge` | Retire tout ce qui provient d'un portail |
@@ -642,19 +643,29 @@ page de chaque annonce, donc une passe séparée, reprenable et lancée à la ma
 suivie du pipeline :
 
 ```bash
-npm run portal:photos      # galeries, une requête par annonce
+npm run portal:photos      # galeries et faits, une requête par annonce
 npm run media:process      # téléchargement et variantes locales
 ```
 
 « Reprenable » a demandé une correction. La passe décidait qu'un bien était
 déjà complété dès qu'il comptait deux photos — or la liste en donne trois :
 elle sautait 874 biens sur 898 et annonçait que tout était fait. Elle lit
-désormais une marque posée sur la soumission (`payload.galleryFetchedAt`,
-avec le nombre de photos trouvées) ; une galerie vide chez la source est
+désormais une marque posée sur la soumission (`payload.detailFetchedAt`,
+avec le nombre de photos et les faits trouvés) ; une galerie vide chez la source est
 marquée aussi, seul un échec réseau laisse le bien à reprendre. Et les deux
 fils de la passe partagent une connexion : la lecture chez la source se fait
 de front, l'écriture passe par un tour de rôle — deux transactions ouvertes
 sur la même connexion s'entrelacent, et le `COMMIT` de l'une clôt l'autre.
+
+Une galerie identique n'est pas réécrite : chaque ligne `media` porte son
+empreinte et ses variantes déjà produites, et la recréer les perdrait — tout
+serait à retélécharger et à hacher. Quand la galerie a vraiment changé, les
+variantes des lignes retirées sont effacées du magasin dans le même geste
+(comme le fait `removePhoto` au back-office). Pour ce qui a déjà été laissé
+derrière — une ancienne passe, une purge, un retrait en cascade —
+`npm run media:prune` retire du magasin local les dossiers `p/<média>/` que
+plus aucune ligne ne référence (`media:prune-check` pour compter d'abord ;
+magasin local seulement, le client S3 du projet ne sait pas lister).
 
 `process-media` accepte désormais `--concurrency` : sur un rattrapage de
 plusieurs milliers d'images, traiter six médias de front fait passer la file de
@@ -687,12 +698,26 @@ passer, et le dépôt n'a pas à embarquer du contenu recopié pour se tester. I
 vérifie aussi qu'aucun champ de texte libre ni de contact ne survit à la
 traduction en faits.
 
-**Ce qu'on n'invente pas non plus.** Le portail ne publie pas le régime de
-propriété : les biens collectés restent en `title_type = 'unknown'`, et aucun
-dossier de vérification de titre n'est fabriqué sur eux. Le panneau de
-vérification et le badge public sont donc vides sur un jeu réel — attacher un
-dossier fictif à une adresse qui existe serait fabriquer une affirmation
-juridique sur un bien réel, ce qui est une autre affaire que meubler une démo.
+**Les faits de la page d'annonce.** La page de liste ne porte que des
+chiffres ; la page de chaque annonce publie en plus des libellés structurés —
+« Title: Hard Title », « Fully Furnished », « Swimming Pool », « Lift /
+Elevator », « Reception 24/7 »… — que `npm run portal:photos` lit en même
+temps que la galerie (`toFacts`). Le régime de propriété n'est repris que
+pour les trois régimes du schéma (`hard`, `soft`, `strata`) et seulement s'il
+est encore inconnu ; un libellé qu'on ne sait pas ranger laisse `unknown`,
+parce qu'affirmer un régime qu'on n'a pas lu sur un bien réel serait fabriquer
+une assertion juridique. Les équipements passent par une table de
+correspondance vers le vocabulaire des filtres ; un libellé absent de la table
+est ignoré. C'est ce qui fait vivre sur le jeu réel les filtres « meublé »,
+« piscine », « ascenseur » — et « éligible étranger », qui découle du régime
+`strata` et de l'étage (§5.3). Les faits ne sont écrits que sur les biens
+créés par la collecte, jamais sur une fiche saisie par une agence.
+
+**Ce qu'on n'invente pas non plus.** Aucun dossier de vérification de titre
+n'est fabriqué sur les biens collectés. Le panneau de vérification et le badge
+public sont donc vides sur un jeu réel — attacher un dossier fictif à une
+adresse qui existe serait fabriquer une affirmation juridique sur un bien
+réel, ce qui est une autre affaire que meubler une démo.
 
 **Ce que la collecte a révélé du moteur de déduplication.** Sur ~900 annonces
 réelles, 0 fusion automatique et 301 paires en file de validation. Le chiffre
@@ -1189,6 +1214,7 @@ npm run db:backup                # ops/backup-db.sh
 npm run audit:retention          # archive puis purge
 npm run dedup:rescan             # ops/rescan-duplicates.sh
 npm run metrics:purge            # ops/purge-metrics.sh
+npm run media:prune              # db/jobs/prune-media.mjs
 
 npm run alerts:send-check        # simulation, aucune modification
 npm run media:process-check      # simulation, aucune modification
@@ -1196,6 +1222,7 @@ npm run listings:expire-check    # simulation, aucune modification
 npm run db:backup-check          # simulation, aucune modification
 npm run audit:retention-check    # simulation, aucune modification
 npm run dedup:rescan-check       # simulation, aucune modification
+npm run media:prune-check        # simulation, aucune modification
 npm run metrics:purge-check      # simulation, aucune modification
 ```
 
@@ -1403,6 +1430,7 @@ ops/systemd/user/             Unités systemd d'utilisateur : serveur local, mod
   migrations/021_instrumentation.sql  Recherches mesurées et LCP de terrain
   migrations/022_dedup_rescan_rotation.sql  Rotation du rattrapage de déduplication
   jobs/purge-metrics.mjs      Purge des mesures au-delà de la fenêtre d'observation
+  jobs/prune-media.mjs        Variantes orphelines du magasin local (media:prune)
   lib/ingest.mjs              Entonnoir commun aux canaux d'ingestion
   lib/dedup.mjs               Moteur de déduplication (§6.2)
   lib/phash.mjs               dHash 64 bits, seuils mesurés

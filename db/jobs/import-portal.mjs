@@ -22,9 +22,11 @@
  * Les variantes vivent sous `var/media/` (hors dépôt) ou sur le stockage S3 en
  * production : le dépôt ne transporte aucune image.
  *
- * La page de liste ne donne que la photo mise en avant ; `--photos` va
- * chercher la galerie complète, une requête par annonce. Une annonce sans
- * aucune photo publiée retombe sur le fonds libre de droits maison
+ * La page de liste ne donne que trois vignettes et aucun fait au-delà des
+ * chiffres ; `--photos` ouvre la page de chaque annonce — une requête par
+ * bien — pour en tirer la galerie complète ET les faits structurés que la
+ * liste n'a pas : régime de propriété, ameublement, équipements. Une annonce
+ * sans aucune photo publiée retombe sur le fonds libre de droits maison
  * (public/demo-photos), par une graine dérivée de sa référence.
  *
  * Le lien vers l'annonce d'origine est conservé dans `listings.source_url` :
@@ -33,14 +35,17 @@
  *
  *   node db/jobs/import-portal.mjs --pages 10 --dry-run
  *   node db/jobs/import-portal.mjs --pages 25 --txn both
- *   node db/jobs/import-portal.mjs --photos          # galeries complètes
+ *   node db/jobs/import-portal.mjs --photos          # pages d'annonce : galeries et faits
+ *   node db/jobs/import-portal.mjs --photos --limit 3  # un échantillon, pour vérifier
  *   node db/jobs/import-portal.mjs --purge
  */
 import { createHash } from "node:crypto";
 import pg from "pg";
 import { ingest } from "../lib/ingest.mjs";
 import { describe } from "../lib/describe.mjs";
-import { collect, fetchPhotos, SOURCES, DEFAULT_DELAY_MS, MAX_PHOTOS }
+import { createMediaStore } from "../lib/media-store.mjs";
+import { storageKeys } from "../lib/media-upload.mjs";
+import { collect, fetchDetail, SOURCES, DEFAULT_DELAY_MS, MAX_PHOTOS }
   from "../lib/portal.mjs";
 
 const args = process.argv.slice(2);
@@ -56,6 +61,8 @@ const asJson = flag("json");
 const purge = flag("purge");
 const photosOnly = flag("photos");
 const concurrency = Number(opt("concurrency", "2"));
+// Borne de la passe des pages d'annonce ; sans borne, tout ce qui reste à lire.
+const limit = Number(opt("limit", "0"));
 
 const source = SOURCES[portal];
 if (!source) {
@@ -98,17 +105,27 @@ if (purge) {
 }
 
 // ------------------------------------------------- galeries complètes
-// La page de liste ne porte que quelques vignettes. Compléter la galerie
-// demande d'ouvrir la page de chaque annonce : c'est une requête par bien, donc
-// une passe séparée, reprenable, et lancée à la main.
+// La page de liste ne porte que quelques vignettes, et aucun des faits qui
+// nourrissent les filtres de §5 : régime de propriété (donc éligibilité aux
+// étrangers), ameublement, équipements. Les lire demande d'ouvrir la page de
+// chaque annonce : c'est une requête par bien, donc une passe séparée,
+// reprenable, et lancée à la main.
 //
-// « Déjà complété » se lit sur la soumission (`payload.galleryFetchedAt`), pas
-// sur le nombre de médias : la liste en donne déjà trois, et un critère du
-// type « moins de deux photos » faisait sauter 874 biens sur 898 — la passe
+// « Déjà lu » se lit sur la soumission (`payload.detailFetchedAt`), pas sur le
+// nombre de médias : la liste en donne déjà trois, et un critère du type
+// « moins de deux photos » faisait sauter 874 biens sur 898 — la passe
 // tournait à vide en annonçant que tout était fait. Une galerie vide chez la
 // source est marquée aussi : on ne la redemande pas à chaque relance. Seul un
 // échec (réseau, HTTP) laisse le bien sans marque, pour être repris.
+//
+// Les faits ne sont écrits que sur les biens CRÉÉS par la collecte
+// (`geo_pin_by = 'portal:…'`) : une annonce collectée qui s'est greffée sur un
+// bien saisi par une agence n'a pas à en réécrire la fiche. Le régime de
+// propriété n'est posé que s'il est encore inconnu, jamais remplacé.
 if (photosOnly) {
+  // Une galerie remplacée retire ses variantes du magasin : une ligne `media`
+  // supprimée ne doit pas laisser ses fichiers derrière elle.
+  const store = createMediaStore();
   const { rows: todo } = await db.query(
     `SELECT DISTINCT ON (l.property_id)
             l.property_id AS "propertyId", l.source_url AS "sourceUrl",
@@ -116,13 +133,15 @@ if (photosOnly) {
        FROM listings l
        JOIN submissions s ON s.listing_id = l.id
       WHERE l.source = 'portal' AND l.source_url IS NOT NULL
-        AND s.payload->>'galleryFetchedAt' IS NULL
-      ORDER BY l.property_id, l.created_at`);
+        AND s.payload->>'detailFetchedAt' IS NULL
+      ORDER BY l.property_id, l.created_at
+      ${limit > 0 ? `LIMIT ${Math.floor(limit)}` : ""}`);
 
-  log(`Galeries à compléter : ${todo.length} bien(s) — ${concurrency} en parallèle, `
+  log(`Pages d'annonce à lire : ${todo.length} bien(s) — ${concurrency} en parallèle, `
     + `${delayMs} ms entre deux requêtes par fil`);
 
-  let done = 0, filled = 0, empty = 0, failed = 0;
+  let done = 0, filled = 0, empty = 0, failed = 0, titled = 0, furnishedN = 0, equipped = 0;
+  let unchanged = 0;
   const queue = todo.slice();
 
   // Les fils partagent UNE connexion. Ce qui peut se faire de front, c'est
@@ -141,14 +160,28 @@ if (photosOnly) {
     while (queue.length) {
       const item = queue.shift();
       try {
-        const photos = await fetchPhotos(item.sourceUrl);
+        const detail = await fetchDetail(item.sourceUrl);
         // `null` : page inaccessible ou illisible — pas de marque, on reprendra.
-        if (photos === null) throw new Error("page d'annonce illisible");
+        if (detail === null) throw new Error("page d'annonce illisible");
+        const { photos, facts } = detail;
         await serialized(async () => {
           try {
             await db.query("BEGIN");
-            if (photos.length) {
-              await db.query(`DELETE FROM media WHERE property_id = $1`, [item.propertyId]);
+            // Une galerie identique n'est pas réécrite : chaque ligne `media`
+            // porte son empreinte et ses variantes déjà produites, et les
+            // recréer les perdrait — tout serait à retélécharger et à hacher,
+            // et les anciennes variantes resteraient orphelines sur le disque.
+            const { rows: current } = await db.query(
+              `SELECT url FROM media WHERE property_id = $1 ORDER BY position`, [item.propertyId]);
+            const same = photos.length > 0 && current.length === photos.length
+              && current.every((m, i) => m.url === photos[i].url);
+            if (same) unchanged++;
+            if (photos.length && !same) {
+              const { rows: gone } = await db.query(
+                `DELETE FROM media WHERE property_id = $1 RETURNING url, variants`, [item.propertyId]);
+              for (const m of gone) {
+                for (const key of storageKeys(m, store)) await store.remove(key).catch(() => {});
+              }
               for (const [position, photo] of photos.entries()) {
                 await db.query(
                   `INSERT INTO media(property_id, url, position, width, height, variants)
@@ -157,11 +190,40 @@ if (photosOnly) {
                    JSON.stringify(photo.variants ?? [])]);
               }
             }
+            const { rows: [prop] } = await db.query(
+              `UPDATE properties
+                  SET title_type = CASE WHEN title_type = 'unknown' AND $2::title_type IS NOT NULL
+                                        THEN $2::title_type ELSE title_type END,
+                      furnished = $3,
+                      amenities = $4::text[],
+                      updated_at = now()
+                WHERE id = $1 AND geo_pin_by LIKE 'portal:%'
+                RETURNING title_type::text AS "titleType", property_type::text AS "propertyType",
+                          bedrooms, indoor_area_sqm AS "indoor", land_area_sqm AS "land", floor`,
+              [item.propertyId, facts.titleType, facts.furnished, facts.amenities]);
+            if (prop) {
+              // La description est fabriquée depuis les faits : elle suit.
+              const { rows: ls } = await db.query(
+                `SELECT l.id, l.transaction_type::text AS txn, loc.name_i18n AS "hoodNames"
+                   FROM listings l JOIN properties p ON p.id = l.property_id
+                   JOIN locations loc ON loc.id = p.location_id
+                  WHERE l.property_id = $1 AND l.source = 'portal'`, [item.propertyId]);
+              for (const l of ls) {
+                await db.query(`UPDATE listings SET description_i18n = $2 WHERE id = $1`,
+                  [l.id, JSON.stringify(describe({
+                    property_type: prop.propertyType, bedrooms: prop.bedrooms,
+                    indoor_area_sqm: prop.indoor === null ? null : Number(prop.indoor),
+                    land_area_sqm: prop.land === null ? null : Number(prop.land),
+                    furnished: facts.furnished, floor: prop.floor,
+                  }, l.hoodNames, l.txn))]);
+              }
+            }
             await db.query(
               `UPDATE submissions
-                  SET payload = payload || jsonb_build_object('galleryFetchedAt', now(),
-                                                              'galleryPhotos', $2::int)
-                WHERE id = $1`, [item.submissionId, photos.length]);
+                  SET payload = payload || jsonb_build_object('detailFetchedAt', now(),
+                                                              'galleryPhotos', $2::int,
+                                                              'facts', $3::jsonb)
+                WHERE id = $1`, [item.submissionId, photos.length, JSON.stringify(facts)]);
             await db.query("COMMIT");
           } catch (e) {
             await db.query("ROLLBACK").catch(() => {});
@@ -169,6 +231,9 @@ if (photosOnly) {
           }
         });
         if (photos.length) filled++; else empty++;
+        if (facts.titleType) titled++;
+        if (facts.furnished) furnishedN++;
+        if (facts.amenities.length) equipped++;
       } catch (e) {
         failed++;
         note(String(e.message).slice(0, 80));
@@ -179,8 +244,10 @@ if (photosOnly) {
   };
 
   await Promise.all(Array.from({ length: Math.max(1, concurrency) }, worker));
-  log(`Galeries : ${filled} complétée(s), ${empty} sans photo publiée, ${failed} en échec`);
-  if (asJson) console.log(JSON.stringify({ photos: { filled, empty, failed } }));
+  log(`Galeries : ${filled} lue(s) dont ${unchanged} inchangée(s), ${empty} sans photo publiée, ${failed} en échec`);
+  log(`Faits    : ${titled} régime(s) de propriété, ${furnishedN} meublé(s), ${equipped} avec équipements`);
+  if (asJson) console.log(JSON.stringify({ photos: { filled, empty, failed },
+                                           facts: { titled, furnished: furnishedN, equipped } }));
   await db.end();
   process.exit(0);
 }
