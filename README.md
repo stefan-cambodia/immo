@@ -540,6 +540,24 @@ Résultat sur le même jeu, une fois les galeries complètes et hachées :
 127 biens sur 898 — l'indicateur passe de 48 % à 14,1 %. Une file qui se
 travaille.
 
+**La même mesure, un an de données plus tard.** Sur 3 405 biens collectés, la
+file est montée à 943 paires — dont 73 seulement, 7,7 %, partageaient une
+photographie. Deux causes se cumulaient. La première est celle que ce job
+corrige par construction : à l'import, les empreintes n'existent pas encore, la
+corroboration n'est donc pas exigible et l'accord structurel suffit à mettre en
+file. La seconde était un accident, et elle empêchait le remède d'agir — 1 881
+empreintes avaient été détruites par un réveil de mise en veille (voir « Tous
+les échecs ne se valent pas »), si bien que la réévaluation ne pouvait ni
+confirmer ni écarter : sa simulation ne sortait que 37 paires sur 943.
+
+Une fois les 16 924 médias hachés, sans exception, le job a retiré 303 paires
+et en a déposé 82. Il reste **488 paires pour 727 biens**, et surtout **plus
+une seule sans corroboration** : 316 partagent une photographie, 172 un
+immeuble identifié. Les paires fabriquées par le seed sont parties avec les
+autres, faute de preuve — ce qui est la bonne réponse. La règle du moteur tient
+donc sur l'ensemble du jeu réel, et non plus seulement sur l'échantillon où
+elle avait été écrite.
+
 Le rattrapage a d'abord été aveugle, et il a fallu le mesurer pour le voir :
 93 paires photo-identiques dans le périmètre de présélection, 45 hors de la
 file après son passage. La cause : un bien déjà en base, repassé par
@@ -1094,8 +1112,12 @@ volume est passée, le 0 % du bot reste, parce que rien n'a encore parlé à
 Telegram. Le troisième chiffre, lui, a rendu service autrement : les 48 % de biens
 en file de déduplication ont conduit à examiner la file, à y trouver 95 % de
 faux positifs, et à corriger le moteur (voir « Ce que les annonces réelles ont
-appris au moteur »). Il est retombé à 14,1 % — une file dont chaque paire
-partage une photographie.
+appris au moteur »). Il était retombé à 14,1 % ; sur la base d'aujourd'hui il
+vaut **21,4 %** — 727 biens pour 488 paires — et c'est un chiffre qu'il faut
+lire avec le suivant : **toutes ces paires sont corroborées**, 316 par une
+photographie partagée et 172 par un immeuble identifié. La cible de 5 % n'est
+pas tenue, mais la file dit quelque chose de vrai, ce qui n'était pas le cas
+la veille (voir « La file décidait avant que la preuve n'existe »).
 
 ### L'instrumentation des deux mesures manquantes
 
