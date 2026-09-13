@@ -513,8 +513,24 @@ export async function getProperty(reference: string) {
   return { property, offers, photos };
 }
 
-/** Biens comparables : même quartier, même type, surface proche. */
-export async function similarProperties(propertyId: string, limit = 4) {
+/**
+ * Biens comparables : même quartier, même type, MÊME TRANSACTION, surface
+ * proche.
+ *
+ * La transaction n'est pas un raffinement, c'est la condition d'existence de
+ * la comparaison : un loyer mensuel et un prix de vente n'ont pas d'échelle
+ * commune. Sans elle, la fiche d'un condo à vendre 46 000 dollars affichait en
+ * face un condo « à 400 dollars » — de mêmes surface et étage, mais loué 400
+ * par mois. Et comme la grille reçoit la transaction de la fiche, pas celle du
+ * comparable, le loyer était présenté comme un prix de vente, sans « / mois ».
+ * Le module d'estimation posait déjà la règle (« même type, même
+ * transaction ») ; celui-ci ne l'appliquait pas.
+ */
+export async function similarProperties(
+  propertyId: string,
+  transaction: "sale" | "rent",
+  limit = 4
+) {
   return query<PropertyCard>(
     `
     WITH ref AS (SELECT * FROM properties WHERE id = $1),
@@ -522,7 +538,9 @@ export async function similarProperties(propertyId: string, limit = 4) {
       SELECT l.property_id, min(l.price_usd) AS price_min, max(l.price_usd) AS price_max,
              count(DISTINCT l.agency_id)::int AS agency_count,
              max(l.last_confirmed_at) AS last_confirmed
-      FROM listings l WHERE l.status = 'active' GROUP BY l.property_id
+      FROM listings l
+      WHERE l.status = 'active' AND l.transaction_type = $3::transaction_type
+      GROUP BY l.property_id
     )
     SELECT p.id, p.reference, p.property_type AS "propertyType", p.bedrooms, p.bathrooms,
            p.indoor_area_sqm AS "indoorArea", p.land_area_sqm AS "landArea",
@@ -544,6 +562,6 @@ export async function similarProperties(propertyId: string, limit = 4) {
                  - COALESCE(ref.indoor_area_sqm, ref.land_area_sqm, 0))
     LIMIT $2
     `,
-    [propertyId, limit]
+    [propertyId, limit, transaction]
   );
 }

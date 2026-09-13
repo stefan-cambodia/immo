@@ -996,6 +996,23 @@ La file se vide aussi toute seule : un prix revenu dans les clous en sort sans
 qu'on tranche. Une file qui ne se vide que par décision se remplit de questions
 périmées.
 
+**Un comparable doit porter la même transaction, et ça ne se voyait pas.** La
+fiche d'un bien propose quatre comparables — même quartier, même type, surface
+proche. La transaction n'y figurait pas, et ce n'est pas un raffinement
+oublié : un loyer mensuel et un prix de vente n'ont pas d'échelle commune. Sur
+le jeu réel, la fiche d'un condo à vendre 46 000 dollars affichait donc en face
+un condo « à 400 dollars » — mêmes 52 m², même trente-septième étage, mais loué
+400 par mois. Et comme la grille reçoit la transaction de la FICHE et non celle
+du comparable, le loyer s'affichait comme un prix de vente, sans « / mois ».
+
+Le défaut est resté invisible tant que la démonstration tournait sur le jeu
+engendré, où les quartiers ne mêlaient guère les deux ; il saute aux yeux sur
+un portail réel, où le même immeuble se vend et se loue. Le module
+d'estimation posait pourtant déjà la règle — « des biens comparables (même
+type, même transaction) » —, la fiche ne l'appliquait pas.
+`npm run check:compare` vérifie désormais que tous les comparables d'une fiche
+portent sa transaction, sur un bien choisi dans un quartier qui mêle les deux.
+
 **Ce qu'on n'invente pas non plus.** Aucun dossier de vérification de titre
 n'est fabriqué sur les biens collectés. Le panneau de vérification et le badge
 public sont donc vides sur un jeu réel — attacher un dossier fictif à une

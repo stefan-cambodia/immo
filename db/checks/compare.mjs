@@ -91,6 +91,38 @@ check("la fiche bien relie vers une comparaison préremplie", Boolean(link), "")
 check("la sélection préremplie commence par le bien courant",
       link?.startsWith(a) ?? false, String(link));
 
+// Les comparables de la fiche doivent porter la MÊME transaction. Sinon un
+// loyer mensuel se retrouve en face d'un prix de vente — et comme la grille
+// reçoit la transaction de la fiche, il s'affiche comme un prix de vente : la
+// fiche d'un condo à 46 000 dollars annonçait un comparable « à 400 dollars »,
+// qui était un loyer.
+const { rows: [sujet] } = await db.query(`
+  SELECT p.id, p.reference, p.property_type::text AS type, p.location_id,
+         l.transaction_type::text AS txn
+    FROM properties p JOIN listings l ON l.property_id = p.id AND l.status = 'active'
+   WHERE EXISTS (
+     SELECT 1 FROM properties o
+      JOIN listings ol ON ol.property_id = o.id AND ol.status = 'active'
+      WHERE o.location_id = p.location_id AND o.property_type = p.property_type
+        AND o.id <> p.id AND ol.transaction_type <> l.transaction_type)
+   ORDER BY p.reference LIMIT 1`);
+check("le jeu fournit un bien dont le quartier mêle vente et location",
+      Boolean(sujet), "aucun quartier mixte");
+if (sujet) {
+  const html = await (await fetch(`${BASE}/en/property/${sujet.reference}`)).text();
+  const refs = [...html.matchAll(/\/en\/property\/([A-Z0-9-]+)/g)]
+    .map((m) => m[1]).filter((r) => r !== sujet.reference);
+  const { rows: mauvais } = await db.query(`
+    SELECT DISTINCT p.reference FROM properties p
+      JOIN listings l ON l.property_id = p.id AND l.status = 'active'
+     WHERE p.reference = ANY($1::text[])
+       AND NOT EXISTS (SELECT 1 FROM listings k WHERE k.property_id = p.id
+                         AND k.status = 'active' AND k.transaction_type = $2::transaction_type)`,
+    [refs, sujet.txn]);
+  check(`les comparables sont tous en « ${sujet.txn} » (${refs.length} liens)`,
+        mauvais.length === 0, mauvais.map((r) => r.reference).join(", "));
+}
+
 await db.end();
 console.log(`\n  ${pass} vérifications passées, ${fail} échouées`);
 process.exit(fail ? 1 : 0);
