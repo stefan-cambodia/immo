@@ -16,7 +16,17 @@
  *   node db/checks/indicators.mjs [--base http://localhost:3111]
  */
 import pg from "pg";
+import { readFileSync } from "node:fs";
 import { randomBytes, createHash } from "node:crypto";
+
+// Les planchers d'échantillon sont lus dans la source plutôt que recopiés : un
+// contrôle qui garde sa propre copie d'un seuil finit par vérifier l'ancien.
+const INDICATORS_SRC = readFileSync("src/lib/indicators.ts", "utf8");
+const seuil = (name) => {
+  const m = INDICATORS_SRC.match(new RegExp(`export const ${name} = (\\d+);`));
+  if (!m) throw new Error(`${name} introuvable dans src/lib/indicators.ts`);
+  return Number(m[1]);
+};
 
 const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf(`--${n}`); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
@@ -195,7 +205,8 @@ check("les sept indicateurs du brief sont présents",
       ROWS.filter((label) => !html.includes(label)).join(", "));
 // Les deux indicateurs instrumentés ne se vérifient pas par un état figé mais
 // par leur RÈGLE : ils parlent quand la donnée est là, se taisent sinon.
-const MIN_SAMPLE = 20;
+const MIN_SAMPLE = seuil("MIN_VITALS_SAMPLE");
+const MIN_SEARCH = seuil("MIN_SEARCH_SAMPLE");
 const { rows: [m] } = await db.query(`
   SELECT (SELECT count(*) FROM web_vitals
            WHERE metric = 'lcp' AND form_factor = 'mobile'
@@ -210,11 +221,14 @@ check(m.lcp >= MIN_SAMPLE
       m.lcp >= MIN_SAMPLE ? /\d\s*ms/.test(lcpRow) : lcpRow.includes("non mesuré"),
       lcpRow.slice(0, 120));
 
+// Même règle que le LCP, et elle mordait : sur douze recherches dont une
+// échouée, le taux affichait 8,3 % contre une cible de 8 % — un rouge décidé
+// par un seul événement.
 const missRow = shown("Recherches sans résultat") ?? "";
-check(m.searches > 0
+check(m.searches >= MIN_SEARCH
         ? `le taux d'échec est publié (${m.searches} recherches)`
-        : "le taux d'échec se tait sans recherche mesurée",
-      m.searches > 0 ? /%/.test(missRow) : missRow.includes("non mesuré"),
+        : `le taux d'échec se tait sous le seuil d'échantillon (${m.searches} / ${MIN_SEARCH})`,
+      m.searches >= MIN_SEARCH ? /%/.test(missRow) : missRow.includes("non mesuré"),
       missRow.slice(0, 120));
 check("aucun pourcentage affiché ne dépasse 100",
       [...html.matchAll(/([\d  ,.]+)\s*%/g)]

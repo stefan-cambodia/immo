@@ -1104,7 +1104,19 @@ recherches abouties — que rien ne journalisait, puisque seuls les échecs le
 sont (§5.2). Montrer les trous plutôt que de les remplir au jugé a dit quoi
 instrumenter, et les deux le sont désormais (voir « L'instrumentation des deux
 mesures manquantes »). Ils restent muets tant que la donnée n'est pas là :
-sous vingt mesures pour le centile, sans aucune recherche mesurée pour le taux.
+sous vingt mesures pour le centile, sous cent recherches pour le taux.
+
+Ce second plancher a été posé après coup, et le manquer coûtait précisément ce
+que le principe cherche à éviter. Le taux se publiait dès la première recherche
+mesurée. Sur douze recherches dont une échouée, il affichait **8,3 % contre une
+cible de 8 %** : un rouge décidé par un seul événement, sur un panneau qui sert
+à savoir quoi corriger. En dessous de cent recherches, une seule pèse plus d'un
+point — davantage que la marge de 10 % qui sépare « atteint » de « proche » —,
+si bien que le chiffre ne se lit pas contre sa cible. Le LCP avait son seuil
+d'échantillon depuis le début ; le taux d'échec n'avait qu'un garde-fou contre
+la division par zéro, ce qui n'est pas la même chose. Le contrôle lit désormais
+les deux seuils dans la source plutôt que d'en garder copie : un contrôle qui
+recopie un seuil finit par vérifier l'ancien.
 
 **Une approximation se dit comme telle.** Les « doublons résiduels » ne sont
 pas observables : on ne connaît pas les doublons que le moteur a laissés

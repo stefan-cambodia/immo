@@ -37,6 +37,16 @@ export const WINDOW_DAYS = 30;
  */
 export const MIN_VITALS_SAMPLE = 20;
 
+/**
+ * Même discipline pour le taux de recherches sans résultat, et elle mordait :
+ * mesuré sur douze recherches, dont une échouée, l'indicateur affichait 8,3 %
+ * contre une cible de 8 % — un rouge décidé par un seul événement. En dessous
+ * de cent recherches, une seule pèse plus d'un point, soit davantage que la
+ * marge qui sépare « atteint » de « proche ». Le chiffre ne se lit alors pas
+ * contre sa cible, et il vaut mieux dire qu'on ne le mesure pas encore.
+ */
+export const MIN_SEARCH_SAMPLE = 100;
+
 export type IndicatorStatus = "met" | "close" | "off" | "unmeasured";
 
 export interface Indicator {
@@ -145,7 +155,7 @@ export async function indicators(days = WINDOW_DAYS): Promise<Indicator[]> {
   const leadsPerK = d.sessions > 0
     ? Math.round((d.leads / d.sessions) * 1000 * 10) / 10
     : null;
-  const missRate = pct(d.searchesFailed, d.searches);
+  const missRate = d.searches >= MIN_SEARCH_SAMPLE ? pct(d.searchesFailed, d.searches) : null;
   const lcp = d.lcpSamples >= MIN_VITALS_SAMPLE ? d.lcpP75 : null;
 
   const list: Indicator[] = [
@@ -175,9 +185,10 @@ export async function indicators(days = WINDOW_DAYS): Promise<Indicator[]> {
       key: "searchMisses", group: "quality", value: missRate,
       unit: "percent", target: 8, direction: "down",
       status: statusFor(missRate, 8, "down"),
-      detail: d.searches > 0
+      detail: d.searches >= MIN_SEARCH_SAMPLE
         ? `${d.searchesFailed} / ${d.searches} recherches, ${d.misses} textes retenus`
-        : `aucune recherche mesurée sur ${days} j`,
+        : `${d.searches} recherche(s) sur ${days} j — moins de ${MIN_SEARCH_SAMPLE}, `
+          + `taux non publié ; ${d.misses} texte(s) retenu(s)`,
     },
     {
       key: "botShare", group: "ingestion", value: botShare,
