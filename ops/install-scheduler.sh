@@ -4,14 +4,20 @@
 #
 #   ops/install-scheduler.sh [--user immo] [--root /opt/cambodia-immo]
 #                            [--scope system|user] [--port 3111]
-#                            [--web] [--no-timers] [--cron] [--dry-run] [--status]
+#                            [--web] [--no-timers] [--timer NOM]
+#                            [--cron] [--dry-run] [--status]
 #
-# Par défaut : unités systemd (modèle + six timers) copiées dans
+# Par défaut : unités systemd (modèle + tous les timers) copiées dans
 # /etc/systemd/system, `daemon-reload`, timers activés et démarrés.
 # --web installe et active aussi le serveur (cambodia-immo-web.service).
 # --no-timers n'installe QUE ce qui est demandé par ailleurs : de quoi poser
 # le serveur sur une machine de travail sans y déclencher les sauvegardes,
 # la facturation et les envois d'alertes.
+# --timer NOM pose un timer et un seul, répétable — le pendant fin de
+# --no-timers. Une machine de travail veut souvent le traitement des médias,
+# qui ne fait que du calcul local, sans ce qui écrit dehors : facturation,
+# sauvegarde hors site, envoi d'alertes. Un nom inconnu arrête le script
+# plutôt que de poser silencieusement zéro timer.
 # --cron écrit /etc/cron.d/cambodia-immo à la place. --dry-run montre les
 # fichiers rendus sans rien écrire. --status affiche l'état des timers.
 #
@@ -33,6 +39,7 @@ SCOPE=system
 DRY=0
 WEB=0
 TIMERS=1
+ONLY_TIMERS=()
 PORT=3000
 
 while [[ $# -gt 0 ]]; do
@@ -44,6 +51,7 @@ while [[ $# -gt 0 ]]; do
     --port) PORT="$2"; shift 2 ;;
     --web) WEB=1; shift ;;
     --no-timers) TIMERS=0; shift ;;
+    --timer) ONLY_TIMERS+=("$2"); shift 2 ;;
     --dry-run) DRY=1; shift ;;
     --status)
       for sc in --system --user; do
@@ -103,8 +111,22 @@ if [[ $TIMERS -eq 1 ]]; then
   template="$ROOT/ops/systemd/cambodia-immo@.service"
   [[ $SCOPE == user ]] && template="$ROOT/ops/systemd/user/cambodia-immo@.service"
   install_file "$template" "$UNIT_DIR/cambodia-immo@.service"
+  available=()
+  for f in "$ROOT"/ops/systemd/cambodia-immo-*.timer; do
+    available+=("$(basename "$f" .timer)")
+  done
+  # Un nom qu'on ne connaît pas est une faute de frappe, pas une demande vide :
+  # le dire ici évite d'annoncer une installation qui n'a rien posé.
+  for want in ${ONLY_TIMERS[@]+"${ONLY_TIMERS[@]}"}; do
+    printf '%s\n' "${available[@]}" | grep -qx "cambodia-immo-${want}" \
+      || { echo "timer inconnu : ${want} (connus : ${available[*]//cambodia-immo-/})" >&2; exit 2; }
+  done
   for f in "$ROOT"/ops/systemd/cambodia-immo-*.timer; do
     name="$(basename "$f")"
+    if [[ ${#ONLY_TIMERS[@]} -gt 0 ]]; then
+      printf '%s\n' "${ONLY_TIMERS[@]}" | grep -qx "$(basename "$f" .timer | sed 's/^cambodia-immo-//')" \
+        || continue
+    fi
     install_file "$f" "$UNIT_DIR/$name"
     timers+=("$name")
   done

@@ -1342,7 +1342,12 @@ seule `var/` est inscriptible, environnement dans `/etc/cambodia-immo/env`)
 et huit timers `Persistent=true` — avec un repli `ops/cron.d/cambodia-immo`
 pour les hôtes sans systemd. `ops/install-scheduler.sh` rend les fichiers
 (chemin et utilisateur d'exécution substitués), les installe, recharge et
-active les timers ; `--dry-run` montre le rendu, `--cron` écrit le cron.d,
+active les timers ; `--timer NOM` n'en pose qu'un — répétable, et un nom
+inconnu arrête le script au lieu de n'installer silencieusement rien. C'est le
+pendant fin de `--no-timers` : une machine de travail veut souvent le
+traitement des médias, qui ne fait que du calcul local, sans ce qui écrit
+dehors — facturation, sauvegarde hors site, envoi d'alertes.
+`--dry-run` montre le rendu, `--cron` écrit le cron.d,
 `--status` liste les timers :
 
 ```bash
@@ -1460,7 +1465,14 @@ Ce sont les manières habituelles dont un cron échoue en silence :
 - **Verrou `flock` par tâche** — deux exécutions simultanées se marcheraient
   dessus. Un chevauchement se termine avec le code 0 et une ligne de journal :
   l'exécution précédente fait déjà le travail, ce n'est pas une erreur. Chaque
-  tâche a son propre verrou et ne bloque pas les autres.
+  tâche a son propre verrou et ne bloque pas les autres. Le verrou vit sous
+  `var/run/`, et pas sous `/tmp` où il était d'abord : les unités posent
+  `PrivateTmp=true`, donc chacune reçoit son propre `/tmp` et le verrou n'y est
+  pas le même fichier pour une tâche lancée par le timer et pour la même tâche
+  lancée à la main. Les deux se croisaient sans se voir — exactement le cas que
+  le verrou existe pour empêcher, et celui qui arrive vraiment, quand on lance
+  un rattrapage à la main pendant que le timer tourne. `var/` est le seul
+  chemin que les deux partagent, et le durcissement l'ouvre déjà en écriture.
 - **Résolution explicite de `node`** — cron n'hérite pas du `PATH` d'un shell
   de connexion, donc nvm, asdf et volta sont invisibles. Le binaire est cherché
   via `NODE_BIN`, puis le `PATH`, puis les emplacements standard.

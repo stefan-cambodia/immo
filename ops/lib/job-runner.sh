@@ -21,10 +21,17 @@ set -Eeuo pipefail
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly ROOT
 
-readonly JOB_LOCK="${JOB_LOCK_FILE:-/tmp/cambodia-immo-${JOB_NAME}.lock}"
+# Le verrou vit sous `var/`, pas sous `/tmp`. Les unités systemd du projet
+# posent `PrivateTmp=true` : chacune reçoit son propre `/tmp`, si bien qu'un
+# verrou pris là n'est pas le même fichier pour une tâche lancée par le timer
+# et pour la même tâche lancée à la main — deux exécutions se croisaient sans
+# se voir, ce qui est exactement le cas que le verrou existe pour empêcher.
+# `var/` est le seul chemin que les deux partagent : le durcissement des unités
+# l'ouvre explicitement en écriture (`ReadWritePaths=__APP_ROOT__/var`).
+readonly JOB_LOCK="${JOB_LOCK_FILE:-${ROOT}/var/run/${JOB_NAME}.lock}"
 readonly JOB_LOG="${JOB_LOG_FILE:-${ROOT}/var/log/${JOB_NAME}.log}"
 
-mkdir -p -- "$(dirname -- "$JOB_LOG")"
+mkdir -p -- "$(dirname -- "$JOB_LOG")" "$(dirname -- "$JOB_LOCK")"
 
 # Horodatage sur chaque ligne : un journal de cron sans date est inexploitable.
 job_log() { printf '%s  [%s] %s\n' "$(date -Is)" "$JOB_NAME" "$*" | tee -a "$JOB_LOG" >&2; }
