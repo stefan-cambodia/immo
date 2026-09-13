@@ -26,10 +26,12 @@ due="$(job_json_field "$summary" due)"
 expired="$(job_json_field "$summary" expired)"
 chase="$(job_json_field "$summary" chaseWindow)"
 active="$(job_json_field "$summary" activeAfter)"
+locs="$(job_json_field "$summary" locationsRefreshed)"
 
 if [[ "${1:-}" == "--dry-run" ]]; then
   job_log "terminé (simulation) · ${due:-0} annonce(s) expireraient · ${chase:-0} à relancer sous 7 j."
   exit 0
 fi
 
-job_log "terminé · ${expired:-0} annonce(s) expirée(s) · ${active:-0} actives · ${chase:-0} à relancer sous 7 j."
+job_log "terminé · ${expired:-0} annonce(s) expirée(s) · ${active:-0} actives"\
+"  · ${chase:-0} à relancer sous 7 j · ${locs:-0} compteur(s) de localité recalculé(s)."

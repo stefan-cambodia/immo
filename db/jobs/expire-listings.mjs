@@ -21,6 +21,7 @@
  * automatiques noierait ce qu'on y cherche.
  */
 import pg from "pg";
+import { refreshLocationCounts } from "../lib/locations.mjs";
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(`--${name}`);
@@ -59,6 +60,16 @@ if (dryRun) {
     await db.query(`SELECT expire_stale_listings()`);
   result.expired = expired;
   log(`Expirées : ${expired}`);
+}
+
+// Les compteurs par localité suivent l'expiration : c'est elle qui les fait
+// baisser sans que personne ne touche à quoi que ce soit, et ils sont lus par
+// la page d'accueil et la boîte de recherche. Les recalculer ici, toutes les
+// heures, rattrape aussi ce qu'un import a ajouté entre-temps — la collecte est
+// lancée à la main et n'a pas à s'en soucier.
+if (!dryRun) {
+  result.locationsRefreshed = await refreshLocationCounts(db);
+  log(`Compteurs de localité recalculés : ${result.locationsRefreshed} changé(s)`);
 }
 
 // Observation, pas action : le portail n'a pas encore de canal de relance

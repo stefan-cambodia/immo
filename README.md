@@ -1180,6 +1180,27 @@ la division par zéro, ce qui n'est pas la même chose. Le contrôle lit désorm
 les deux seuils dans la source plutôt que d'en garder copie : un contrôle qui
 recopie un seuil finit par vérifier l'ancien.
 
+**Un chiffre dénormalisé que rien n'entretient finit par mentir.**
+`locations.listing_count` est lu partout et calculé nulle part à l'affichage :
+la page d'accueil range les douze quartiers les plus actifs dessus et écarte
+ceux à zéro, la boîte de recherche l'annonce au visiteur à côté de chaque
+suggestion, la page d'estimation s'en sert pour ne proposer que des localités
+qui ont de la matière. Il n'était pourtant rafraîchi que par
+`db/seed/activity.mjs` — un script de **seed**. Un import le laissait donc
+derrière : mesuré après la collecte de 173 annonces, trente localités
+dérivaient, dont Phnom Penh de 110.
+
+Le calcul vit désormais dans `db/lib/locations.mjs` et la tâche horaire
+d'expiration le rejoue — c'est elle qui fait baisser les compteurs sans que
+personne ne touche à rien, et une heure suffit à rattraper un import lancé à la
+main. Deux corrections au passage : la descente de l'arbre est **récursive**
+(l'ancienne joignait la localité, ses enfants et ses petits-enfants en dur, et
+un quatrième niveau serait passé au travers), et une localité vidée **retombe à
+zéro** (un `UPDATE ... FROM (SELECT … GROUP BY)` ne touche que les lignes que
+la sous-requête produit, si bien qu'une localité sans annonce gardait son
+dernier chiffre pour toujours). `npm run check:locations` tient l'invariant et
+éprouve les deux pièges.
+
 **Une approximation se dit comme telle.** Les « doublons résiduels » ne sont
 pas observables : on ne connaît pas les doublons que le moteur a laissés
 passer. Ce qui est mesuré est la part des biens engagés dans au moins une paire
@@ -1482,7 +1503,7 @@ Neuf tâches tournent en dehors de l'application, sur un socle commun
 | `ops/process-media.sh` | **toutes les 15 minutes** | Génère et stocke les variantes WebP/AVIF/JPEG des médias en attente (§7) |
 | `ops/rescan-duplicates.sh` | **toutes les heures**, après le traitement des médias | Réévalue la file de déduplication avec les empreintes désormais calculées (§6.2) |
 | `ops/review-prices.sh` | **toutes les heures**, après la déduplication | Signale à la modération les prix très éloignés de la médiane de leur famille, et retire de la file ceux revenus dans les clous (§6.1) |
-| `ops/expire-listings.sh` | **horaire** | Bascule à `expired` les annonces passé 45 jours (§6.3) |
+| `ops/expire-listings.sh` | **horaire** | Bascule à `expired` les annonces passé 45 jours (§6.3), puis recalcule les compteurs d'annonces par localité |
 | `ops/billing.sh` | **quotidienne, 01:30** (après l'expiration de 01:00) | Cycle de facturation et de quotas : les places libérées profitent aux annonces retenues (§8) |
 | `ops/backup-db.sh` | **quotidienne, 02:15** | Sauvegarde de la base : dump vérifié par `pg_restore`, chiffré, copié hors site, rotation |
 | `ops/audit-retention.sh` | **hebdomadaire** | Archive puis purge le journal d'audit, et vérifie l'archive |

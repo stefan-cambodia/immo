@@ -13,6 +13,8 @@
  *   node db/seed/activity.mjs        # rejoue l'activité sur les biens présents
  */
 
+import { refreshLocationCounts } from "../lib/locations.mjs";
+
 /**
  * @param {import("pg").Client} db
  * @param {{rnd: () => number, pick: (a: any[]) => any, int: (a: number, b: number) => number,
@@ -82,17 +84,11 @@ export async function seedActivity(db, r) {
   console.log(`  ${viewCount} vues, ${leadCount} contacts`);
 
   // Les compteurs dénormalisés utilisés par la page d'accueil et les filtres.
-  await db.query(`
-    UPDATE locations SET listing_count = sub.n FROM (
-      SELECT loc.id, count(DISTINCT p.id) AS n
-      FROM locations loc
-      JOIN locations descendant ON descendant.id = loc.id
-        OR descendant.parent_id = loc.id
-        OR descendant.parent_id IN (SELECT id FROM locations WHERE parent_id = loc.id)
-      JOIN properties p ON p.location_id = descendant.id
-      JOIN listings l ON l.property_id = p.id AND l.status = 'active'
-      GROUP BY loc.id
-    ) sub WHERE locations.id = sub.id`);
+  // Le calcul vit dans db/lib/locations.mjs : il appartient au fonctionnement
+  // normal — la tâche horaire d'expiration le rejoue — et non au seed, qui
+  // n'est ici qu'un appelant parmi d'autres. En garder une copie ici, c'est
+  // s'assurer que les deux divergent.
+  await refreshLocationCounts(db);
 
   // File de déduplication : de quoi peupler le panneau de modération, et rien
   // de plus.

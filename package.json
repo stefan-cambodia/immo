@@ -76,7 +76,8 @@
     "projects:link-check": "node db/jobs/link-projects.mjs --dry-run",
     "prices:review": "node db/jobs/review-prices.mjs",
     "prices:review-check": "node db/jobs/review-prices.mjs --dry-run",
-    "check:prices": "node db/checks/price-review.mjs"
+    "check:prices": "node db/checks/price-review.mjs",
+    "check:locations": "node db/checks/locations.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
