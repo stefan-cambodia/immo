@@ -1,0 +1,22 @@
+-- =====================================================================
+-- Un immeuble dont on ne connaît pas l'état d'avancement.
+--
+-- `buildings.status` valait `completed` par défaut, ce qui convenait tant
+-- que tous les immeubles étaient saisis à la main : celui qui les
+-- saisissait savait. La collecte de programmes (migration 024) crée des
+-- immeubles à partir des annonces d'un portail, et cette information n'y
+-- est pas.
+--
+-- On aurait pu la deviner : la page d'annonce porte un `ribbon`. Vérifié
+-- sur un échantillon, il ne dit rien de l'immeuble — ses valeurs sont
+-- `urgent_sale`, `price_reduced`, `under_market_value`,
+-- `price_negotiable`, `ready_to_move_in` ou rien du tout. C'est une
+-- pastille commerciale sur l'annonce, pas l'état du chantier.
+--
+-- Laisser la valeur par défaut aurait donc fait afficher « Achevé » sur
+-- la fiche et sur le hub — une affirmation que rien n'appuie, et qui
+-- porte précisément sur ce qu'un acheteur sur plan vient vérifier. Un
+-- quatrième état dit l'ignorance au lieu de la maquiller.
+-- =====================================================================
+
+ALTER TYPE building_status ADD VALUE 'unknown';

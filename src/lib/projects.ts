@@ -16,7 +16,7 @@ import type { PropertyCard } from "./search";
 export interface ProjectSummary {
   slug: string;
   name: Record<string, string>;
-  status: "planned" | "under_construction" | "completed";
+  status: "planned" | "under_construction" | "completed" | "unknown";
   totalFloors: number | null;
   totalUnits: number | null;
   completionYear: number | null;
@@ -58,7 +58,8 @@ const PROJECT_SUMMARY_SELECT = `
 export async function listProjects(): Promise<ProjectSummary[]> {
   return query<ProjectSummary>(
     `${PROJECT_SUMMARY_SELECT}
-     ORDER BY b.status <> 'completed' DESC, COALESCE(s.listings, 0) DESC,
+     ORDER BY b.status IN ('planned', 'under_construction') DESC,
+              COALESCE(s.listings, 0) DESC,
               b.completion_year DESC NULLS LAST`
   );
 }
@@ -203,7 +204,8 @@ export async function getDeveloper(slug: string) {
   const projects = await query<ProjectSummary>(
     `${PROJECT_SUMMARY_SELECT}
      WHERE d.slug = $1
-     ORDER BY b.status <> 'completed' DESC, b.completion_year DESC NULLS LAST`,
+     ORDER BY b.status IN ('planned', 'under_construction') DESC,
+              b.completion_year DESC NULLS LAST`,
     [slug]
   );
   return { developer, projects };

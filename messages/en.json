@@ -519,6 +519,7 @@
     "status_planned": "Planned",
     "status_under_construction": "Under construction",
     "status_completed": "Completed",
+    "status_unknown": "Status not established",
     "byDeveloper": "By {name}",
     "inProject": "Listings in this project",
     "browseArea": "Browse the neighbourhood",

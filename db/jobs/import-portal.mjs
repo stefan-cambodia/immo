@@ -49,6 +49,8 @@ import { createMediaStore } from "../lib/media-store.mjs";
 import { storageKeys } from "../lib/media-upload.mjs";
 import { collect, fetchDetail, SOURCES, DEFAULT_DELAY_MS, MAX_PHOTOS }
   from "../lib/portal.mjs";
+import { createFromProject, findByProjectSlug, linkProject, purgeProjectBuildings }
+  from "../lib/buildings.mjs";
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(`--${n}`);
@@ -106,9 +108,16 @@ if (purge) {
       WHERE p.geo_pin_by LIKE 'portal:%'
         AND NOT EXISTS (SELECT 1 FROM listings l WHERE l.property_id = p.id)`);
   const { rowCount: nSubs } = await db.query(`DELETE FROM submissions WHERE source = 'portal'`);
+  // Les immeubles créés depuis un programme du portail partent avec le reste :
+  // sans quoi il resterait des pages de projet vides, et la provenance ne
+  // serait plus retirable d'une commande. Ceux qui portent encore un bien
+  // saisi ailleurs restent — la collecte ne les avait qu'inaugurés.
+  const nBuildings = await purgeProjectBuildings(db);
   await db.query("COMMIT");
-  log(`Retiré : ${nListings} annonce(s), ${nProps} bien(s), ${nSubs} soumission(s).`);
-  if (asJson) console.log(JSON.stringify({ purged: { listings: nListings, properties: nProps, submissions: nSubs } }));
+  log(`Retiré : ${nListings} annonce(s), ${nProps} bien(s), ${nSubs} soumission(s), `
+    + `${nBuildings} immeuble(s).`);
+  if (asJson) console.log(JSON.stringify({ purged: { listings: nListings, properties: nProps,
+                                                     submissions: nSubs, buildings: nBuildings } }));
   await db.end();
   process.exit(0);
 }
@@ -150,7 +159,7 @@ if (photosOnly) {
     + `${delayMs} ms entre deux requêtes par fil`);
 
   let done = 0, filled = 0, empty = 0, failed = 0, titled = 0, furnishedN = 0, equipped = 0;
-  let unchanged = 0;
+  let unchanged = 0, projectsCreated = 0, projectsLinked = 0;
   const queue = todo.slice();
 
   // Les fils partagent UNE connexion. Ce qui peut se faire de front, c'est
@@ -172,7 +181,7 @@ if (photosOnly) {
         const detail = await fetchDetail(item.sourceUrl);
         // `null` : page inaccessible ou illisible — pas de marque, on reprendra.
         if (detail === null) throw new Error("page d'annonce illisible");
-        const { photos, facts } = detail;
+        const { photos, facts, project } = detail;
         await serialized(async () => {
           try {
             await db.query("BEGIN");
@@ -227,6 +236,20 @@ if (photosOnly) {
                   }, l.hoodNames, l.txn))]);
               }
             }
+            // Le programme, quand la page en nomme un : c'est ici, et seulement
+            // ici, qu'on a son NOM — donc de quoi créer l'immeuble qui manque.
+            // Le rattachement vaut pour toutes ses unités d'un coup : la
+            // première annonce lue d'un programme inaugure son immeuble et y
+            // accroche ses voisines.
+            if (project) {
+              const existing = await findByProjectSlug(db, project.slug);
+              const building = existing ?? await createFromProject(db, project);
+              if (building) {
+                const n = await linkProject(db, { buildingId: building.id, slug: project.slug });
+                if (!existing) projectsCreated++;
+                projectsLinked += n;
+              }
+            }
             await db.query(
               `UPDATE submissions
                   SET payload = payload || jsonb_build_object('detailFetchedAt', now(),
@@ -255,8 +278,10 @@ if (photosOnly) {
   await Promise.all(Array.from({ length: Math.max(1, concurrency) }, worker));
   log(`Galeries : ${filled} lue(s) dont ${unchanged} inchangée(s), ${empty} sans photo publiée, ${failed} en échec`);
   log(`Faits    : ${titled} régime(s) de propriété, ${furnishedN} meublé(s), ${equipped} avec équipements`);
+  log(`Projets  : ${projectsCreated} immeuble(s) créé(s), ${projectsLinked} bien(s) rattaché(s)`);
   if (asJson) console.log(JSON.stringify({ photos: { filled, empty, failed },
-                                           facts: { titled, furnished: furnishedN, equipped } }));
+                                           facts: { titled, furnished: furnishedN, equipped },
+                                           projects: { created: projectsCreated, linked: projectsLinked } }));
   await db.end();
   process.exit(0);
 }
@@ -373,7 +398,11 @@ for (const rec of records) {
     normalized: {
       propertyType: rec.propertyType,
       locationId: loc.id,
-      buildingId: null,
+      // La liste désigne le programme par son adresse, mais ne le nomme pas :
+      // de quoi rattacher à un immeuble déjà connu, pas d'en créer un. Les
+      // programmes inconnus attendent la passe `--photos`, ou
+      // `link-projects.mjs --fetch` qui n'ouvre qu'une page par programme.
+      buildingId: (await findByProjectSlug(db, rec.projectSlug))?.id ?? null,
       floor: rec.floor,
       unitNumber: null,
       bedrooms: rec.bedrooms,

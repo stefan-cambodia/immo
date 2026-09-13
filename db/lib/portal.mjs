@@ -206,6 +206,36 @@ function extractTotal(html) {
 const AREA_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
+ * L'adresse d'un programme chez la source : `/new-developments/<slug>/…`.
+ *
+ * Les annonces d'un même immeuble neuf y sont rangées, et l'adresse porte donc
+ * le slug canonique du programme. Une annonce ordinaire vit sous `/buy/` ou
+ * `/rent/` et n'en a pas.
+ *
+ * Le motif vaut pour l'adresse d'une annonce comme pour celle du programme
+ * lui-même (`/new-developments/time-square-306/`), que l'en-tête de la page
+ * donne : c'est le même slug. Le hub `/new-developments/` n'en porte aucun et
+ * ne correspond pas.
+ */
+const PROJECT_PATH = /^\/new-developments\/([a-z0-9][a-z0-9-]*)\//;
+
+/**
+ * Le slug du programme d'une adresse d'annonce — `null` si elle n'en relève
+ * pas.
+ *
+ * Rapprocher deux programmes demande une égalité EXACTE de slug, jamais une
+ * ressemblance : la source distingue `urban-village-phase-1` de
+ * `urban-village-phase-2`, `the-peak-residences` de `the-peak` et
+ * `time-square-3` de `time-square-306`. Ce sont des programmes ou des phases
+ * distincts, et un à-peu-près rangerait des annonces sous le mauvais projet.
+ */
+export function projectSlug(url) {
+  if (typeof url !== "string") return null;
+  const path = url.startsWith("http") ? new URL(url).pathname : url;
+  return path.match(PROJECT_PATH)?.[1] ?? null;
+}
+
+/**
  * Traduit une annonce du portail en fiche de faits.
  *
  * Retourne `null` si l'annonce n'est pas exploitable : catégorie hors
@@ -252,6 +282,10 @@ export function toRecord(raw, source) {
     portal: source.slug,
     externalRef: String(raw.id),
     sourceUrl: `${source.origin}${raw.url}`,
+    // La liste ne nomme pas le programme, mais son adresse le désigne : de quoi
+    // rattacher l'annonce à un immeuble DÉJÀ connu. En créer un demande son
+    // nom, que seule la page de l'annonce porte (voir `fetchDetail`).
+    projectSlug: projectSlug(raw.url),
     transaction,
     category: raw.categoryName,
     propertyType: type,
@@ -395,7 +429,33 @@ export function toFacts(features) {
 }
 
 /**
- * Lit la page d'une annonce : sa galerie complète et ses faits structurés.
+ * Le programme d'une annonce, tel que son en-tête le donne.
+ *
+ * `header.addressUrl` est le discriminant : il vaut `null` sur une annonce
+ * ordinaire, dont le champ `address` est alors une adresse postale
+ * (« , Sala Kamraeuk, Siem Reap, Siem Reap ») et non un nom de projet. On ne
+ * lit donc le nom que lorsque l'adresse le désigne comme tel.
+ */
+export function toProject(header, pageUrl) {
+  const slug = projectSlug(header?.addressUrl);
+  if (!slug) return null;
+  const name = String(header?.address ?? "").trim();
+  if (!name) return null;
+  // Rien d'autre n'est repris. En particulier pas `ribbon`, qui ressemble à un
+  // état d'avancement et n'en est pas : relevé sur un échantillon, il vaut
+  // `urgent_sale`, `price_reduced`, `under_market_value`, `price_negotiable`,
+  // `ready_to_move_in` ou rien — une pastille commerciale sur l'annonce, qui ne
+  // dit pas où en est le chantier. L'état d'un immeuble créé par la collecte
+  // reste donc `unknown` (migration 025).
+  // L'adresse est absolue, comme `listings.source_url` : c'est l'attribution
+  // de la source, et un chemin nu ne mène nulle part.
+  const url = pageUrl ? new URL(header.addressUrl, pageUrl).href : header.addressUrl;
+  return { slug, name, url };
+}
+
+/**
+ * Lit la page d'une annonce : sa galerie complète, ses faits structurés et le
+ * programme dont elle relève.
  *
  * C'est une requête par annonce : à n'appeler que sur les annonces déjà
  * retenues, jamais en balayage. Renvoie `null` si la page est inaccessible ou
@@ -416,6 +476,7 @@ export async function fetchDetail(sourceUrl, { fetchImpl, max = MAX_PHOTOS } = {
   return {
     photos: Array.isArray(images) ? toPhotos(images, max) : [],
     facts: toFacts(listing.features),
+    project: toProject(listing.header, sourceUrl),
   };
 }
 

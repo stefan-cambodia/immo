@@ -519,6 +519,7 @@
     "status_planned": "គ្រោងទុក",
     "status_under_construction": "កំពុងសាងសង់",
     "status_completed": "បានបញ្ចប់",
+    "status_unknown": "មិនទាន់ដឹងស្ថានភាព",
     "byDeveloper": "ដោយ {name}",
     "inProject": "ការផ្សាយក្នុងគម្រោងនេះ",
     "browseArea": "រកមើលក្នុងតំបន់",

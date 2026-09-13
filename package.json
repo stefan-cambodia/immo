@@ -71,7 +71,9 @@
     "check:dedup": "node db/checks/dedup.mjs",
     "metrics:purge": "ops/purge-metrics.sh",
     "metrics:purge-check": "ops/purge-metrics.sh --dry-run",
-    "check:portal": "node db/checks/portal.mjs"
+    "check:portal": "node db/checks/portal.mjs",
+    "projects:link": "node db/jobs/link-projects.mjs",
+    "projects:link-check": "node db/jobs/link-projects.mjs --dry-run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

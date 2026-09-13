@@ -7,6 +7,10 @@ const STATUS_STYLE: Record<string, { background: string; color: string }> = {
   planned: { background: "var(--color-surface-alt)", color: "var(--color-ink-soft)" },
   under_construction: { background: "var(--color-gold-soft)", color: "var(--color-gold)" },
   completed: { background: "var(--color-fresh-soft)", color: "var(--color-fresh)" },
+  // Un immeuble créé par la collecte : la source ne dit pas où en est le
+  // chantier, et la pastille ne doit donc rien affirmer. Ton neutre, à part
+  // du « planifié » qui est, lui, une information.
+  unknown: { background: "var(--color-surface-alt)", color: "var(--color-ink-soft)" },
 };
 
 export function ProjectStatusChip({ status, t }: { status: string; t: Translator }) {

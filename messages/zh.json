@@ -519,6 +519,7 @@
     "status_planned": "规划中",
     "status_under_construction": "在建",
     "status_completed": "已交付",
+    "status_unknown": "状态未确认",
     "byDeveloper": "开发商：{name}",
     "inProject": "该项目内的房源",
     "browseArea": "浏览周边片区",

@@ -14,7 +14,7 @@
  *   node db/checks/portal.mjs
  */
 import { collect, toRecord, toPhotos, fetchPhotos, fetchDetail, toFacts,
-         parsePrice, parseArea, addressParts,
+         parsePrice, parseArea, addressParts, projectSlug, toProject,
          SOURCES, PER_SQM, MAX_PHOTOS } from "../lib/portal.mjs";
 
 let pass = 0, fail = 0;
@@ -300,6 +300,72 @@ const none = await collect({ portal: "realestate.com.kh", transaction: "sale",
                              pages: 5, delayMs: 0, fetchImpl: failing });
 check("un refus du serveur arrête la collecte au lieu d'insister",
       stopped.length === 1 && none.length === 0);
+
+// ------------------------------------------------ Programme immobilier
+console.log("\nProgramme immobilier");
+check("l'adresse d'une annonce de programme livre son slug",
+      projectSlug("/new-developments/time-square-306/1-bed-1-bath-condo-267734/")
+        === "time-square-306");
+check("une adresse absolue aussi",
+      projectSlug("https://www.realestate.com.kh/new-developments/vue-aston/2-bed-1/")
+        === "vue-aston");
+check("l'adresse du programme lui-même aussi",
+      projectSlug("/new-developments/vue-aston/") === "vue-aston");
+check("une annonce ordinaire n'a pas de programme",
+      projectSlug("/rent/sala-kamraeuk/1-bed-1-bath-apartment-262478/") === null
+        && projectSlug("/buy/siem-reap/") === null);
+check("le hub des programmes n'est pas un programme",
+      projectSlug("/new-developments/") === null);
+check("une adresse absente ne fabrique rien",
+      projectSlug(null) === null && projectSlug(undefined) === null);
+
+// Le rapprochement se fait sur ces slugs : ils doivent rester DISTINCTS. La
+// source publie côte à côte des programmes dont les noms se ressemblent, et
+// une correspondance approchée rangerait des annonces sous le mauvais projet.
+const voisins = ["urban-village-phase-1", "urban-village-phase-2", "urban-village",
+                 "the-peak", "the-peak-residences", "time-square-3", "time-square-306"];
+check("des programmes aux noms voisins gardent des slugs distincts",
+      new Set(voisins.map((v) => projectSlug(`/new-developments/${v}/x-1/`))).size
+        === voisins.length);
+
+const header = { address: "Time Square 306", addressUrl: "/new-developments/time-square-306/",
+                 ribbon: "urgent_sale" };
+const project = toProject(header, "https://www.realestate.com.kh/new-developments/time-square-306/1-bed-267734/");
+check("l'en-tête livre le nom du programme", project?.name === "Time Square 306", project?.name);
+check("et son adresse absolue, comme attribution",
+      project?.url === "https://www.realestate.com.kh/new-developments/time-square-306/",
+      project?.url);
+// `ribbon` ressemble à un état d'avancement et n'en est pas : `urgent_sale`,
+// `price_reduced`, `under_market_value` sont des pastilles commerciales. Le
+// reprendre ferait afficher un état de chantier qu'on ne connaît pas.
+check("la pastille commerciale n'est pas reprise", !("ribbon" in (project ?? {})));
+
+check("une annonce ordinaire ne donne pas de programme",
+      toProject({ address: "  , Sala Kamraeuk, Siem Reap, Siem Reap", addressUrl: null },
+                "https://www.realestate.com.kh/rent/sala-kamraeuk/1-bed-262478/") === null);
+check("une adresse de programme sans nom n'en invente pas",
+      toProject({ address: "   ", addressUrl: "/new-developments/vue-aston/" },
+                "https://www.realestate.com.kh/x/") === null);
+check("sans en-tête, rien n'est affirmé", toProject(undefined, "https://x.test/") === null);
+
+const withProject = await fetchDetail("https://www.realestate.com.kh/new-developments/vue-aston/2-bed-1/", {
+  fetchImpl: () => Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(
+    `<html><script id="__NEXT_DATA__" type="application/json">${JSON.stringify({ props: { pageProps: {
+      cacheData: { listing: { data: { showCase: { images: gallery }, features,
+        header: { address: "Vue Aston", addressUrl: "/new-developments/vue-aston/" } } } } } } })}</script></html>`) }) });
+check("la page livre le programme avec les photos et les faits",
+      withProject?.project?.slug === "vue-aston" && withProject.photos.length === 2
+        && withProject.facts.titleType === "hard");
+check("une page sans programme le dit par `null`", detail?.project === null);
+
+// La liste ne nomme pas le programme, mais son adresse le désigne : de quoi
+// rattacher à un immeuble connu sans ouvrir la page.
+const inProject = toRecord(raw({ url: "/new-developments/the-bridge/1-bed-1-bath-condo-1/" }),
+                           SOURCES["realestate.com.kh"]);
+check("la fiche issue de la liste porte le slug du programme",
+      inProject?.projectSlug === "the-bridge", String(inProject?.projectSlug));
+check("et `null` quand l'annonce n'en relève pas",
+      toRecord(raw({}), SOURCES["realestate.com.kh"])?.projectSlug === null);
 
 console.log(`\n${pass} réussite(s), ${fail} échec(s).`);
 process.exit(fail ? 1 : 0);

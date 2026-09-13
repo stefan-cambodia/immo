@@ -60,6 +60,8 @@ portails » pour ce qui est repris et ce qui ne l'est pas.
 | `npm run media:process` | Télécharge les images et produit les variantes locales |
 | `npm run portal:import-check` | Simulation d'une page, rien n'est écrit |
 | `npm run portal:purge` | Retire tout ce qui provient d'un portail |
+| `npm run projects:link` | Rattache les annonces collectées aux immeubles déjà connus |
+| `npm run projects:link -- --fetch` | Lit une page par programme inconnu, crée son immeuble |
 | `npm run seed:activity` | Rejoue vues, contacts et dossiers sur les biens présents |
 
 **Les contrôles `db/checks/` passent sur les deux bases.** Ce n'était pas le cas :
@@ -778,6 +780,72 @@ est ignoré. C'est ce qui fait vivre sur le jeu réel les filtres « meublé »,
 « piscine », « ascenseur » — et « éligible étranger », qui découle du régime
 `strata` et de l'étage (§5.3). Les faits ne sont écrits que sur les biens
 créés par la collecte, jamais sur une fiche saisie par une agence.
+
+**Le programme immobilier, et pourquoi il était récupérable.** Les pages de
+projet existaient depuis la phase 3, et sur le jeu réel elles étaient toutes
+vides : vingt-deux immeubles, aucune annonce. Un visiteur qui cliquait tombait
+sur une coquille. La cause semblait rédhibitoire — la décision n°1 interdit de
+reprendre le titre et le texte de l'annonce, et c'est là qu'un nom d'immeuble
+apparaîtrait normalement.
+
+Il apparaît ailleurs. Le portail range les annonces d'un même programme sous
+son adresse — `/new-developments/time-square-306/1-bed-1-bath-condo-267734/` —
+et la page le redit dans son en-tête, comme champ structuré : `addressUrl`
+porte l'adresse du programme, `address` son nom. Une annonce ordinaire a
+`addressUrl` à `null` et une adresse postale dans `address` : le discriminant
+est net, rien à deviner. Un nom de programme est un fait, au même titre que la
+commune ou le prix.
+
+Le slug était donc **déjà en base**, dans `listings.source_url`, sans qu'aucune
+requête soit nécessaire : 306 des 3 232 annonces collectées relèvent d'un
+programme, sur 78 programmes distincts, dont 6 portaient déjà le slug d'un de
+nos immeubles. Le nom, lui, n'est que sur la page — mais il appartient au
+programme et non à l'annonce, si bien qu'UNE page par programme suffit. C'est
+la différence entre 72 requêtes et 3 232, et c'est ce qui a rendu l'opération
+proportionnée. `npm run projects:link` fait les deux étages : le rattachement
+hors ligne d'abord, puis `--fetch` pour lire le nom des programmes inconnus,
+créer leur immeuble et y accrocher leurs unités. Résultat sur le jeu réel :
+84 immeubles dont 62 issus de la collecte, 294 biens rattachés, **68 pages de
+projet qui portent de vraies annonces** au lieu de zéro.
+
+Les imports suivants n'en ont plus besoin : la page de liste désigne le
+programme par son adresse, ce qui suffit à rattacher une annonce à un immeuble
+déjà connu, et la passe `--photos` — qui ouvre de toute façon la page de chaque
+annonce — crée celui qui manque. `projects:link` reste l'outil d'un rattrapage
+sur une base collectée avant cette bascule, où les pages ont déjà été lues et
+ne le seront pas deux fois.
+
+Trois décisions à l'intérieur, et chacune a coûté d'être posée :
+
+- **le rapprochement est exact, jamais approché.** La source publie côte à
+  côte `urban-village-phase-1`, `urban-village-phase-2` et notre
+  `urban-village`, ou encore `the-peak-residences` et `the-peak`,
+  `time-square-3` et `time-square-306`. Ce sont des phases ou des programmes
+  distincts : une similarité lâche rangerait des annonces sous le mauvais
+  projet, ce qui se voit immédiatement sur la fiche ;
+- **un immeuble créé n'affirme pas son état d'avancement.** La colonne
+  `buildings.status` valait `completed` par défaut, ce qui convenait tant que
+  chaque immeuble était saisi par quelqu'un qui savait. La page d'annonce
+  porte bien un `ribbon`, qui ressemble à un état de chantier — relevé sur un
+  échantillon, il vaut `urgent_sale`, `price_reduced`, `under_market_value`,
+  `price_negotiable`, `ready_to_move_in` ou rien : une pastille commerciale,
+  qui ne dit rien de l'immeuble. Laisser la valeur par défaut aurait fait
+  afficher « Achevé » sur le hub et sur la fiche, sans rien pour l'appuyer, et
+  précisément sur le point qu'un acheteur sur plan vient vérifier. D'où un
+  quatrième état, `unknown` (migration 025), qui dit l'ignorance au lieu de la
+  maquiller. Les étages, le nombre d'unités et l'année de livraison restent
+  vides : un immeuble issu de la collecte est une coquille juste mais pauvre,
+  à enrichir à la main ;
+- **la position est dérivée, pas géocodée.** Un immeuble exige un point, et le
+  principe n°2 interdit de géocoder une adresse texte. Le point retenu est le
+  barycentre des pins de ses propres unités — des positions que des agents ont
+  posées. Sans unité positionnée, l'immeuble n'est pas créé.
+
+Enfin, la provenance : un immeuble créé par la collecte porte l'adresse de la
+page du programme dans `buildings.source_url` (migration 024), et
+`npm run portal:purge` l'emporte avec le reste dès qu'aucun bien ne l'occupe
+plus. Sans cela, retirer un portail aurait laissé derrière lui des pages de
+projet vides — la décision n°3 ne tenait plus.
 
 **Ce qu'on n'invente pas non plus.** Aucun dossier de vérification de titre
 n'est fabriqué sur les biens collectés. Le panneau de vérification et le badge

@@ -11,6 +11,8 @@
  */
 import pg from "pg";
 import { sweep, buildingWithListings } from "./fixtures.mjs";
+import { createFromProject, findByProjectSlug, linkProject, projectProperties,
+         purgeProjectBuildings } from "../lib/buildings.mjs";
 
 const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf(`--${n}`); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
@@ -114,6 +116,74 @@ check("chaque projet est dans le sitemap",
       buildings.every((b) => xml.includes(`/en/project/${b.slug}`)),
       buildings.filter((b) => !xml.includes(`/en/project/${b.slug}`)).map((b) => b.slug).join(", "));
 check("le promoteur est dans le sitemap", xml.includes(`/en/developer/${dev.slug}`), "");
+
+// ------------------------------------ Rattachement au programme collecté
+// Le portail range les annonces d'un immeuble neuf sous l'adresse du
+// programme ; ces vérifications portent sur ce que la base en fait. Tout se
+// passe dans une transaction annulée, sur de vrais biens.
+console.log("\nRattachement au programme collecté");
+await db.query("BEGIN");
+const { rows: [collected] } = await db.query(
+  `SELECT b.id, b.slug, count(p.id)::int AS biens
+     FROM buildings b JOIN properties p ON p.building_id = b.id
+    WHERE b.source_url IS NOT NULL
+    GROUP BY b.id, b.slug ORDER BY count(p.id) DESC LIMIT 1`);
+check("un programme collecté porte des biens", Boolean(collected),
+      "lancer npm run projects:link -- --fetch");
+if (collected) {
+  check("l'immeuble se retrouve par son slug exact",
+        (await findByProjectSlug(db, collected.slug))?.id === collected.id);
+  // La source publie côte à côte `urban-village-phase-1` et `urban-village` :
+  // un rapprochement approché rangerait les unes sous l'autre.
+  check("un slug voisin ne le retrouve pas",
+        (await findByProjectSlug(db, collected.slug + "-phase-9")) === null
+          && (await findByProjectSlug(db, collected.slug.slice(0, -1))) === null);
+
+  // Détaché puis reconstruit depuis ses propres unités.
+  await db.query(`UPDATE properties SET building_id = NULL WHERE building_id = $1`, [collected.id]);
+  await db.query(`DELETE FROM buildings WHERE id = $1`, [collected.id]);
+  const pending = await projectProperties(db, collected.slug);
+  check("ses biens redeviennent des candidats", pending.length === collected.biens,
+        `${pending.length} vs ${collected.biens}`);
+
+  const rebuilt = await createFromProject(db, {
+    slug: collected.slug, name: "Contrôle Programme",
+    url: `https://source.test/new-developments/${collected.slug}/` });
+  const { rows: [made] } = await db.query(
+    `SELECT status::text AS status, source_url AS "sourceUrl", name_i18n AS name,
+            location_id IS NOT NULL AS "hasLocation", geo_point IS NOT NULL AS "hasPoint"
+       FROM buildings WHERE id = $1`, [rebuilt.id]);
+  // La source ne dit pas où en est le chantier : la fiche ne doit pas
+  // annoncer « achevé », qui est justement ce qu'un acheteur sur plan vérifie.
+  check("l'immeuble créé n'affirme pas son état d'avancement", made.status === "unknown", made.status);
+  check("il porte l'adresse de la source, pour l'attribution et la purge",
+        String(made.sourceUrl).includes("/new-developments/"), String(made.sourceUrl));
+  check("son nom est le même dans les quatre langues",
+        new Set(["fr", "en", "zh-Hans", "km"].map((l) => made.name[l])).size === 1,
+        JSON.stringify(made.name));
+  check("sa localité et son point sont dérivés de ses unités",
+        made.hasLocation && made.hasPoint);
+
+  const linked = await linkProject(db, { buildingId: rebuilt.id, slug: collected.slug });
+  check("tous ses biens s'y rattachent", linked === collected.biens, `${linked}`);
+  check("un second passage ne rattache rien de plus",
+        (await linkProject(db, { buildingId: rebuilt.id, slug: collected.slug })) === 0);
+
+  // La purge : un immeuble collecté encore occupé reste, vidé il part.
+  const stillThere = async () =>
+    (await db.query(`SELECT 1 FROM buildings WHERE id = $1`, [rebuilt.id])).rowCount === 1;
+  await purgeProjectBuildings(db);
+  check("occupé, il survit à la purge", await stillThere());
+  await db.query(`UPDATE properties SET building_id = NULL WHERE building_id = $1`, [rebuilt.id]);
+  await purgeProjectBuildings(db);
+  check("vidé, la purge l'emporte", !(await stillThere()));
+  // Un immeuble saisi à la main n'a pas d'adresse de source : la purge d'un
+  // portail ne doit pas y toucher.
+  check("un immeuble saisi à la main n'est pas emporté",
+        (await db.query(`SELECT count(*)::int n FROM buildings WHERE source_url IS NULL`))
+          .rows[0].n >= 22);
+}
+await db.query("ROLLBACK");
 
 await db.end();
 console.log(`\n  ${pass} vérifications passées, ${fail} échouées`);

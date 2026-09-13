@@ -519,6 +519,7 @@
     "status_planned": "En projet",
     "status_under_construction": "En construction",
     "status_completed": "Livré",
+    "status_unknown": "État non établi",
     "byDeveloper": "Par {name}",
     "inProject": "Annonces dans ce projet",
     "browseArea": "Explorer le quartier",
