@@ -287,6 +287,67 @@ export async function resolveDedup(form: FormData) {
   revalidatePath("/[locale]/backoffice", "page");
 }
 
+/**
+ * Tranche un signalement de prix invraisemblable (§6.1).
+ *
+ * Deux issues, et une seule touche à l'annonce. « Prix correct » referme le
+ * signalement : l'annonce reste telle quelle, et le job ne la resignalera pas
+ * tant que son prix n'aura pas changé. « Prix faux » la retire du catalogue en
+ * la passant en `rejected` — on ne corrige pas le montant à la place de la
+ * source, parce qu'on ne le connaît pas : la maison à 350 dollars vaut
+ * peut-être 350 par mètre carré, peut-être 35 000, et inventer un chiffre
+ * serait pire que le retirer.
+ */
+export async function resolvePriceReview(form: FormData) {
+  const locale = localeOf(form);
+  const user = await guard(locale, "admin");
+
+  const id = Number(form.get("id"));
+  const decision = String(form.get("decision"));
+  if (!Number.isFinite(id) || !["sound", "wrong"].includes(decision)) return;
+
+  await withTransaction(async (client) => {
+    // Même verrou que la file de déduplication : deux modérateurs sur le même
+    // cas produiraient deux entrées de journal pour une seule décision.
+    const { rows } = await client.query(
+      `SELECT r.id, r.price_usd, r.median_usd, r.ratio, r.listing_id,
+              p.reference, l.transaction_type::text AS transaction
+       FROM price_reviews r
+       JOIN listings l ON l.id = r.listing_id
+       JOIN properties p ON p.id = l.property_id
+       WHERE r.id = $1 AND r.reviewed_at IS NULL
+       FOR UPDATE OF r`,
+      [id]);
+    const review = rows[0];
+    if (!review) return;
+
+    if (decision === "wrong") {
+      await client.query(
+        `UPDATE listings SET status = 'rejected', updated_at = now() WHERE id = $1`,
+        [review.listing_id]);
+    }
+    await client.query(
+      `UPDATE price_reviews SET reviewed_at = now(), decision = $2 WHERE id = $1`,
+      [id, decision]);
+
+    await recordAudit(client, actorFromUser(user), {
+      action: decision === "wrong" ? "price_rejected" : "price_confirmed",
+      targetType: "price_review",
+      targetId: String(id),
+      targetLabel: review.reference,
+      details: {
+        priceUsd: Number(review.price_usd),
+        medianUsd: Number(review.median_usd),
+        ratio: Number(review.ratio),
+        transaction: review.transaction,
+        listingId: review.listing_id,
+      },
+    });
+  });
+
+  revalidatePath("/[locale]/backoffice", "page");
+}
+
 /** Ajoute un terme non résolu comme alias d'une localité (§5.2, §10). */
 export async function addAlias(form: FormData) {
   const locale = localeOf(form);

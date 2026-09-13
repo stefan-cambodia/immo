@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "service:install": "ops/install-scheduler.sh --scope user --web --timer process-media --timer rescan-duplicates --port 3111",
+    "service:install": "ops/install-scheduler.sh --scope user --web --timer process-media --timer rescan-duplicates --timer review-prices --port 3111",
     "service:status": "ops/install-scheduler.sh --status",
     "service:restart": "npm run build && systemctl --user restart cambodia-immo-web && systemctl --user --no-pager --lines=0 status cambodia-immo-web",
     "service:logs": "journalctl --user -u cambodia-immo-web -n 50 --no-pager",
@@ -73,7 +73,10 @@
     "metrics:purge-check": "ops/purge-metrics.sh --dry-run",
     "check:portal": "node db/checks/portal.mjs",
     "projects:link": "node db/jobs/link-projects.mjs",
-    "projects:link-check": "node db/jobs/link-projects.mjs --dry-run"
+    "projects:link-check": "node db/jobs/link-projects.mjs --dry-run",
+    "prices:review": "node db/jobs/review-prices.mjs",
+    "prices:review-check": "node db/jobs/review-prices.mjs --dry-run",
+    "check:prices": "node db/checks/price-review.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

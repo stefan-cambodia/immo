@@ -15,13 +15,15 @@ export const AUDIT_ACTIONS = [
   "account_created", "account_invited", "account_status_changed", "password_set",
   "totp_enabled", "totp_disabled",
   "media_uploaded", "media_removed",
+  "price_confirmed", "price_rejected",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 export type AuditTarget =
   | "session" | "property" | "listing" | "location" | "dedup_candidate" | "audit_log"
-  | "agency" | "invoice" | "title_verification" | "api_partner" | "api_key" | "user" | "media";
+  | "agency" | "invoice" | "title_verification" | "api_partner" | "api_key" | "user" | "media"
+  | "price_review";
 
 export interface AuditEntry {
   action: AuditAction;

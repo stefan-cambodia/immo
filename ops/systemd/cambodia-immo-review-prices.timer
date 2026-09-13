@@ -1,0 +1,16 @@
+[Unit]
+Description=Khmer Estate — file des prix invraisemblables (horaire, après la déduplication)
+
+[Timer]
+Unit=cambodia-immo@review-prices.service
+# À :45, en queue de la chaîne horaire : médias à :20, déduplication à :25,
+# prix à :45. Les médianes de référence se calculent sur les annonces actives,
+# et une annonce retirée entre-temps ne doit plus peser dedans.
+OnCalendar=*-*-* *:45:00
+# Rattrape une exécution manquée pendant un arrêt de la machine.
+Persistent=true
+RandomizedDelaySec=2min
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

@@ -955,11 +955,46 @@ loués 8 000 par mois. Aucun seuil en dollars ne sépare mieux, parce que le
 marché cambodgien va légitimement de la parcelle de province au penthouse de
 Tonlé Bassac.
 
-La conclusion est donc de ne rien écarter automatiquement, et de ne pas
-prétendre le contraire. Ce qui conviendrait est ce que le projet fait déjà pour
-les doublons : signaler à un humain plutôt que décider — une file de
-modération « prix invraisemblable », alimentée par la même logique de
-majorant, où l'on tranche annonce par annonce. Ce n'est pas fait.
+La conclusion est donc de ne rien écarter automatiquement, et de faire ce que
+le projet fait déjà pour les doublons : **signaler à un humain plutôt que
+décider**. `ops/review-prices.sh` tient une file de modération, et l'annonce
+reste publiée tant que personne n'a regardé — la retirer sur un soupçon
+coûterait plus cher que le prix faux qu'on corrige.
+
+La règle compare un prix à la **médiane de sa famille** — type de bien ×
+transaction —, jamais à un montant absolu : un loyer et un prix de vente n'ont
+pas d'échelle commune, ni un studio et une villa. Au-delà d'un facteur 20 dans
+un sens ou dans l'autre, le cas part en file. Deux garde-fous écartent ce que
+la règle ne sait pas juger, et chacun est mesuré plutôt que choisi :
+
+- **une famille de moins de trente annonces n'a pas de médiane utilisable.**
+  Sept locations de terrain ne disent rien d'un marché ;
+- **une famille dont l'étendue propre dépasse déjà le facteur échappe au
+  test.** Le terrain est dans ce cas, et de loin : son rapport p90/p10 vaut
+  72,8 quand aucune autre famille ne dépasse 10,2. Une parcelle de province à
+  5 000 dollars et un terrain commercial à 64 millions sont tous deux réels ;
+  leur médiane commune ne sépare rien. C'est ce qui produisait 39 des 50 faux
+  positifs des premiers essais.
+
+Résultat sur le jeu réel : **onze cas en file** sur 3 405 annonces, les plus
+écartés en tête — une maison à 61,87 millions (399 fois sa médiane), la maison
+louée 69 900 par mois (127 fois), la maison à 350 dollars (un 443ᵉ). Le
+panneau de modération donne le prix, la médiane de référence et le lien vers
+l'annonce d'origine, qui est la seule façon de trancher : c'est là qu'on lit si
+l'annonceur s'est trompé de case.
+
+Deux issues, et une seule touche à l'annonce. « Prix correct » referme le
+signalement, et le job ne rouvrira pas le cas tant que le prix n'aura pas
+changé. « Prix faux » passe l'annonce en `rejected`. On ne corrige jamais le
+montant à la place de la source, parce qu'on ne le connaît pas : la maison à
+350 dollars vaut peut-être 350 le mètre carré, peut-être 35 000, et inventer un
+chiffre serait pire que retirer l'annonce. Les deux décisions entrent au
+journal d'audit avec l'écart constaté — « prix faux » retire une annonce du
+catalogue, et c'est exactement ce qu'une agence viendra contester.
+
+La file se vide aussi toute seule : un prix revenu dans les clous en sort sans
+qu'on tranche. Une file qui ne se vide que par décision se remplit de questions
+périmées.
 
 **Ce qu'on n'invente pas non plus.** Aucun dossier de vérification de titre
 n'est fabriqué sur les biens collectés. Le panneau de vérification et le badge
@@ -1438,7 +1473,7 @@ le point de santé signalant tout schéma en retard entre les deux derniers.
 
 ## Tâches planifiées
 
-Huit tâches tournent en dehors de l'application, sur un socle commun
+Neuf tâches tournent en dehors de l'application, sur un socle commun
 (`ops/lib/job-runner.sh`) :
 
 | Tâche | Cadence visée | Rôle |
@@ -1446,6 +1481,7 @@ Huit tâches tournent en dehors de l'application, sur un socle commun
 | `ops/send-alerts.sh` | **toutes les 15 minutes** | Envoie les alertes dues ; purge les inscriptions non confirmées |
 | `ops/process-media.sh` | **toutes les 15 minutes** | Génère et stocke les variantes WebP/AVIF/JPEG des médias en attente (§7) |
 | `ops/rescan-duplicates.sh` | **toutes les heures**, après le traitement des médias | Réévalue la file de déduplication avec les empreintes désormais calculées (§6.2) |
+| `ops/review-prices.sh` | **toutes les heures**, après la déduplication | Signale à la modération les prix très éloignés de la médiane de leur famille, et retire de la file ceux revenus dans les clous (§6.1) |
 | `ops/expire-listings.sh` | **horaire** | Bascule à `expired` les annonces passé 45 jours (§6.3) |
 | `ops/billing.sh` | **quotidienne, 01:30** (après l'expiration de 01:00) | Cycle de facturation et de quotas : les places libérées profitent aux annonces retenues (§8) |
 | `ops/backup-db.sh` | **quotidienne, 02:15** | Sauvegarde de la base : dump vérifié par `pg_restore`, chiffré, copié hors site, rotation |
@@ -1455,7 +1491,7 @@ Huit tâches tournent en dehors de l'application, sur un socle commun
 L'ordonnancement est fourni sous `ops/systemd/` — une unité modèle
 `cambodia-immo@.service` (instanciée par tâche, durcie : `ProtectSystem=strict`,
 seule `var/` est inscriptible, environnement dans `/etc/cambodia-immo/env`)
-et huit timers `Persistent=true` — avec un repli `ops/cron.d/cambodia-immo`
+et neuf timers `Persistent=true` — avec un repli `ops/cron.d/cambodia-immo`
 pour les hôtes sans systemd. `ops/install-scheduler.sh` rend les fichiers
 (chemin et utilisateur d'exécution substitués), les installe, recharge et
 active les timers ; `--timer NOM` n'en pose qu'un — répétable, et un nom

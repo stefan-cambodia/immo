@@ -15,7 +15,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { billingOverview, listPlans, openInvoices } from "@/lib/billing";
 import { indicators, localeMix, WINDOW_DAYS, type Indicator } from "@/lib/indicators";
 import { signOut } from "../login/actions";
-import { createProperty, resolveDedup, addAlias, confirmListing, pinSubmission,
+import { createProperty, resolveDedup, resolvePriceReview, addAlias, confirmListing, pinSubmission,
          approveTranslation, changeTier, issueInvoice, markInvoicePaid,
          voidInvoice, setVerification, requestTitleVerification,
          advanceTitleVerification, concludeTitleVerification,
@@ -130,7 +130,7 @@ export default async function BackofficePage({
   const issuedApiKey = store?.get("issued_api_key")?.value ?? null;
   const issuedInviteLink = store?.get("issued_invite_link")?.value ?? null;
 
-  const [locations, agents, dedup, misses, expiring, reuse, leadStats,
+  const [locations, agents, dedup, prices, misses, expiring, reuse, leadStats,
          audit, auditTotal, span, pending, translations,
          billingRows, invoicesOpen, plans, verifRows,
          titleDossiers, titlePartners, apiPartners, accounts, totp, uploads,
@@ -163,6 +163,22 @@ export default async function BackofficePage({
        JOIN properties a ON a.id = d.property_a_id
        JOIN properties b ON b.id = d.property_b_id
        WHERE d.reviewed_at IS NULL ORDER BY d.score DESC LIMIT 8`) : [],
+    // Prix invraisemblables : les plus écartés d'abord, dans les deux sens —
+    // un prix cent fois trop haut et un prix cent fois trop bas sont deux
+    // erreurs, et le tri par ratio brut mettrait la seconde en dernier.
+    isAdmin ? query<{
+      id: number; reference: string; type: string; transaction: string;
+      price: string; median: string; ratio: string; reasons: string[]; sourceUrl: string | null;
+    }>(
+      `SELECT r.id, p.reference, p.property_type::text AS type,
+              l.transaction_type::text AS transaction,
+              r.price_usd AS price, r.median_usd AS median, r.ratio, r.reasons,
+              l.source_url AS "sourceUrl"
+       FROM price_reviews r
+       JOIN listings l ON l.id = r.listing_id
+       JOIN properties p ON p.id = l.property_id
+       WHERE r.reviewed_at IS NULL
+       ORDER BY greatest(r.ratio, 1 / nullif(r.ratio, 0)) DESC LIMIT 8`) : [],
     isAdmin ? query<{ id: number; query: string; locale: string; createdAt: string; n: string }>(
       `SELECT min(id) AS id, query, min(locale::text) AS locale,
               max(created_at) AS "createdAt", count(*) AS n
@@ -659,6 +675,66 @@ export default async function BackofficePage({
                     <input type="hidden" name="decision" value="distinct" />
                     <button className="btn btn-outline" style={{ padding: "0.3125rem 0.75rem", fontSize: "0.8125rem" }}>
                       {t("backoffice.distinct")}
+                    </button>
+                  </form>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+        )}
+
+        {/* Prix invraisemblables — modération uniquement */}
+        {isAdmin && (
+        <Panel title={`${t("backoffice.priceQueue")} (${prices.length})`} hint={t("backoffice.priceQueueHint")}>
+          {prices.length === 0 && (
+            <p style={{ fontSize: "0.875rem", color: "var(--color-ink-soft)" }}>—</p>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {prices.map((r) => (
+              <div key={r.id} style={{
+                border: "1px solid var(--color-line)", borderRadius: "0.625rem", padding: "0.75rem",
+              }}>
+                <div style={{ display: "flex", gap: "0.5rem", justifyContent: "space-between", flexWrap: "wrap" }}>
+                  <Link href={`/${locale}/property/${r.reference}`} style={{ fontWeight: 700 }}>
+                    {r.reference}
+                  </Link>
+                  <span className="chip" style={{ background: "var(--color-stale-soft)", color: "var(--color-stale)" }}>
+                    {r.reasons.join(", ")}
+                  </span>
+                </div>
+                <div style={{ fontSize: "0.8125rem", color: "var(--color-ink-soft)",
+                              marginTop: "0.5rem", lineHeight: 1.6 }}>
+                  {t(`propertyType.${r.type}`)} · {t(`transaction.${r.transaction}`)}<br />
+                  <strong>{formatUsd(r.price, locale)}</strong>
+                  {" — "}{t("backoffice.priceMedian")} {formatUsd(r.median, locale)}
+                  {/* Le lien vers la source est la seule façon de trancher :
+                      c'est là qu'on lit si l'annonceur s'est trompé de case. */}
+                  {r.sourceUrl && (
+                    <>
+                      <br />
+                      <a href={r.sourceUrl} target="_blank" rel="noopener noreferrer nofollow"
+                         style={{ fontSize: "0.75rem" }}>
+                        {t("backoffice.priceSource")}
+                      </a>
+                    </>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.625rem" }}>
+                  <form action={resolvePriceReview}>
+                    <input type="hidden" name="locale" value={locale} />
+                    <input type="hidden" name="id" value={r.id} />
+                    <input type="hidden" name="decision" value="sound" />
+                    <button className="btn btn-outline" style={{ padding: "0.3125rem 0.75rem", fontSize: "0.8125rem" }}>
+                      {t("backoffice.priceSound")}
+                    </button>
+                  </form>
+                  <form action={resolvePriceReview}>
+                    <input type="hidden" name="locale" value={locale} />
+                    <input type="hidden" name="id" value={r.id} />
+                    <input type="hidden" name="decision" value="wrong" />
+                    <button className="btn btn-primary" style={{ padding: "0.3125rem 0.75rem", fontSize: "0.8125rem" }}>
+                      {t("backoffice.priceWrong")}
                     </button>
                   </form>
                 </div>
