@@ -81,6 +81,26 @@ check("un immeuble identifié corrobore sans photo",
       scoreMatch(input({ buildingId: "imm-1" }),
                  row({ building_id: "imm-1" })).corroborated === true);
 
+// Un immeuble dit où sont les deux biens, pas qu'ils n'en font qu'un. Quand
+// les surfaces se contredisent franchement, il ne peut plus corroborer — et
+// la collecte crée désormais des immeubles de trente-cinq unités, où deux
+// appartements différents partagent l'adresse sans rien d'autre.
+const memeImmeubleSurfaceIncompatible = scoreMatch(
+  input({ buildingId: "imm-1", indoorAreaSqm: 58 }),
+  row({ building_id: "imm-1", indoor_area_sqm: 120 }));
+check("… mais plus quand les surfaces se contredisent",
+      memeImmeubleSurfaceIncompatible.corroborated === false,
+      memeImmeubleSurfaceIncompatible.reasons.join(", "));
+check("… même si la note reste au-dessus du seuil",
+      memeImmeubleSurfaceIncompatible.score >= QUEUE_THRESHOLD,
+      String(memeImmeubleSurfaceIncompatible.score));
+// La photo, elle, est plus forte que ce désaccord : une annonce peut donner la
+// surface habitable là où l'autre donne celle du terrain.
+check("une photo partagée corrobore malgré des surfaces contradictoires",
+      scoreMatch(input({ buildingId: "imm-1", indoorAreaSqm: 58 }),
+                 row({ building_id: "imm-1", indoor_area_sqm: 120, photo_distance: 0 }))
+        .corroborated === true);
+
 // -------------------------------------------------------------- Décisions
 console.log("Décision de l'entonnoir");
 

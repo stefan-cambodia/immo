@@ -525,6 +525,17 @@ Trois changements, tous mesurés plutôt que devinés :
    s'applique QUE si les photos ont pu être regardées ; un canal qui n'en
    fournit pas retombe sur le comportement d'origine, parce qu'une file trop
    large vaut mieux qu'un doublon publié sans que personne ne l'ait vu.
+   L'immeuble a cependant cessé de corroborer à lui seul quand les surfaces se
+   contredisent : il dit où sont les deux biens, pas qu'ils n'en font qu'un, et
+   « au-delà de cet écart, les surfaces ne décrivent plus le même bien » ne
+   peut pas être démenti par une adresse commune. Le point n'était que
+   théorique tant qu'aucun bien collecté n'avait d'immeuble ; il a cessé de
+   l'être le jour où la collecte s'est mise à en créer, certains de
+   trente-cinq unités — trois paires à 26, 33 et 41 % d'écart étaient en file.
+   Une photo partagée, plus forte que ce désaccord parce qu'une annonce peut
+   donner la surface habitable là où l'autre donne celle du terrain, corrobore
+   toujours : les huit paires contradictoires qui restent en file le sont
+   toutes à ce titre.
 3. **La file est réévaluée quand la preuve arrive** — `ops/rescan-duplicates.sh`,
    toutes les heures après `ops/process-media.sh`. Deux passes : élagage des
    paires que les photos ne soutiennent pas, rattrapage de celles qu'elles

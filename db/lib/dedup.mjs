@@ -93,7 +93,23 @@ export function scoreMatch(input, row) {
    * mieux vaut une file trop large qu'un doublon publié sans que personne ne
    * l'ait vu.
    */
-  const corroborated = sameBuilding || (photo !== null && photo <= PHASH_MAYBE);
+  /*
+   * Une surface franchement incompatible retire à l'immeuble son pouvoir de
+   * corroborer. « Au-delà de cet écart, les surfaces ne décrivent plus le même
+   * bien » (voir AREA_INCOMPATIBLE) : un immeuble commun ne dément pas cela,
+   * il dit seulement que les deux sont au même endroit. Le désaccord ne pesait
+   * qu'une pénalité de score, que le +0,35 de l'immeuble annulait, et des
+   * paires à 26, 33 et 41 % d'écart se retrouvaient en file — d'autant plus
+   * que la collecte crée désormais des immeubles, dont certains portent
+   * trente-cinq unités.
+   *
+   * Une photo partagée, elle, reste plus forte que le désaccord de surface :
+   * une annonce peut donner la surface habitable là où l'autre donne celle du
+   * terrain. Elle continue donc de corroborer.
+   */
+  const areaContradicts = delta !== null && delta > AREA_INCOMPATIBLE;
+  const corroborated = (photo !== null && photo <= PHASH_MAYBE)
+                    || (sameBuilding && !areaContradicts);
 
   return { score: Math.min(1, Math.max(0, score)), reasons, strong, ownListing,
            photo, delta, corroborated };
