@@ -128,9 +128,19 @@ Trois choses en découlent, et chacune avait besoin d'être réglée :
   base éteinte. `/api/health` répond alors 503 le temps que PostgreSQL revienne,
   et l'unité réessaie — c'est le comportement voulu, pas une panne.
 
-Les tâches planifiées ne sont **pas** installées (`--no-timers`) : personne ne
-veut voir sa machine de travail lancer des sauvegardes, un cycle de facturation
-et des envois d'alertes. Les retirer : `--no-timers` en moins.
+**Deux tâches planifiées sur huit.** Personne ne veut voir sa machine de
+travail lancer des sauvegardes, un cycle de facturation et des envois
+d'alertes ; l'installation locale en écartait donc l'ensemble
+(`--no-timers`). C'était trop large dans l'autre sens : le traitement des
+médias et la réévaluation de la file de déduplication ne font que du calcul
+local, sur la base et le disque de la machine, et ce sont précisément les deux
+qui doivent tourner seuls — le premier parce qu'une collecte laisse des
+milliers d'images à décliner, le second parce que la déduplication a décidé
+avant que les empreintes de ces images n'existent (voir « Tâches planifiées »).
+`npm run service:install` pose donc le serveur plus ces deux timers,
+`--timer process-media --timer rescan-duplicates`, et rien d'autre. Pour les
+avoir tous : `ops/install-scheduler.sh --scope user --web --port 3111`. Pour
+n'en avoir aucun : `--no-timers`.
 
 Après une modification du code : `npm run build && systemctl --user restart
 cambodia-immo-web`. Le port 3111 appartient désormais au service — inutile de
