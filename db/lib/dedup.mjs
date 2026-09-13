@@ -106,10 +106,24 @@ export function scoreMatch(input, row) {
    * Une photo partagée, elle, reste plus forte que le désaccord de surface :
    * une annonce peut donner la surface habitable là où l'autre donne celle du
    * terrain. Elle continue donc de corroborer.
+   *
+   * Et l'immeuble ne corrobore plus seul, même sans contradiction. Il SITUE,
+   * il n'IDENTIFIE pas : trente-cinq unités partagent l'adresse d'Urban
+   * Village Phase 2, et « même immeuble + même nombre de chambres » décrit
+   * l'étage entier. Il faut donc en plus quelque chose qui distingue une unité
+   * de sa voisine — l'étage, ou une surface qui coïncide à 2 %. Une surface
+   * « proche à 10 % » n'en est pas : sur un 58 m², dix pour cent valent près
+   * de six mètres carrés, soit une pièce.
+   *
+   * Mesuré avant de le faire : les paires corroborées par une photo ont un
+   * prix identique dans 60 % des cas — de vrais doublons ; celles que seul
+   * l'immeuble corroborait, dans 10,5 % — des voisines. C'est ce que ce
+   * resserrage retire.
    */
   const areaContradicts = delta !== null && delta > AREA_INCOMPATIBLE;
+  const unitDistinguished = sameFloor || (delta !== null && delta <= 0.02);
   const corroborated = (photo !== null && photo <= PHASH_MAYBE)
-                    || (sameBuilding && !areaContradicts);
+                    || (sameBuilding && !areaContradicts && unitDistinguished);
 
   return { score: Math.min(1, Math.max(0, score)), reasons, strong, ownListing,
            photo, delta, corroborated };

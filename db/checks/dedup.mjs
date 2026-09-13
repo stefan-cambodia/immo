@@ -77,9 +77,24 @@ check("une photo ressemblante corrobore aussi",
       scoreMatch(input(), row({ photo_distance: 9 })).corroborated === true);
 check("une photo sans rapport ne corrobore pas",
       scoreMatch(input(), row({ photo_distance: 22 })).corroborated === false);
-check("un immeuble identifié corrobore sans photo",
+// L'immeuble situe, il n'identifie pas : trente-cinq unités partagent
+// l'adresse d'un même programme. Il corrobore accompagné de ce qui distingue
+// une unité de sa voisine — l'étage, ou une surface qui coïncide à 2 %.
+check("un immeuble identifié corrobore avec l'étage",
       scoreMatch(input({ buildingId: "imm-1" }),
                  row({ building_id: "imm-1" })).corroborated === true);
+check("… ou avec une surface qui coïncide",
+      scoreMatch(input({ buildingId: "imm-1", floor: null }),
+                 row({ building_id: "imm-1", floor: null })).corroborated === true);
+check("… mais pas seul, fût-ce avec le nombre de chambres",
+      scoreMatch(input({ buildingId: "imm-1", floor: null, indoorAreaSqm: null }),
+                 row({ building_id: "imm-1", floor: null, indoor_area_sqm: null }))
+        .corroborated === false);
+// Dix pour cent d'un 58 m², c'est près de six mètres carrés : une pièce.
+check("… ni avec une surface seulement « proche à 10 % »",
+      scoreMatch(input({ buildingId: "imm-1", floor: null }),
+                 row({ building_id: "imm-1", floor: null, indoor_area_sqm: 63 }))
+        .corroborated === false);
 
 // Un immeuble dit où sont les deux biens, pas qu'ils n'en font qu'un. Quand
 // les surfaces se contredisent franchement, il ne peut plus corroborer — et

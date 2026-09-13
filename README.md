@@ -525,17 +525,21 @@ Trois changements, tous mesurés plutôt que devinés :
    s'applique QUE si les photos ont pu être regardées ; un canal qui n'en
    fournit pas retombe sur le comportement d'origine, parce qu'une file trop
    large vaut mieux qu'un doublon publié sans que personne ne l'ait vu.
-   L'immeuble a cependant cessé de corroborer à lui seul quand les surfaces se
-   contredisent : il dit où sont les deux biens, pas qu'ils n'en font qu'un, et
-   « au-delà de cet écart, les surfaces ne décrivent plus le même bien » ne
-   peut pas être démenti par une adresse commune. Le point n'était que
-   théorique tant qu'aucun bien collecté n'avait d'immeuble ; il a cessé de
-   l'être le jour où la collecte s'est mise à en créer, certains de
-   trente-cinq unités — trois paires à 26, 33 et 41 % d'écart étaient en file.
-   Une photo partagée, plus forte que ce désaccord parce qu'une annonce peut
-   donner la surface habitable là où l'autre donne celle du terrain, corrobore
-   toujours : les huit paires contradictoires qui restent en file le sont
-   toutes à ce titre.
+   L'immeuble, lui, ne corrobore plus **seul**. Il situe, il n'identifie pas :
+   trente-cinq unités partagent l'adresse d'Urban Village Phase 2, et « même
+   immeuble + même nombre de chambres » décrit un étage entier. Il lui faut
+   donc l'étage, ou une surface qui coïncide à 2 % — pas « proche à 10 % », qui
+   sur un 58 m² laisse passer près de six mètres carrés, soit une pièce. Et
+   des surfaces franchement contradictoires lui retirent ce pouvoir de toute
+   façon : « au-delà de cet écart, les surfaces ne décrivent plus le même
+   bien » ne se dément pas par une adresse commune. Une photo partagée reste
+   plus forte que ce désaccord — une annonce peut donner la surface habitable
+   là où l'autre donne celle du terrain — et corrobore toujours.
+
+   Rien de tout cela n'était visible tant qu'aucun bien collecté n'avait
+   d'immeuble. Le jour où la collecte s'est mise à en créer, 142 paires sont
+   entrées en file dans la journée au seul motif de l'adresse commune, dont
+   trois à 26, 33 et 41 % d'écart de surface.
 3. **La file est réévaluée quand la preuve arrive** — `ops/rescan-duplicates.sh`,
    toutes les heures après `ops/process-media.sh`. Deux passes : élagage des
    paires que les photos ne soutiennent pas, rattrapage de celles qu'elles
@@ -562,12 +566,20 @@ les échecs ne se valent pas »), si bien que la réévaluation ne pouvait ni
 confirmer ni écarter : sa simulation ne sortait que 37 paires sur 943.
 
 Une fois les 16 924 médias hachés, sans exception, le job a retiré 303 paires
-et en a déposé 82. Il reste **488 paires pour 727 biens**, et surtout **plus
-une seule sans corroboration** : 316 partagent une photographie, 172 un
-immeuble identifié. Les paires fabriquées par le seed sont parties avec les
-autres, faute de preuve — ce qui est la bonne réponse. La règle du moteur tient
-donc sur l'ensemble du jeu réel, et non plus seulement sur l'échantillon où
-elle avait été écrite.
+et en a déposé 82, ne laissant **plus une seule paire sans corroboration** —
+les paires fabriquées par le seed sont parties avec les autres, faute de
+preuve, ce qui est la bonne réponse.
+
+Restait à savoir ce que valait la corroboration elle-même, et un chiffre l'a
+dit : la part des paires dont les deux biens affichent le MÊME PRIX. Sur les
+paires corroborées par une photographie, 60 % — de vrais doublons. Sur celles
+que seul l'immeuble corroborait, 10,5 % — des voisines. D'où le resserrage
+décrit plus haut : l'immeuble ne corrobore plus qu'accompagné de l'étage ou
+d'une surface qui coïncide. Après réévaluation, **428 paires pour 644 biens**,
+dont 321 par la photographie et 107 par l'immeuble, et la précision de cette
+seconde moitié passe de 10,5 % à 16,8 %. La règle du moteur tient donc sur
+l'ensemble du jeu réel, et non plus seulement sur l'échantillon où elle avait
+été écrite.
 
 Le rattrapage a d'abord été aveugle, et il a fallu le mesurer pour le voir :
 93 paires photo-identiques dans le périmètre de présélection, 45 hors de la
@@ -1124,11 +1136,12 @@ Telegram. Le troisième chiffre, lui, a rendu service autrement : les 48 % de bi
 en file de déduplication ont conduit à examiner la file, à y trouver 95 % de
 faux positifs, et à corriger le moteur (voir « Ce que les annonces réelles ont
 appris au moteur »). Il était retombé à 14,1 % ; sur la base d'aujourd'hui il
-vaut **21,4 %** — 727 biens pour 488 paires — et c'est un chiffre qu'il faut
-lire avec le suivant : **toutes ces paires sont corroborées**, 316 par une
-photographie partagée et 172 par un immeuble identifié. La cible de 5 % n'est
-pas tenue, mais la file dit quelque chose de vrai, ce qui n'était pas le cas
-la veille (voir « La file décidait avant que la preuve n'existe »).
+vaut **18,9 %** — 644 biens pour 428 paires — et c'est un chiffre qu'il faut
+lire avec le suivant : **toutes ces paires sont corroborées**, 321 par une
+photographie partagée et 107 par un immeuble accompagné de l'étage ou de la
+surface. La cible de 5 % n'est pas tenue, mais la file dit quelque chose de
+vrai, ce qui n'était pas le cas la veille (voir « La file décidait avant que la
+preuve n'existe »).
 
 ### L'instrumentation des deux mesures manquantes
 
