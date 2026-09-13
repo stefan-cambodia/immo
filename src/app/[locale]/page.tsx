@@ -41,7 +41,11 @@ export default async function HomePage({
       (SELECT count(*) FROM properties p
         WHERE EXISTS (SELECT 1 FROM listings l WHERE l.property_id = p.id AND l.status='active')) AS properties,
       (SELECT count(*) FROM listings WHERE status='active') AS listings,
-      (SELECT count(*) FROM agencies) AS agencies,
+      -- Les agences qui proposent réellement quelque chose, comme le font les
+      -- pages d'atterrissage. Compter la table entière annonçait « 13 agences »
+      -- quand les 3 405 annonces venaient d'une seule : douze comptes de
+      -- démonstration, sans une annonce, figuraient au bandeau.
+      (SELECT count(DISTINCT agency_id) FROM listings WHERE status='active') AS agencies,
       (SELECT count(*) FROM listings l WHERE l.status='active'
         AND (SELECT count(DISTINCT agency_id) FROM listings x
              WHERE x.property_id = l.property_id AND x.status='active') > 1) AS merged

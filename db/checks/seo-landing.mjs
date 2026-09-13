@@ -90,7 +90,11 @@ const bodies = {};
 for (const area of ["bkk1", "tuol-tumpung"]) {
   bodies[area] = await (await fetch(`${BASE}/en/buy/${area}`)).text();
 }
-const intro = (h) => (h.match(/(\d[\d,]* verified properties, offered by \d+ agencies\.[^<]*)/) ?? [])[1];
+// Deux formulations : « offered by N agencies » quand plusieurs agences
+// proposent, rien quand il n'y en a qu'une — le traducteur n'accorde pas le
+// pluriel. Le mot « verified » a disparu : aucun bien n'était vérifié.
+const intro = (h) =>
+  (h.match(/(\d[\d,]* properties(?:, offered by \d+ agencies)?\. Median price[^<]*)/) ?? [])[1];
 check("le texte est écrit depuis les chiffres du quartier",
       Boolean(intro(bodies.bkk1)) && intro(bodies.bkk1) !== intro(bodies["tuol-tumpung"]),
       `${intro(bodies.bkk1)} / ${intro(bodies["tuol-tumpung"])}`);
@@ -104,6 +108,41 @@ for (const [path, expected] of [["/en/search", 200], ["/en/login", 200],
                                 ["/en/agency/ips-cambodia", 200], ["/en/foo/bar", 404]]) {
   const res = await fetch(BASE + path, { redirect: "manual" });
   check(`${path} → ${expected}`, res.status === expected, String(res.status));
+}
+
+// ------------------------------------------------ Ce que le site affirme
+// Les chiffres du bandeau et le texte des pages d'atterrissage sont publics,
+// et ces dernières sont indexées. Le jeu engendré les rendait vrais par
+// construction ; sur la base réelle, la page d'accueil annonçait « 3 405 biens
+// vérifiés » quand aucun ne l'était, et « 13 agences partenaires » quand les
+// annonces venaient d'une seule, collectée sans accord.
+console.log("\nCe que le site affirme");
+const { rows: [verite] } = await db.query(`
+  SELECT (SELECT count(*) FROM properties WHERE verified_at IS NOT NULL)::int AS verifies,
+         (SELECT count(DISTINCT agency_id) FROM listings WHERE status = 'active')::int AS agences`);
+const home = await (await fetch(`${BASE}/en`)).text();
+const texte = (html) => html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<[^>]+>/g, " ");
+if (verite.verifies === 0) {
+  check("aucun bien vérifié : la page d'accueil ne dit pas « verified »",
+        !/verified propert/i.test(texte(home)), "« verified properties » affiché");
+}
+const bandeau = texte(home).match(/([\d,]+)\s+agencies/i);
+check(`le bandeau compte les agences qui proposent quelque chose (${verite.agences})`,
+      bandeau && Number(bandeau[1].replace(/,/g, "")) === verite.agences,
+      bandeau ? bandeau[0] : "compte introuvable");
+
+// Le traducteur n'accorde pas le pluriel : à une seule agence, le texte doit
+// taire le compte plutôt qu'écrire « 1 agencies ».
+const landingPath = (await db.query(`
+  SELECT '/en/buy/' || loc.slug AS path FROM locations loc
+   WHERE loc.listing_count > 0 ORDER BY loc.listing_count DESC LIMIT 1`)).rows[0]?.path;
+if (landingPath) {
+  const landing = texte(await (await fetch(BASE + landingPath)).text());
+  check(`une page d'atterrissage ne dit pas « 1 agencies » (${landingPath})`,
+        !/\b1 agencies\b/.test(landing), "« 1 agencies » affiché");
+  if (verite.verifies === 0) {
+    check("… ni « verified »", !/verified propert/i.test(landing), "« verified » affiché");
+  }
 }
 
 await db.end();

@@ -169,7 +169,10 @@ export async function LandingPage({ params }: { params: LandingParams }) {
               {/* Texte écrit depuis les chiffres réels de la combinaison : deux
                   quartiers ne produisent pas la même page. */}
               <p>
-                {t("landing.intro", {
+                {/* À une seule agence, le compte ne dit rien — et le
+                    traducteur n'accorde pas le pluriel : « 1 agences ». Même
+                    règle que la bulle de la carte. */}
+                {t(stats.agencies > 1 ? "landing.intro" : "landing.introOneSource", {
                   count: formatNumber(stats.properties, locale),
                   agencies: stats.agencies,
                   median: stats.priceMedian ? formatUsd(stats.priceMedian, locale, true) : "—",
