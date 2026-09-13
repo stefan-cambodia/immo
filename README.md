@@ -62,12 +62,31 @@ portails » pour ce qui est repris et ce qui ne l'est pas.
 | `npm run portal:purge` | Retire tout ce qui provient d'un portail |
 | `npm run seed:activity` | Rejoue vues, contacts et dossiers sur les biens présents |
 
-**Les contrôles `db/checks/` visent le jeu engendré**, pas celui-ci : plusieurs
-d'entre eux cherchent un bien précis — un projet neuf avec annonces, un condo
-en titre strata, un bien proposé par plusieurs agences — que des données
-réelles collectées sur un seul portail ne contiennent pas. Les lancer après
-`npm run setup` ; `npm run check:portal` est le seul qui porte sur la collecte
-elle-même, et il tourne hors ligne.
+**Les contrôles `db/checks/` passent sur les deux bases.** Ce n'était pas le cas :
+cinq d'entre eux cherchaient un bien que seul le jeu engendré fournissait — un
+projet neuf avec annonces, un bien proposé par deux agences, une annonce
+d'agence premium, un dossier de titre confirmé — et échouaient sur la base
+réelle sans qu'aucun défaut n'existe. Cinq lignes rouges permanentes finissent
+par cacher la sixième, celle qui compte. `db/checks/fixtures.mjs` fabrique
+désormais ces formes à la demande, sur de vrais biens, et les défait ensuite :
+dans une transaction annulée quand le contrôle est seul à lire, validées puis
+retirées quand c'est le serveur web qui doit les voir — il lit sur sa propre
+connexion et ne verrait jamais une transaction ouverte ailleurs. Les objets
+créés portent le préfixe `chk-`, et chaque contrôle balaie au démarrage ce
+qu'une exécution interrompue aurait laissé.
+
+Le gain n'est pas seulement cosmétique : la parité entre la fonction SQL de
+recherche et la route de carte, huit cas qui étaient tous sautés faute
+d'immeuble peuplé, s'éprouve à nouveau. `npm run check:portal` reste le seul
+qui porte sur la collecte elle-même, et il tourne hors ligne.
+
+Une fixture ne doit pas pour autant faire taire ce que l'échec disait : quand
+un contrôle a dû fabriquer une forme, il l'écrit entre parenthèses dans sa
+sortie. C'est ainsi qu'on voit que la base de démonstration n'avait aucun
+dossier de titre — `seed:activity` avait tourné avant que `portal:photos` ne
+renseigne les régimes de propriété, et n'avait donc trouvé aucun condo strata
+à vérifier. Le rejouer suffit : il vide ses quatre tables avant de les
+remplir.
 
 #### Tenir le site allumé sur sa machine
 

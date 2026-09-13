@@ -20,6 +20,7 @@ import { FakeMailer } from "../lib/mail.mjs";
 import { FakeTelegram } from "../lib/telegram.mjs";
 import { handleUpdate } from "../lib/bot.mjs";
 import { getTranslator } from "../lib/messages.mjs";
+import { sweep, buildingWithListings } from "./fixtures.mjs";
 
 const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf(`--${n}`); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
@@ -35,6 +36,7 @@ const check = (label, ok, detail = "") => {
 const db = new pg.Client({
   connectionString: process.env.DATABASE_URL ?? "postgres://immo:immo@localhost:5433/cambodia_immo" });
 await db.connect();
+await sweep(db);
 
 const tag = "chk" + Math.random().toString(36).slice(2, 8);
 const emailOf = (n) => `${tag}-${n}@example.test`;
@@ -51,13 +53,17 @@ if (!serverUp) {
      GROUP BY l.slug ORDER BY count(*) DESC LIMIT 1`);
   const { rows: [city] } = await db.query(
     `SELECT slug FROM locations WHERE level = 'district' ORDER BY listing_count DESC LIMIT 1`);
-  const { rows: [bld] } = await db.query(
+  // Les annonces collectées ne sont pas rattachées à un immeuble : à défaut
+  // d'en trouver un peuplé, la fixture en pose un sur de vrais biens. La
+  // parité se mesure entre la fonction SQL et une route dynamique, qui liront
+  // toutes deux la donnée validée.
+  const { rows: [seeded] } = await db.query(
     `SELECT b.slug FROM buildings b JOIN properties p ON p.building_id = b.id
      GROUP BY b.slug ORDER BY count(*) DESC LIMIT 1`);
-  // Les annonces collectées ne sont pas rattachées à un immeuble : seul le
-  // jeu engendré fournit les trois ancrages de la parité.
-  check("le seed fournit quartier, district et immeuble peuplés",
-        Boolean(hood && city && bld), "lancer npm run db:seed");
+  const bld = seeded ?? await buildingWithListings(db);
+  check("quartier, district et immeuble peuplés",
+        Boolean(hood && city && bld), "la base n'a pas de quoi ancrer la parité");
+  if (!seeded && bld) console.log("  (immeuble peuplé fabriqué pour le contrôle)");
   const cases = !(hood && city && bld) ? [] : [
     { transaction: "sale", locationSlug: hood.slug },
     { transaction: "rent", locationSlug: city.slug, types: ["condo"], bedsMin: 2, priceMax: 2500 },
@@ -68,14 +74,18 @@ if (!serverUp) {
     { transaction: "sale", bbox: [104.90, 11.54, 104.95, 11.58] },
     { transaction: "sale", polygon: [[104.90, 11.54], [104.95, 11.54], [104.95, 11.58], [104.90, 11.58]] },
   ];
-  for (const f of cases) {
-    const canon = canonicalFilters(f);
-    const qs = filtersToQuery(canon);
-    const points = await (await fetch(`${BASE}/api/map${qs}`)).json();
-    const { rows: [{ n }] } = await db.query(
-      `SELECT count(*)::int n FROM search_filter_matches($1::jsonb, NULL)`, [JSON.stringify(canon)]);
-    check(`${qs.slice(1, 70)} → ${n} bien(s)`, points.length === n && n > 0,
-          `SQL ${n} vs page ${points.length}`);
+  try {
+    for (const f of cases) {
+      const canon = canonicalFilters(f);
+      const qs = filtersToQuery(canon);
+      const points = await (await fetch(`${BASE}/api/map${qs}`)).json();
+      const { rows: [{ n }] } = await db.query(
+        `SELECT count(*)::int n FROM search_filter_matches($1::jsonb, NULL)`, [JSON.stringify(canon)]);
+      check(`${qs.slice(1, 70)} → ${n} bien(s)`, points.length === n && n > 0,
+            `SQL ${n} vs page ${points.length}`);
+    }
+  } finally {
+    await bld?.release?.();
   }
 }
 

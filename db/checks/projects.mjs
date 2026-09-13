@@ -10,6 +10,7 @@
  *   node db/checks/projects.mjs [--base http://localhost:3111]
  */
 import pg from "pg";
+import { sweep, buildingWithListings } from "./fixtures.mjs";
 
 const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf(`--${n}`); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
@@ -24,6 +25,7 @@ const check = (label, ok, detail = "") => {
 const db = new pg.Client({
   connectionString: process.env.DATABASE_URL ?? "postgres://immo:immo@localhost:5433/cambodia_immo" });
 await db.connect();
+await sweep(db);
 
 // ------------------------------------------------------------------- Hub
 console.log("Hub des projets");
@@ -46,16 +48,29 @@ check("les chantiers en cours existent en base", wip.length > 0, "aucun");
 
 // ------------------------------------------------------- Fiche projet
 console.log("\nFiche projet");
-// Les annonces collectées ne sont pas rattachées à un immeuble : seul le jeu
-// engendré fournit un projet avec annonces.
-const withListings = buildings.find((b) => b.listings > 0);
-check("le seed fournit un projet avec annonces", Boolean(withListings), "lancer npm run db:seed");
-if (withListings) {
-  const rich = await (await fetch(`${BASE}/en/project/${withListings.slug}`)).text();
-  check(`la fiche porte le nom du projet (${withListings.slug})`,
-        rich.includes(withListings.name), withListings.name);
-  check("données structurées ApartmentComplex", rich.includes("ApartmentComplex"), "");
-  check("la fiche liste des annonces", rich.includes("/en/property/"), "");
+// Un projet portant des annonces. Les annonces collectées sur un portail ne
+// sont rattachées à aucun immeuble ; à défaut d'en trouver un peuplé, le
+// contrôle en fabrique un et lui rattache de vrais biens le temps de la
+// lecture. Il est créé après le relevé du hub et du sitemap, qui portent sur
+// les projets de la base et n'ont pas à connaître celui-ci.
+const populated = buildings.find((b) => b.listings > 0);
+const withListings = populated ?? await buildingWithListings(db);
+check("un projet porte des annonces", Boolean(withListings), "aucune annonce à vendre en base");
+if (!populated && withListings) console.log(
+  "  (aucun projet peuplé en base : le contrôle en a fabriqué un — les annonces"
+  + " collectées ne nomment pas leur immeuble)");
+try {
+  if (withListings) {
+    const rich = await (await fetch(`${BASE}/en/project/${withListings.slug}`)).text();
+    check(`la fiche porte le nom du projet (${withListings.slug})`,
+          rich.includes(withListings.name), withListings.name);
+    check("données structurées ApartmentComplex", rich.includes("ApartmentComplex"), "");
+    check("la fiche liste des annonces", rich.includes("/en/property/"), "");
+  }
+} finally {
+  // Un immeuble de contrôle laissé en base apparaîtrait sur le hub des projets
+  // et dans le sitemap : il part même si une assertion a levé.
+  await withListings?.release?.();
 }
 
 // Un projet sans annonce reste consultable et indexable.
@@ -73,7 +88,7 @@ const missing = await fetch(`${BASE}/en/project/does-not-exist`);
 check("projet inconnu → 404", missing.status === 404, String(missing.status));
 
 console.log("\nBalises par langue");
-const anyProject = withListings ?? buildings[0];
+const anyProject = buildings[0];
 const fr = await (await fetch(`${BASE}/fr/project/${anyProject.slug}`)).text();
 for (const lang of ["fr", "en", "zh-Hans", "km"]) {
   check(`hreflang ${lang}`, fr.includes(`hrefLang="${lang}"`), "");

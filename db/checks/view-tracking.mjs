@@ -10,6 +10,7 @@
  *   node db/checks/view-tracking.mjs [--base http://localhost:3111]
  */
 import pg from "pg";
+import { sharedProperty } from "./fixtures.mjs";
 
 const args = process.argv.slice(2);
 const opt = (n, d) => { const i = args.indexOf(`--${n}`); return i >= 0 && args[i + 1] ? args[i + 1] : d; };
@@ -98,13 +99,21 @@ check("le taux de contact reste plausible",
       `${((manual.leads / manual.views) * 100).toFixed(1)} %`);
 
 // Une vue porte sur un bien : les agences qui partagent le bien la partagent.
+// Les annonces collectées viennent toutes d'un même portail, donc d'une même
+// agence ; la deuxième est posée le temps de la lecture, dans une transaction
+// annulée — le contrôle n'a rien à publier, il n'a qu'à compter.
+await db.query("BEGIN");
+const seeded = await sharedProperty(db);
+check("deux agences peuvent proposer le même bien", Boolean(seeded),
+      "aucune seconde agence avec un agent — lancer npm run db:seed-base");
 const { rows: [shared] } = await db.query(`
   SELECT v.property_id, count(DISTINCT l.agency_id)::int AS agencies
   FROM property_views v JOIN listings l ON l.property_id = v.property_id AND l.status='active'
   GROUP BY v.property_id HAVING count(DISTINCT l.agency_id) > 1 LIMIT 1`);
 check("une vue sur un bien partagé profite à plusieurs agences",
       Boolean(shared) && shared.agencies > 1,
-      shared ? String(shared.agencies) : "aucun bien proposé par plusieurs agences — lancer npm run db:seed");
+      shared ? String(shared.agencies) : "aucun bien proposé par plusieurs agences");
+await db.query("ROLLBACK");
 
 await db.query(`DELETE FROM property_views WHERE session_id LIKE $1`, [session.slice(0, 6) + "%"]);
 await db.end();

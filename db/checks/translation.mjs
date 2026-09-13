@@ -7,6 +7,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import pg from "pg";
 import { translateDescription, translateQueue, MODEL, LOCALES } from "../lib/translate.mjs";
+import { premiumListing } from "./fixtures.mjs";
 
 let pass = 0, fail = 0;
 const check = (label, ok, detail = "") => {
@@ -85,13 +86,17 @@ const { rows: [empty] } = await db.query(
   `UPDATE listings SET description_i18n = '{}'::jsonb
    WHERE id = (SELECT id FROM listings LIMIT 1) RETURNING id`);
 
-let seen = [];
-const fakeTranslate = async (text, lang) => {
-  seen.push({ text, lang });
-  return { fr: "FR:" + text, en: "EN:" + text, zh: "ZH:" + text, km: "KM:" + text };
-};
+// La base réelle n'a pas d'annonce premium : la fixture en fabrique une dans
+// la transaction, et c'est la plus récente — la priorité est la seule chose
+// qui puisse la faire sortir en tête.
+const premium = await premiumListing(db);
 
-const s1 = await translateQueue(db, { translate: fakeTranslate, limit: 5 });
+const fakeTranslate = async (text) =>
+  ({ fr: "FR:" + text, en: "EN:" + text, zh: "ZH:" + text, km: "KM:" + text });
+
+const order = [];
+const s1 = await translateQueue(db, { translate: fakeTranslate, limit: 5,
+                                      onProgress: (p) => order.push(p.reference) });
 check("l'annonce sans description est écartée", s1.skipped >= 1, String(s1.skipped));
 check("cinq annonces traduites", s1.translated === 5, String(s1.translated));
 const { rows: [emptyRow] } = await db.query(
@@ -111,12 +116,15 @@ check("le texte source est conservé mot pour mot",
 check("machine_translated suit l'état", done.machine_translated === true);
 check("translated_at est horodaté", Boolean(done.translated_at));
 
-// Priorité premium : la première traduite doit être une premium.
-const { rows: [firstTier] } = await db.query(
-  `SELECT a.subscription_tier::text AS tier FROM listings l
-   JOIN agencies a ON a.id = l.agency_id
-   WHERE l.translation_status = 'machine' ORDER BY l.translated_at LIMIT 1`);
-check("les agences premium passent devant", firstTier.tier === "premium", firstTier.tier);
+// Priorité premium : la première traduite doit être la premium. L'ordre se lit
+// sur les appels au traducteur, non sur `translated_at` — dans une transaction
+// `now()` ne bouge pas, et les cinq annonces porteraient le même horodatage.
+check("une agence premium existe pour l'éprouver", Boolean(premium),
+      "aucune agence premium avec un agent — lancer npm run db:seed-base");
+if (premium) {
+  check("les agences premium passent devant", order[0] === premium.reference,
+        `${order[0]} avant ${premium.reference}`);
+}
 
 // Échec : l'annonce est marquée, pas perdue.
 const failing = async () => { throw new Error("API indisponible"); };

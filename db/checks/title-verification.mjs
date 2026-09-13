@@ -13,6 +13,7 @@
  *   node db/checks/title-verification.mjs [--base http://localhost:3111]
  */
 import pg from "pg";
+import { sweepTitles, confirmedTitle } from "./fixtures.mjs";
 import { advanceVerification, concludeVerification, openVerification }
   from "../lib/titles.mjs";
 
@@ -29,6 +30,7 @@ const check = (label, ok, detail = "") => {
 const db = new pg.Client({
   connectionString: process.env.DATABASE_URL ?? "postgres://immo:immo@localhost:5433/cambodia_immo" });
 await db.connect();
+await sweepTitles(db);
 await db.query("BEGIN");
 
 // ------------------------------------------------------ Décor de test
@@ -108,16 +110,29 @@ await db.query("ROLLBACK");
 
 // ------------------------------------------------------ Fiche publique
 console.log("\nFiche publique");
-const { rows: [seeded] } = await db.query(
+// Ici la transaction annulée ne sert plus : c'est le serveur web qui doit voir
+// le dossier, et il lit sur sa propre connexion. Le dossier est donc validé,
+// puis retiré dans le `finally` — un badge « titre vérifié » posé sur une
+// vraie annonce ne doit pas survivre au contrôle.
+const { rows: [inBase] } = await db.query(
   `SELECT property_reference AS ref, partner_name AS partner
    FROM title_verifications WHERE status = 'confirmed' LIMIT 1`);
-check("le seed fournit un dossier confirmé", Boolean(seeded), "lancer npm run db:seed");
-if (seeded) {
-  const html = await (await fetch(`${BASE}/en/property/${seeded.ref}`)).text();
-  check("le badge « titre vérifié » est sur la fiche", html.includes("Verified title"), seeded.ref);
-  check("le partenaire est nommé publiquement", html.includes(seeded.partner), seeded.partner);
-  check("la réserve « pas un avis juridique » accompagne le badge",
-        html.includes("it is not legal advice"), "");
+const publicDossier = inBase ?? await confirmedTitle(db);
+check("un dossier confirmé existe", Boolean(publicDossier), "aucun bien à titre connu en base");
+if (!inBase && publicDossier) console.log(
+  "  (aucun dossier confirmé en base : fabriqué pour le contrôle — la démonstration"
+  + " n'a donc aucun badge à montrer, relancer npm run seed:activity)");
+try {
+  if (publicDossier) {
+    const html = await (await fetch(`${BASE}/en/property/${publicDossier.ref ?? publicDossier.reference}`)).text();
+    check("le badge « titre vérifié » est sur la fiche", html.includes("Verified title"),
+          publicDossier.ref ?? publicDossier.reference);
+    check("le partenaire est nommé publiquement", html.includes(publicDossier.partner), publicDossier.partner);
+    check("la réserve « pas un avis juridique » accompagne le badge",
+          html.includes("it is not legal advice"), "");
+  }
+} finally {
+  await publicDossier?.release?.();
 }
 
 await db.end();
