@@ -934,6 +934,33 @@ page du programme dans `buildings.source_url` (migration 024), et
 plus. Sans cela, retirer un portail aurait laissé derrière lui des pages de
 projet vides — la décision n°3 ne tenait plus.
 
+**Un prix invraisemblable peut venir de la source, et alors on ne peut rien.**
+Le tri « le moins cher d'abord » sur les ventes ouvre aujourd'hui sur une
+maison à **350 dollars**. Trois annonces sur 3 405 portent un prix
+manifestement faux : cette maison, une autre louée 69 900 dollars par mois, un
+terrain loué 170 000. Vérification faite sur les pages elles-mêmes, la
+collecte n'y est pour rien : la source publie `salePrice: "$350"` et
+`rentPrice: "$69,900" /mo`, champs structurés, sans marqueur de prix au mètre
+carré. Un annonceur a saisi un prix de vente dans la case du loyer, ou oublié
+un chiffre. Notre extraction est fidèle ; c'est la donnée d'origine qui est
+fausse.
+
+Reste la question de republier ce qu'on sait faux. La règle de cohérence qui
+vient à l'esprit — comparer un prix à la médiane de la transaction opposée pour
+le même type, une vente sous douze mois de loyer typique, un loyer dont douze
+mois achèteraient le bien — a été essayée et mesurée : **elle signale 48
+annonces pour 3 vraies erreurs, soit 94 % de faux positifs**. Elle écarte des
+terrains ruraux réellement vendus 5 000 dollars et des penthouses réellement
+loués 8 000 par mois. Aucun seuil en dollars ne sépare mieux, parce que le
+marché cambodgien va légitimement de la parcelle de province au penthouse de
+Tonlé Bassac.
+
+La conclusion est donc de ne rien écarter automatiquement, et de ne pas
+prétendre le contraire. Ce qui conviendrait est ce que le projet fait déjà pour
+les doublons : signaler à un humain plutôt que décider — une file de
+modération « prix invraisemblable », alimentée par la même logique de
+majorant, où l'on tranche annonce par annonce. Ce n'est pas fait.
+
 **Ce qu'on n'invente pas non plus.** Aucun dossier de vérification de titre
 n'est fabriqué sur les biens collectés. Le panneau de vérification et le badge
 public sont donc vides sur un jeu réel — attacher un dossier fictif à une
