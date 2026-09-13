@@ -763,6 +763,27 @@ magasin local seulement, le client S3 du projet ne sait pas lister).
 plusieurs milliers d'images, traiter six médias de front fait passer la file de
 deux heures à une vingtaine de minutes.
 
+**Tous les échecs ne se valent pas**, et les confondre a coûté cher. Le job
+marquait `processed_at` sur n'importe quelle erreur, au motif — juste — qu'une
+image morte ne doit pas être retéléchargée à chaque passage. Sauf qu'une panne
+de réseau n'est pas une image morte. Au réveil d'une mise en veille, le service
+repart avant que le Wi-Fi ne soit revenu ; rien ne ralentit un échec immédiat,
+et quatre fils en consomment des milliers par minute. Constaté sur cette base :
+**1 881 médias fermés dans la même minute**, tous en `fetch failed`, leurs
+empreintes perdues — et avec elles la corroboration photo dont la
+déduplication a besoin, ce qui laissait la file de validation pleine de paires
+qu'aucune preuve ne pouvait plus départager.
+
+Une réponse 404 ou 410 — et les autres 4xx sauf 408 et 429, qui parlent de la
+demande et non de la ressource — reste définitive. Tout le reste est passager
+par défaut : se tromper dans ce sens coûte un essai de plus, l'inverse perd
+l'image. Un échec passager incrémente `media.process_attempts` sans fermer le
+média, qui repasse au tour suivant, les moins tentés d'abord ; au bout de cinq
+tentatives il sort quand même, sans quoi une image réellement morte resterait
+en tête de file. Et une salve de douze échecs passagers d'affilée, sans une
+seule réussite, abandonne la passe : c'est le réseau qui est tombé, pas les
+images, et insister ne ferait que brûler le compteur de tout le monde.
+
 Une annonce sans aucune photo publiée retombe sur le fonds libre de droits
 maison (voir « Les photos de démonstration »), pour ne pas laisser une fiche
 nue dans les résultats.

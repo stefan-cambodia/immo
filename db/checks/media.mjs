@@ -92,6 +92,12 @@ check("le seed fournit un bien en tête de recherche avec médias",
 const { rows: [dead] } = await db.query(
   `INSERT INTO media(property_id, url, position)
    VALUES ($1, '/api/photo/inexistant/casse', 99) RETURNING id`, [prop.id]);
+// Une adresse injoignable, pas une image morte : le port 9 refuse la
+// connexion, ce que `fetch` rend par « fetch failed » — exactement ce qu'un
+// réveil de veille produit quand le service repart avant le réseau.
+const { rows: [stalled] } = await db.query(
+  `INSERT INTO media(property_id, url, position)
+   VALUES ($1, 'http://127.0.0.1:9/injoignable.jpg', 98) RETURNING id`, [prop.id]);
 
 try {
   const env = { ...process.env, NEXT_PUBLIC_SITE_URL: BASE };
@@ -128,6 +134,27 @@ try {
         failedRow.closed && /404|source/.test(failedRow.error ?? ""),
         JSON.stringify(failedRow));
 
+  // Une panne passagère ne consomme pas le média. Confondre les deux a fermé
+  // 1 881 images dans la minute d'un réveil de veille, empreintes comprises.
+  const { rows: [held] } = await db.query(
+    `SELECT processed_at IS NULL AS "stillQueued", process_attempts AS attempts,
+            process_error AS error FROM media WHERE id = $1`, [stalled.id]);
+  check("une panne passagère laisse le média en file, tentative comptée",
+        held.stillQueued && held.attempts === 1 && Boolean(held.error),
+        JSON.stringify(held));
+  check("elle est comptée comme à reprendre, pas comme un échec",
+        summary.retried >= 1, stdout.trim());
+
+  // Mais elle ne le laisse pas en file indéfiniment : ce qui échoue trop
+  // souvent sort, sans quoi il resterait en tête à chaque passage.
+  const { stdout: second } = await exec("node",
+    ["db/jobs/process-media.mjs", "--json", "--property", prop.id, "--max-attempts", "1"], { env });
+  const { rows: [givenUp] } = await db.query(
+    `SELECT processed_at IS NOT NULL AS closed, process_attempts AS attempts
+     FROM media WHERE id = $1`, [stalled.id]);
+  check("au-delà du nombre de tentatives, elle sort quand même",
+        givenUp.closed && givenUp.attempts >= 2, JSON.stringify(givenUp) + " " + second.trim());
+
   const served = await fetch(`${BASE}${done.variants[0].url}`);
   check("la variante est servie sur /media avec un cache immuable",
         served.status === 200
@@ -147,7 +174,7 @@ try {
   check("les cartes de résultats servent aussi les variantes",
         search.includes('type="image/avif"'));
 } finally {
-  await db.query(`DELETE FROM media WHERE id = $1`, [dead.id]);
+  await db.query(`DELETE FROM media WHERE id = ANY($1::uuid[])`, [[dead.id, stalled.id]]);
   await rm("var/media/chk", { recursive: true, force: true });
 }
 

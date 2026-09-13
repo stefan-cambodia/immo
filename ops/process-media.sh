@@ -23,10 +23,18 @@ pending="$(job_json_field "$summary" pending)"
 backlog="$(job_json_field "$summary" backlog)"
 processed="$(job_json_field "$summary" processed)"
 failed="$(job_json_field "$summary" failed)"
+retried="$(job_json_field "$summary" retried)"
+abandoned="$(job_json_field "$summary" abandoned)"
 
 if [[ "${1:-}" == "--dry-run" ]]; then
   job_log "terminé (simulation) · ${pending:-0} média(s) seraient traités · ${backlog:-0} en file."
   exit 0
 fi
 
-job_log "terminé · ${processed:-0} traité(s) · ${failed:-0} échec(s) · file initiale ${backlog:-0}."
+# « à reprendre » n'est pas un échec : ce sont les médias qu'une panne
+# passagère a laissés en file, et que la passe suivante retentera.
+job_log "terminé · ${processed:-0} traité(s) · ${failed:-0} échec(s) définitif(s)"\
+"  · ${retried:-0} à reprendre · file initiale ${backlog:-0}."
+[[ "${abandoned:-false}" == "true" ]] \
+  && job_log "passe abandonnée sur une salve d'échecs : le réseau est probablement tombé."
+:
