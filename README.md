@@ -82,6 +82,15 @@ recherche et la route de carte, huit cas qui étaient tous sautés faute
 d'immeuble peuplé, s'éprouve à nouveau. `npm run check:portal` reste le seul
 qui porte sur la collecte elle-même, et il tourne hors ligne.
 
+Une réserve du même ordre vaut pour le cache : le hub des projets se régénère
+toutes les 900 secondes, le sitemap toutes les 3 600, et Next sert la version
+périmée pendant qu'il refait la neuve. Un projet créé à l'instant — la collecte
+en crée — en est donc légitimement absent le temps d'une fenêtre. Les deux
+vérifications correspondantes ne portent que sur les projets plus vieux que
+leur fenêtre : sans cela, elles échouent une fois puis passent, ce qui est le
+pire des deux mondes — elles ne disent rien de juste et on apprend à ne pas les
+croire. Au-delà de la fenêtre, une absence reste un défaut.
+
 Une fixture ne doit pas pour autant faire taire ce que l'échec disait : quand
 un contrôle a dû fabriquer une forme, il l'écrit entre parenthèses dans sa
 sortie. C'est ainsi qu'on voit que la base de démonstration n'avait aucun
@@ -715,6 +724,11 @@ npm run portal:photos      # galeries et faits, une requête par annonce
 npm run media:process      # téléchargement et variantes locales
 ```
 
+Sur le jeu réel, la passe a couvert **3 351 des 3 405 biens avec cinq photos** ;
+les 54 restants en portent moins parce que la source en publie moins. Le même
+passage établit les faits qui commandent les filtres : 1 754 biens à régime de
+propriété connu, 1 828 meublés, 2 502 avec au moins un équipement.
+
 « Reprenable » a demandé une correction. La passe décidait qu'un bien était
 déjà complété dès qu'il comptait deux photos — or la liste en donne trois :
 elle sautait 874 biens sur 898 et annonçait que tout était fait. Elle lit
@@ -797,16 +811,17 @@ est net, rien à deviner. Un nom de programme est un fait, au même titre que la
 commune ou le prix.
 
 Le slug était donc **déjà en base**, dans `listings.source_url`, sans qu'aucune
-requête soit nécessaire : 306 des 3 232 annonces collectées relèvent d'un
-programme, sur 78 programmes distincts, dont 6 portaient déjà le slug d'un de
-nos immeubles. Le nom, lui, n'est que sur la page — mais il appartient au
-programme et non à l'annonce, si bien qu'UNE page par programme suffit. C'est
-la différence entre 72 requêtes et 3 232, et c'est ce qui a rendu l'opération
-proportionnée. `npm run projects:link` fait les deux étages : le rattachement
-hors ligne d'abord, puis `--fetch` pour lire le nom des programmes inconnus,
-créer leur immeuble et y accrocher leurs unités. Résultat sur le jeu réel :
-84 immeubles dont 62 issus de la collecte, 294 biens rattachés, **68 pages de
-projet qui portent de vraies annonces** au lieu de zéro.
+requête soit nécessaire : 329 des 3 405 annonces collectées relèvent d'un
+programme, sur 82 programmes distincts. Le nom, lui, n'est que sur la page —
+mais il appartient au programme et non à l'annonce, si bien qu'UNE page par
+programme suffit. Au premier rattrapage, cela faisait 72 requêtes au lieu de
+3 232, et c'est ce qui a rendu l'opération proportionnée.
+`npm run projects:link` fait les deux étages : le rattachement hors ligne
+d'abord — six programmes portaient déjà le slug d'un immeuble saisi à la
+main — puis `--fetch` pour lire le nom des autres, créer leur immeuble et y
+accrocher leurs unités. État du jeu réel : **89 immeubles dont 67 issus de la
+collecte, 319 biens rattachés, 73 pages de projet qui portent de vraies
+annonces** au lieu de zéro.
 
 Les imports suivants n'en ont plus besoin : la page de liste désigne le
 programme par son adresse, ce qui suffit à rattacher une annonce à un immeuble
@@ -1041,9 +1056,11 @@ bornée à une paire par signature — ce que le moteur produit vraiment, puisqu
 plafonnée, une file de validation se travaillant à la main. Restent 301 paires
 décidées par l'entonnoir sur les annonces collectées, contre 27 fabriquées.
 
-Sur le jeu réel, le panneau est franchement rouge — 898 biens pour une cible de
-3 000, 0 % d'annonces via le bot — et c'est précisément ce qu'on lui demande de
-dire. Le troisième chiffre, lui, a rendu service autrement : les 48 % de biens
+Sur le jeu réel, le panneau disait franchement rouge — 898 biens pour une cible
+de 3 000, 0 % d'annonces via le bot — et c'est précisément ce qu'on lui demande
+de dire. Les imports suivants ont porté la base à 3 405 biens : la cible de
+volume est passée, le 0 % du bot reste, parce que rien n'a encore parlé à
+Telegram. Le troisième chiffre, lui, a rendu service autrement : les 48 % de biens
 en file de déduplication ont conduit à examiner la file, à y trouver 95 % de
 faux positifs, et à corriger le moteur (voir « Ce que les annonces réelles ont
 appris au moteur »). Il est retombé à 14,1 % — une file dont chaque paire

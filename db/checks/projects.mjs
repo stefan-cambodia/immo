@@ -37,13 +37,26 @@ const hubHtml = await hub.text();
 
 const { rows: buildings } = await db.query(`
   SELECT b.slug, b.name_i18n->>'en' AS name, b.status::text AS status,
+         b.created_at AS "createdAt",
          (SELECT count(*) FROM properties p
           JOIN listings l ON l.property_id = p.id AND l.status = 'active'
           WHERE p.building_id = b.id)::int AS listings
   FROM buildings b ORDER BY b.slug`);
-check("tous les projets sont listés sur le hub",
-      buildings.every((b) => hubHtml.includes(`/en/project/${b.slug}`)),
-      buildings.filter((b) => !hubHtml.includes(`/en/project/${b.slug}`)).map((b) => b.slug).join(", "));
+
+// Le hub est régénéré toutes les 900 secondes, le sitemap toutes les 3 600, et
+// Next sert la version périmée pendant qu'il refait la neuve : un projet créé
+// à l'instant — la collecte en crée — en est légitimement absent le temps
+// d'une fenêtre. Sans cette réserve, le contrôle échoue une fois puis passe,
+// ce qui est le pire des deux mondes : il ne dit rien de juste et on apprend
+// à ne pas le croire. Au-delà de sa fenêtre, une absence reste un défaut.
+const settled = (seconds) => buildings.filter(
+  (b) => Date.now() - new Date(b.createdAt).getTime() > seconds * 1000);
+const missingFrom = (html, list) =>
+  list.filter((b) => !html.includes(`/en/project/${b.slug}`)).map((b) => b.slug);
+
+const onHub = settled(900);
+check(`tous les projets sont listés sur le hub (${onHub.length})`,
+      missingFrom(hubHtml, onHub).length === 0, missingFrom(hubHtml, onHub).join(", "));
 
 const wip = buildings.filter((b) => b.status !== "completed");
 check("les chantiers en cours existent en base", wip.length > 0, "aucun");
@@ -112,9 +125,9 @@ check(`elle relie ses ${dev.projects} projets`, linked >= dev.projects, String(l
 console.log("\nSitemap");
 const xml = await (await fetch(`${BASE}/sitemap.xml`)).text();
 check("le hub est dans le sitemap", xml.includes("/en/projects"), "");
-check("chaque projet est dans le sitemap",
-      buildings.every((b) => xml.includes(`/en/project/${b.slug}`)),
-      buildings.filter((b) => !xml.includes(`/en/project/${b.slug}`)).map((b) => b.slug).join(", "));
+const inSitemap = settled(3600);
+check(`chaque projet est dans le sitemap (${inSitemap.length})`,
+      missingFrom(xml, inSitemap).length === 0, missingFrom(xml, inSitemap).join(", "));
 check("le promoteur est dans le sitemap", xml.includes(`/en/developer/${dev.slug}`), "");
 
 // ------------------------------------ Rattachement au programme collecté
