@@ -1,0 +1,17 @@
+[Unit]
+Description=Khmer Estate — relecture des annonces collectées chez la source (quotidienne)
+
+[Timer]
+Unit=cambodia-immo@reconfirm-portal.service
+# Une fois par jour suffit : la fenêtre est de sept jours, si bien qu'une
+# annonce illisible un jour est reposée le lendemain, six fois avant que
+# l'expiration ne tranche. Au petit matin de Phnom Penh, quand la source est
+# la moins chargée, et à l'écart des tâches de 02:15 à 03:30.
+OnCalendar=*-*-* 04:30:00
+# Rattrape une exécution manquée pendant un arrêt de la machine.
+Persistent=true
+RandomizedDelaySec=10min
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

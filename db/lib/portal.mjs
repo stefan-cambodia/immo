@@ -33,8 +33,12 @@
  * ---------------------
  * Un agent utilisateur identifiable, une requête à la fois, une pause entre
  * chaque page, un nombre de pages borné par l'appelant, et rien en dehors des
- * chemins que le robots.txt de la source laisse ouverts. La collecte est un
- * travail ponctuel lancé à la main, pas une tâche planifiée.
+ * chemins que le robots.txt de la source laisse ouverts. La collecte — aller
+ * chercher des annonces qu'on n'a pas — est un travail ponctuel lancé à la
+ * main, pas une tâche planifiée. Seule la relecture des annonces qu'on a déjà
+ * l'est (`fetchAvailability`) : une page par annonce et par cycle de 45 jours,
+ * parce que la date de confirmation affichée sur la fiche n'est vraie qu'à ce
+ * prix.
  */
 
 export const USER_AGENT =
@@ -141,6 +145,16 @@ export function parsePrice(text) {
 }
 
 /**
+ * Le prix total d'un libellé de prix. Un prix au mètre carré n'est un prix
+ * qu'accompagné d'une surface : sans elle, `null` plutôt qu'un montant faux.
+ */
+export function priceFrom(text, areaSqm) {
+  const n = parsePrice(text);
+  if (!n || !PER_SQM.test(String(text))) return n;
+  return areaSqm ? Math.round(n * areaSqm) : null;
+}
+
+/**
  * En dessous, ce n'est pas une surface : la base réelle a montré un
  * appartement de deux chambres à « 1 m² ». Une valeur absente vaut mieux
  * qu'une valeur fausse — elle n'entre ni dans la description, ni dans le prix
@@ -183,22 +197,21 @@ export function inCambodia(lng, lat) {
       && lat >= CAMBODIA_BBOX.south && lat <= CAMBODIA_BBOX.north;
 }
 
+/** Les données d'une page Next.js du portail — `null` si elle n'en porte pas. */
+function readNextData(html) {
+  const m = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
+  if (!m) return null;
+  try { return JSON.parse(m[1]); } catch { return null; }
+}
+
 /** Extrait les annonces d'une page de liste Next.js du portail. */
 function extractNextData(html) {
-  const m = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
-  if (!m) return [];
-  let data;
-  try { data = JSON.parse(m[1]); } catch { return []; }
-  return data?.props?.pageProps?.cacheData?.results?.data?.results ?? [];
+  return readNextData(html)?.props?.pageProps?.cacheData?.results?.data?.results ?? [];
 }
 
 /** Total d'annonces que la liste annonce — `null` si la page ne le dit pas. */
 function extractTotal(html) {
-  const m = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
-  if (!m) return null;
-  let data;
-  try { data = JSON.parse(m[1]); } catch { return null; }
-  const total = data?.props?.pageProps?.cacheData?.results?.data?.count;
+  const total = readNextData(html)?.props?.pageProps?.cacheData?.results?.data?.count;
   return Number.isInteger(total) && total >= 0 ? total : null;
 }
 
@@ -269,13 +282,9 @@ export function toRecord(raw, source) {
   // unités quelconques du même immeuble aux yeux de la déduplication.
   const landAreaSqm = type === "condo" ? null : parseArea(spec.land_area);
 
-  let priceUsd = parsePrice(priceText);
-  if (priceUsd && PER_SQM.test(String(priceText))) {
-    // Un prix au mètre carré n'est un prix qu'accompagné d'une surface. Sans
-    // elle, l'annonce est écartée plutôt que publiée à un montant faux.
-    const area = landAreaSqm ?? indoorAreaSqm;
-    priceUsd = area ? Math.round(priceUsd * area) : null;
-  }
+  // Un prix au mètre carré sans surface : l'annonce est écartée plutôt que
+  // publiée à un montant faux.
+  const priceUsd = priceFrom(priceText, landAreaSqm ?? indoorAreaSqm);
   if (!priceUsd) return null;
 
   return {
@@ -465,12 +474,7 @@ export async function fetchDetail(sourceUrl, { fetchImpl, max = MAX_PHOTOS } = {
   const get = fetchImpl ?? ((url) => fetch(url, { headers: { "user-agent": USER_AGENT } }));
   const res = await get(sourceUrl);
   if (!res.ok) return null;
-  const html = await res.text();
-  const m = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
-  if (!m) return null;
-  let data;
-  try { data = JSON.parse(m[1]); } catch { return null; }
-  const listing = data?.props?.pageProps?.cacheData?.listing?.data;
+  const listing = readNextData(await res.text())?.props?.pageProps?.cacheData?.listing?.data;
   if (!listing || typeof listing !== "object") return null;
   const images = listing.showCase?.images;
   return {
@@ -484,6 +488,88 @@ export async function fetchDetail(sourceUrl, { fetchImpl, max = MAX_PHOTOS } = {
 export async function fetchPhotos(sourceUrl, opts) {
   const detail = await fetchDetail(sourceUrl, opts);
   return detail ? detail.photos : null;
+}
+
+/**
+ * États de la source qui disent la transaction conclue. Relevé le 30/10/2026 :
+ * le portail garde en ligne la page d'une annonce vendue ou louée, avec
+ * `header.status` à `sold` ou `leased` — ses propres filtres de recherche
+ * proposent « Sold » et « Rented ». Une page qui répond n'est donc PAS une
+ * annonce disponible ; seul `current` l'est.
+ */
+const CONCLUDED = new Set(["sold", "leased"]);
+
+/**
+ * Ce que l'en-tête d'une page d'annonce dit de sa disponibilité.
+ *
+ * Le prix suit la même règle qu'à la collecte : celui de la transaction de
+ * l'annonce, `null` s'il n'est plus affiché (« POA ») ou s'il est au mètre
+ * carré sans surface connue — on garde alors le dernier prix publié plutôt
+ * qu'en inventer un.
+ */
+export function toAvailability(header, transaction, areaSqm = null) {
+  const state = typeof header?.status === "string" ? header.status.trim().toLowerCase() : null;
+  const listingType = typeof header?.listingType === "string" ? header.listingType : null;
+  const shown = transaction === "rent" ? header?.rentIsDisplayed : header?.priceIsDisplayed;
+  const text = transaction === "rent" ? header?.rentPrice : header?.salePrice;
+  return { state, listingType, priceUsd: shown === false ? null : priceFrom(text, areaSqm) };
+}
+
+/**
+ * Le verdict, sur deux certitudes et un doute :
+ *   - `current` sur la même transaction → `confirmed`, l'annonce est reconduite ;
+ *   - une transaction conclue → `concluded`, l'annonce est retirée ;
+ *   - tout le reste — état inconnu, transaction qui a changé — → `unclear`.
+ *
+ * Le doute ne retire rien et ne reconduit rien : l'annonce garde sa date de
+ * confirmation, et l'expiration à 45 jours tranche pour elle comme pour une
+ * annonce dont l'agent ne répond pas à la relance.
+ */
+export function availabilityVerdict({ state, listingType }, transaction) {
+  if (state && CONCLUDED.has(state)) return "concluded";
+  // `both` : le bien est proposé à la vente ET à la location (relevé le
+  // 30/10/2026, trois annonces sur dix) — il confirme l'une comme l'autre.
+  const sameTransaction = listingType === null || listingType === transaction || listingType === "both";
+  if (state === "current" && sameTransaction) return "confirmed";
+  return "unclear";
+}
+
+/**
+ * Relit la page d'une annonce déjà collectée : est-elle toujours proposée ?
+ *
+ * Une requête par annonce, comme `fetchDetail` : à n'appeler que sur des
+ * annonces retenues, jamais en balayage. Le verdict :
+ *   - `withdrawn` : la page n'existe plus — 404/410, ou une redirection qui
+ *     aboutit à une page de résultats (c'est ainsi que la source répond pour
+ *     une annonce de programme neuf retirée : `/new-developments/…/…-259255/`
+ *     mène à `/buy/phnom-penh/condo/`). La source retrouve une annonce par
+ *     l'identifiant qui termine son adresse et redirige vers l'annonce
+ *     elle-même quand seul le reste a changé — relevé le 30/10/2026 — donc ni
+ *     l'un ni l'autre ne vient d'une adresse renommée ;
+ *   - `confirmed`, `concluded`, `unclear` : voir `availabilityVerdict` ;
+ *   - `unreadable` : autre réponse HTTP ou page sans annonce. Rien n'est
+ *     décidé, la relance suivante reposera la question.
+ * Une panne de réseau lève une exception : à l'appelant de la traiter comme
+ * `unreadable`.
+ */
+export async function fetchAvailability(sourceUrl, { transaction, areaSqm = null, fetchImpl } = {}) {
+  const get = fetchImpl ?? ((url) => fetch(url, { headers: { "user-agent": USER_AGENT } }));
+  const res = await get(sourceUrl);
+  if (res.status === 404 || res.status === 410) {
+    return { verdict: "withdrawn", state: "withdrawn", httpStatus: res.status };
+  }
+  if (!res.ok) return { verdict: "unreadable", reason: `HTTP ${res.status}`, httpStatus: res.status };
+  const data = readNextData(await res.text());
+  if (res.redirected && data?.page === "/results") {
+    return { verdict: "withdrawn", state: "withdrawn", httpStatus: res.status };
+  }
+  const header = data?.props?.pageProps?.cacheData?.listing?.data?.header;
+  if (!header || typeof header !== "object") {
+    return { verdict: "unreadable", reason: "page sans annonce", httpStatus: res.status };
+  }
+  const availability = toAvailability(header, transaction, areaSqm);
+  return { ...availability, verdict: availabilityVerdict(availability, transaction),
+           httpStatus: res.status };
 }
 
 /**

@@ -15,6 +15,7 @@
  */
 import { collect, toRecord, toPhotos, fetchPhotos, fetchDetail, toFacts,
          parsePrice, parseArea, addressParts, projectSlug, toProject,
+         priceFrom, toAvailability, availabilityVerdict, fetchAvailability,
          SOURCES, PER_SQM, MAX_PHOTOS } from "../lib/portal.mjs";
 
 let pass = 0, fail = 0;
@@ -366,6 +367,84 @@ check("la fiche issue de la liste porte le slug du programme",
       inProject?.projectSlug === "the-bridge", String(inProject?.projectSlug));
 check("et `null` quand l'annonce n'en relève pas",
       toRecord(raw({}), SOURCES["realestate.com.kh"])?.projectSlug === null);
+
+// --------------------------------------------- Toujours disponible ?
+console.log("\nToujours disponible ? (relecture d'une annonce collectée)");
+
+/** Page d'annonce fabriquée : un en-tête, rien d'autre. */
+const listingPage = (header) => ({ ok: true, status: 200, text: () => Promise.resolve(
+  `<html><script id="__NEXT_DATA__" type="application/json">${JSON.stringify({ props: { pageProps: {
+    cacheData: { listing: { data: { header } } } } } })}</script></html>`) });
+const answer = (res) => () => Promise.resolve(res);
+const saleHeader = (over = {}) => ({ status: "current", listingType: "sale",
+  salePrice: "$300,000", priceIsDisplayed: true, rentPrice: "", rentIsDisplayed: false, ...over });
+
+check("un prix au m² devient un total avec la surface",
+      priceFrom("$740/m²", 1000) === 740000 && priceFrom("$5,500", null) === 5500);
+check("un prix au m² sans surface n'est pas un prix", priceFrom("$740/m²", null) === null);
+
+const live = await fetchAvailability("https://portail.example/buy/x-1/",
+  { transaction: "sale", fetchImpl: answer(listingPage(saleHeader())) });
+check("une annonce toujours proposée est reconduite, à son prix",
+      live.verdict === "confirmed" && live.priceUsd === 300000, JSON.stringify(live));
+
+const sold = await fetchAvailability("https://portail.example/buy/x-2/",
+  { transaction: "sale", fetchImpl: answer(listingPage(saleHeader({ status: "sold" }))) });
+check("une page qui répond mais dit « vendu » retire l'annonce",
+      sold.verdict === "concluded" && sold.state === "sold", JSON.stringify(sold));
+check("« loué » aussi, sur une location",
+      availabilityVerdict(toAvailability({ status: "leased", listingType: "rent" }, "rent"), "rent")
+        === "concluded");
+
+const gone = await fetchAvailability("https://portail.example/buy/x-3/",
+  { transaction: "sale", fetchImpl: answer({ ok: false, status: 404, text: () => Promise.resolve("") }) });
+check("une page disparue retire l'annonce", gone.verdict === "withdrawn" && gone.state === "withdrawn");
+
+for (const status of [403, 429, 503]) {
+  const r = await fetchAvailability("https://portail.example/buy/x-4/",
+    { transaction: "sale", fetchImpl: answer({ ok: false, status, text: () => Promise.resolve("") }) });
+  check(`un refus ou une panne (${status}) ne décide rien`, r.verdict === "unreadable", r.verdict);
+}
+const empty = await fetchAvailability("https://portail.example/buy/x-5/",
+  { transaction: "sale", fetchImpl: answer({ ok: true, status: 200, text: () => Promise.resolve("<html></html>") }) });
+check("une page sans annonce ne décide rien", empty.verdict === "unreadable", empty.verdict);
+
+check("« both » (vente et location) confirme l'une comme l'autre",
+      availabilityVerdict(toAvailability(saleHeader({ listingType: "both" }), "sale"), "sale") === "confirmed"
+        && availabilityVerdict(toAvailability(saleHeader({ listingType: "both" }), "rent"), "rent") === "confirmed");
+
+/** Ce que la source répond pour une annonce de programme retirée : une liste. */
+const resultsPage = (redirected) => ({ ok: true, status: 200, redirected, text: () => Promise.resolve(
+  `<html><script id="__NEXT_DATA__" type="application/json">${JSON.stringify({ page: "/results",
+    props: { pageProps: { cacheData: { results: { data: { results: [] } } } } } })}</script></html>`) });
+const toList = await fetchAvailability("https://portail.example/new-developments/p/2-bed-6/",
+  { transaction: "sale", fetchImpl: answer(resultsPage(true)) });
+check("une annonce redirigée vers une liste a disparu", toList.verdict === "withdrawn", toList.verdict);
+const listAsked = await fetchAvailability("https://portail.example/buy/phnom-penh/condo/",
+  { transaction: "sale", fetchImpl: answer(resultsPage(false)) });
+check("une liste servie sans redirection ne décide rien", listAsked.verdict === "unreadable", listAsked.verdict);
+const otherRedirect = await fetchAvailability("https://portail.example/buy/x-7/",
+  { transaction: "sale", fetchImpl: answer({ ok: true, status: 200, redirected: true,
+    text: () => Promise.resolve("<html>accueil</html>") }) });
+check("une redirection vers autre chose qu'une liste ne décide rien",
+      otherRedirect.verdict === "unreadable", otherRedirect.verdict);
+
+check("un état inconnu de la source ne décide rien",
+      availabilityVerdict(toAvailability(saleHeader({ status: "under_offer" }), "sale"), "sale") === "unclear");
+check("une annonce passée de la vente à la location ne reconduit pas la vente",
+      availabilityVerdict(toAvailability(saleHeader({ listingType: "rent" }), "sale"), "sale") === "unclear");
+check("sans état publié, rien n'est affirmé",
+      availabilityVerdict(toAvailability({}, "sale"), "sale") === "unclear");
+
+const poa = toAvailability(saleHeader({ salePrice: "POA", priceIsDisplayed: false }), "sale");
+check("un prix devenu « POA » ne remplace pas le dernier prix publié",
+      poa.priceUsd === null && availabilityVerdict(poa, "sale") === "confirmed");
+check("le loyer est lu sur une location, pas le prix de vente",
+      toAvailability({ status: "current", listingType: "rent", salePrice: "$250,000",
+                       priceIsDisplayed: true, rentPrice: "$1,200", rentIsDisplayed: true }, "rent")
+        .priceUsd === 1200);
+check("un terrain au m² reprend sa surface pour le total",
+      toAvailability(saleHeader({ salePrice: "$650/m²" }), "sale", 2000).priceUsd === 1300000);
 
 console.log(`\n${pass} réussite(s), ${fail} échec(s).`);
 process.exit(fail ? 1 : 0);

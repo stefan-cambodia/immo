@@ -60,6 +60,7 @@ portails » pour ce qui est repris et ce qui ne l'est pas.
 | `npm run media:process` | Télécharge les images et produit les variantes locales |
 | `npm run portal:import-check` | Simulation d'une page, rien n'est écrit |
 | `npm run portal:purge` | Retire tout ce qui provient d'un portail |
+| `npm run portal:reconfirm` | Relit chez la source les annonces qui entrent dans leur dernière semaine |
 | `npm run projects:link` | Rattache les annonces collectées aux immeubles déjà connus |
 | `npm run projects:link -- --fetch` | Lit une page par programme inconnu, crée son immeuble |
 | `npm run seed:activity` | Rejoue vues, contacts et dossiers sur les biens présents |
@@ -128,19 +129,31 @@ Trois choses en découlent, et chacune avait besoin d'être réglée :
   base éteinte. `/api/health` répond alors 503 le temps que PostgreSQL revienne,
   et l'unité réessaie — c'est le comportement voulu, pas une panne.
 
-**Deux tâches planifiées sur huit.** Personne ne veut voir sa machine de
+**Cinq tâches planifiées sur dix.** Personne ne veut voir sa machine de
 travail lancer des sauvegardes, un cycle de facturation et des envois
 d'alertes ; l'installation locale en écartait donc l'ensemble
-(`--no-timers`). C'était trop large dans l'autre sens : le traitement des
-médias et la réévaluation de la file de déduplication ne font que du calcul
-local, sur la base et le disque de la machine, et ce sont précisément les deux
-qui doivent tourner seuls — le premier parce qu'une collecte laisse des
-milliers d'images à décliner, le second parce que la déduplication a décidé
-avant que les empreintes de ces images n'existent (voir « Tâches planifiées »).
-`npm run service:install` pose donc le serveur plus ces deux timers,
-`--timer process-media --timer rescan-duplicates`, et rien d'autre. Pour les
-avoir tous : `ops/install-scheduler.sh --scope user --web --port 3111`. Pour
-n'en avoir aucun : `--no-timers`.
+(`--no-timers`). C'était trop large dans l'autre sens : certaines tâches
+portent le catalogue lui-même, et ce sont précisément celles qui doivent
+tourner seules. Le traitement des médias, parce qu'une collecte laisse des
+milliers d'images à décliner ; la réévaluation de la file de déduplication,
+parce qu'elle a décidé avant que les empreintes de ces images n'existent ; la
+file des prix invraisemblables, qui en est le pendant pour les montants. Et
+depuis le 30 octobre, les deux moitiés de la fraîcheur (§6.3) : la relecture
+des annonces collectées chez la source, et l'expiration. L'une sans l'autre ne
+tient pas — sans relecture, l'expiration vide le catalogue au quarante-sixième
+jour ; sans expiration, une annonce que la source ne confirme plus reste
+affichée, sa date de confirmation vieillissant à la vue de tous. C'est ce
+qu'avait la démonstration jusque-là : ni l'une ni l'autre, et 3 405 annonces
+toutes au-delà de leurs 45 jours (voir « Toujours disponible ? »).
+
+`npm run service:install` pose donc le serveur plus ces cinq timers —
+`process-media`, `rescan-duplicates`, `review-prices`, `reconfirm-portal`,
+`expire-listings` — et rien d'autre. Deux d'entre eux sortent de la machine,
+vers la source et elle seule : le traitement des médias télécharge les
+photographies des annonces, la relecture lit une page par annonce et par
+cycle de 45 jours. Pour les avoir
+tous : `ops/install-scheduler.sh --scope user --web --port 3111`. Pour n'en
+avoir aucun : `--no-timers`.
 
 Après une modification du code : `npm run build && systemctl --user restart
 cambodia-immo-web`. Le port 3111 appartient désormais au service — inutile de
@@ -434,6 +447,7 @@ Objectif du brief : « l'offre s'alimente sans intervention interne ».
 | Import XML / CSV | **fait** |
 | Collecte d'un portail public | **fait** — realestate.com.kh, faits seuls |
 | Cycle d'expiration 45 j | fait (phase 1) |
+| Reconfirmation des annonces collectées | **fait** — relecture J-7 chez la source, `npm run portal:reconfirm` |
 | Historique de prix | fait (phase 1) |
 | Dessin de polygone | fait (phase 1) |
 | Extension SR / SHV / Kampot / Battambang | fait (données) |
@@ -1027,6 +1041,76 @@ les cas que le brief interdit de fusionner sans humain (§6.2). C'est le
 comportement voulu, mesuré pour la première fois sur autre chose qu'un jeu
 fabriqué.
 
+#### Toujours disponible ? La relecture des annonces collectées
+
+La fraîcheur est le deuxième différenciateur du brief (§1.3), et elle tient
+en deux mécaniques : une annonce que personne ne reconfirme expire à 45 jours,
+et l'agent est relancé à J-7 pour la reconfirmer d'un clic. Une annonce
+collectée n'a pas d'agent à relancer — et rien d'autre ne la reconfirmait :
+une collecte rejouée tombe sur une référence connue et s'arrête (« déjà
+importée »), sans toucher à la date de confirmation.
+
+**Constat du 30 octobre.** Les 3 405 annonces de la base réelle, collectées
+entre le 27 août et le 13 septembre, avaient TOUTES dépassé leurs 45 jours —
+les premières le 11 octobre, les dernières le 28 — et restaient publiées, avec
+sur chaque fiche une date de confirmation vieille de sept à neuf semaines.
+C'est exactement ce que le brief reproche aux portails existants (§1.2).
+L'expiration ne tournait pas sur la machine de démonstration ; et l'aurait-elle
+fait, elle aurait retiré le catalogue entier d'un coup, annonces encore en
+ligne comprises.
+
+La question « toujours disponible ? » se pose donc à la page de l'annonce chez
+la source, à la même échéance que la relance des agents : chaque annonce
+active qui entre dans sa dernière semaine est relue
+(`db/jobs/reconfirm-portal.mjs`, `npm run portal:reconfirm`, quotidienne).
+Trois choses relevées sur la source ce jour-là décident de la lecture :
+
+- **Une page qui répond n'est pas une annonce disponible.** La source garde en
+  ligne les annonces vendues ou louées — ses propres filtres proposent « Sold »
+  et « Rented » — avec l'état dans l'en-tête de la page : `current`, `sold`,
+  `leased`. C'est cet état qui fait foi, pas le code HTTP. Une relecture qui
+  se serait contentée d'un 200 aurait reconduit des biens vendus.
+- **Une annonce retirée a deux visages.** Une annonce ordinaire répond 404 ;
+  une annonce de programme neuf redirige vers une page de résultats
+  (`/new-developments/…-259255/` mène à `/buy/phnom-penh/condo/`). Ni l'un ni
+  l'autre ne vient d'une adresse renommée : la source retrouve l'annonce par
+  l'identifiant qui termine son adresse, et une adresse dont seul le reste a
+  changé redirige (301) vers l'annonce elle-même.
+- **`both` est une transaction.** Un bien proposé à la vente et à la location
+  porte `listingType: both` ; trois annonces sur les dix premières relues.
+  Le prendre pour une transaction changée les aurait laissées expirer.
+
+Seules deux certitudes agissent : toujours proposée → reconduite 45 jours, au
+prix affiché ; vendue, louée ou disparue → retirée (`sold`, ou `expired` pour
+une disparition dont on ignore la cause). Tout le reste — état inconnu,
+transaction réellement changée, page illisible, source en panne — ne décide
+rien : l'annonce garde sa date, et l'expiration tranchera si le doute dure
+jusqu'au bout, comme pour un agent qui ne répond pas. La fenêtre de sept jours
+laisse à un doute passager six relectures pour se lever.
+
+Un prix redevenu « POA » ne remplace pas le dernier prix publié ; un prix
+changé est repris, et l'historique des prix le garde (§6.3). Ce que la source
+a répondu, et quand, reste sur l'annonce (`source_checked_at`,
+`source_state`, migration 029) : le retrait d'une annonce vendue est une
+décision prise sur une observation extérieure, qui ne se reconstitue pas à
+partir des dates comme une expiration — sans pour autant entrer au journal
+d'audit, réservé aux décisions humaines.
+
+La politesse de collecte est tenue : une page par annonce et par cycle de 45
+jours, soit de l'ordre de 75 requêtes par jour pour 3 400 annonces, deux fils
+espacés de 2,5 s, et un arrêt après huit refus ou silences d'affilée — la
+relance du lendemain reprend où l'on s'était arrêté. La collecte d'annonces
+nouvelles, elle, reste un geste manuel. `npm run check:portal` vérifie la
+lecture hors ligne : états, retraits, refus, `both`, prix au m², POA.
+
+**Résultat du rattrapage.** Le 30 octobre, de 06 h 56 à 08 h 57, les 3 405
+annonces ont été relues une à une : 3 204 toujours proposées et reconduites,
+114 retirées comme vendues ou louées (27 `sold`, 87 `leased`), 66 retirées
+comme disparues. Restent 21 annonces sur des états que la relecture ne tranche
+pas — 17 `pending_approval`, 4 `offmarket` : elles gardent leur date, déjà
+dépassée, et c'est la première expiration qui les retire, comme prévu pour un
+doute qui dure.
+
 ### Le bot Telegram
 
 C'est le canal que le brief désigne comme déterminant du volume (§6.1) : les
@@ -1511,7 +1595,7 @@ le point de santé signalant tout schéma en retard entre les deux derniers.
 
 ## Tâches planifiées
 
-Neuf tâches tournent en dehors de l'application, sur un socle commun
+Dix tâches tournent en dehors de l'application, sur un socle commun
 (`ops/lib/job-runner.sh`) :
 
 | Tâche | Cadence visée | Rôle |
@@ -1520,6 +1604,7 @@ Neuf tâches tournent en dehors de l'application, sur un socle commun
 | `ops/process-media.sh` | **toutes les 15 minutes** | Génère et stocke les variantes WebP/AVIF/JPEG des médias en attente (§7) |
 | `ops/rescan-duplicates.sh` | **toutes les heures**, après le traitement des médias | Réévalue la file de déduplication avec les empreintes désormais calculées (§6.2) |
 | `ops/review-prices.sh` | **toutes les heures**, après la déduplication | Signale à la modération les prix très éloignés de la médiane de leur famille, et retire de la file ceux revenus dans les clous (§6.1) |
+| `ops/reconfirm-portal.sh` | **quotidienne, 04:30** | Relit chez la source chaque annonce collectée qui entre dans sa dernière semaine : reconduite si elle est toujours proposée, retirée si elle est vendue, louée ou disparue (§6.3) |
 | `ops/expire-listings.sh` | **horaire** | Bascule à `expired` les annonces passé 45 jours (§6.3), puis recalcule les compteurs d'annonces par localité |
 | `ops/billing.sh` | **quotidienne, 01:30** (après l'expiration de 01:00) | Cycle de facturation et de quotas : les places libérées profitent aux annonces retenues (§8) |
 | `ops/backup-db.sh` | **quotidienne, 02:15** | Sauvegarde de la base : dump vérifié par `pg_restore`, chiffré, copié hors site, rotation |
@@ -1529,7 +1614,7 @@ Neuf tâches tournent en dehors de l'application, sur un socle commun
 L'ordonnancement est fourni sous `ops/systemd/` — une unité modèle
 `cambodia-immo@.service` (instanciée par tâche, durcie : `ProtectSystem=strict`,
 seule `var/` est inscriptible, environnement dans `/etc/cambodia-immo/env`)
-et neuf timers `Persistent=true` — avec un repli `ops/cron.d/cambodia-immo`
+et dix timers `Persistent=true` — avec un repli `ops/cron.d/cambodia-immo`
 pour les hôtes sans systemd. `ops/install-scheduler.sh` rend les fichiers
 (chemin et utilisateur d'exécution substitués), les installe, recharge et
 active les timers ; `--timer NOM` n'en pose qu'un — répétable, et un nom
@@ -1561,6 +1646,7 @@ npm run audit:retention          # archive puis purge
 npm run dedup:rescan             # ops/rescan-duplicates.sh
 npm run metrics:purge            # ops/purge-metrics.sh
 npm run media:prune              # db/jobs/prune-media.mjs
+npm run portal:reconfirm         # ops/reconfirm-portal.sh
 
 npm run alerts:send-check        # simulation, aucune modification
 npm run media:process-check      # simulation, aucune modification
@@ -1570,6 +1656,7 @@ npm run audit:retention-check    # simulation, aucune modification
 npm run dedup:rescan-check       # simulation, aucune modification
 npm run media:prune-check        # simulation, aucune modification
 npm run metrics:purge-check      # simulation, aucune modification
+npm run portal:reconfirm-check   # dix pages lues, aucune modification
 ```
 
 `npm run check:scheduler` vérifie, hors ligne, que chaque tâche posée sur le

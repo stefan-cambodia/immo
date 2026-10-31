@@ -21,3 +21,4 @@ MAILTO=ops@example.test
 15     2      *     *     *     __APP_USER__  __APP_ROOT__/ops/backup-db.sh
 0      3      *     *     0     __APP_USER__  __APP_ROOT__/ops/audit-retention.sh
 30     3      *     *     0     __APP_USER__  __APP_ROOT__/ops/purge-metrics.sh
+30     4      *     *     *     __APP_USER__  __APP_ROOT__/ops/reconfirm-portal.sh
