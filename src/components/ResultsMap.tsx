@@ -79,6 +79,7 @@ export function ResultsMap({
   const [drawing, setDrawing] = useState(false);
   const draft = useRef<[number, number][]>([]);
   const [draftCount, setDraftCount] = useState(0);
+  const framed = useRef(false);
 
   // ------------------------------------------------------------- init carte
   useEffect(() => {
@@ -243,6 +244,23 @@ export function ResultsMap({
             },
           })),
         });
+        // Premier chargement : la carte cadre les résultats. Centrée sur le
+        // premier bien au zoom 13, une recherche sur tout le pays montrait
+        // trois points d'une banlieue sur 1 701 résultats. Une seule fois par
+        // montage — affiner un filtre ne doit pas arracher le visiteur à la
+        // zone où il a zoomé. Le cadrage n'est pas un déplacement du
+        // visiteur : il ne propose pas « rechercher dans cette zone ».
+        const m = map.current;
+        if (mode === "search" && m && !framed.current && points.length) {
+          framed.current = true;
+          let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
+          for (const p of points) {
+            w = Math.min(w, p.lng); e = Math.max(e, p.lng);
+            s = Math.min(s, p.lat); n = Math.max(n, p.lat);
+          }
+          m.once("moveend", () => setMoved(false));
+          m.fitBounds([[w, s], [e, n]], { padding: 48, maxZoom: 15, duration: 0 });
+        }
         setLoadedFor(paramString);
         setLoadFailed(false);
         setMoved(false);
@@ -255,7 +273,7 @@ export function ResultsMap({
         setLoadFailed(true);
       });
     return () => ctrl.abort();
-  }, [ready, paramString]);
+  }, [ready, paramString, mode]);
 
   // ------------------------------------------- « rechercher dans cette zone »
   const searchThisArea = () => {

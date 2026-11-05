@@ -1842,6 +1842,13 @@ définitifs — ils restent à confirmer avec les chiffres réels.
    navigateur qui ignore ce pseudo-élément garde le bouton — un clic de plus,
    jamais une colonne vide.
 
+   Au premier affichage, la carte **cadre l'ensemble des résultats**. Centrée
+   sur le premier bien au zoom 13, une recherche sur tout le pays montrait
+   trois points d'une banlieue de Phnom Penh sur 1 701 ; elle montre
+   maintenant les grappes de Phnom Penh, Siem Reap, Sihanoukville et Kampot.
+   Le cadrage n'a lieu qu'une fois : affiner un filtre ne ramène pas à la vue
+   d'ensemble un visiteur qui a zoomé.
+
    L'**en-tête ne colle pas** au haut de la fenêtre. Collant, il mesurait
    7,25 rem dès qu'il passait sur deux lignes — à 1280, 1366 et 1600 px —
    alors que filtres et carte se collaient à 4,5 rem : leurs 44 premiers
