@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslator, i18nField, isLocale, type Locale, type Translator } from "@/lib/i18n";
-import { daysSince, formatDate, formatNumber, formatUsd } from "@/lib/format";
+import { daysSince, formatDate, formatNumber, formatPercent, formatUsd } from "@/lib/format";
 import { getProperty } from "@/lib/search";
 import { estimate, pricePosition, type PricePosition } from "@/lib/estimate";
 
@@ -278,7 +278,7 @@ export default async function ComparePage({
               <Row label={t("estimate.yieldTitle")} cols={columns} render={(c) =>
                 c.grossYield !== null ? (
                   <span title={t("estimate.yieldDisclaimer")}>
-                    <strong>{c.grossYield.toFixed(1)} %</strong>
+                    <strong>{formatPercent(c.grossYield, locale)}</strong>
                     {c.estimatedRent !== null && (
                       <span style={{ display: "block", fontSize: "0.75rem", color: "var(--color-ink-soft)" }}>
                         {t("estimate.yieldRent", { rent: formatUsd(c.estimatedRent, locale) })}

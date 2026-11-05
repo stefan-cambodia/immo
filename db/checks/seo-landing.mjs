@@ -126,7 +126,8 @@ if (verite.verifies === 0) {
   check("aucun bien vérifié : la page d'accueil ne dit pas « verified »",
         !/verified propert/i.test(texte(home)), "« verified properties » affiché");
 }
-const bandeau = texte(home).match(/([\d,]+)\s+agencies/i);
+// Le libellé s'accorde au chiffre : « 1 agency », « 13 agencies ».
+const bandeau = texte(home).match(/([\d,]+)\s+agenc(?:y|ies)\b/i);
 check(`le bandeau compte les agences qui proposent quelque chose (${verite.agences})`,
       bandeau && Number(bandeau[1].replace(/,/g, "")) === verite.agences,
       bandeau ? bandeau[0] : "compte introuvable");

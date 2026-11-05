@@ -34,6 +34,21 @@ export function formatNumber(value: number | string, locale: Locale): string {
   return new Intl.NumberFormat(LOCALE_TAG[locale], { maximumFractionDigits: 0 }).format(n);
 }
 
+/** Pourcentage à une décimale, à la typographie de la langue : « 8,7 % » en
+ *  français et en russe, « 8.7% » en anglais. `toFixed` écrivait « 8.7 % »
+ *  partout. Prend un pourcentage (8.7), pas un ratio. */
+export function formatPercent(pct: number, locale: Locale): string {
+  return new Intl.NumberFormat(LOCALE_TAG[locale], {
+    style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1,
+  }).format(pct / 100);
+}
+
+/** Deux-points d'un libellé : l'espace qui le précède est une règle française,
+ *  pas une règle universelle — « yield : 8.7% » est faux en anglais. */
+export function colon(locale: Locale): string {
+  return locale === "fr" ? "\u00a0: " : ": ";
+}
+
 export function formatDate(value: string | Date, locale: Locale): string {
   const d = typeof value === "string" ? new Date(value) : value;
   return new Intl.DateTimeFormat(LOCALE_TAG[locale], { dateStyle: "medium" }).format(d);

@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { query, queryOne } from "@/lib/db";
-import { daysSince, daysUntil, formatDate, formatNumber, formatUsd } from "@/lib/format";
+import { daysSince, daysUntil, formatDate, formatNumber, formatPercent, formatUsd } from "@/lib/format";
 import { getTranslator, i18nField, isLocale, type Locale } from "@/lib/i18n";
 import {
   agencyTotals, benchmark, dailySeries, leadBreakdown, listingPerformance,
@@ -17,8 +17,8 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
-const rate = (leads: number, views: number) =>
-  views > 0 ? `${((leads / views) * 100).toFixed(1)} %` : "—";
+const rate = (leads: number, views: number, locale: Locale) =>
+  views > 0 ? formatPercent((leads / views) * 100, locale) : "—";
 
 const Card = ({ label, value, sub, tone }: {
   label: string; value: string; sub?: React.ReactNode; tone?: string;
@@ -154,9 +154,9 @@ export default async function DashboardPage({
                 {t("dashboard.vsPrevious", { n: formatNumber(totals.leadsPrev, locale) })}
               </>} />
         {/* Le taux seul ne dit rien : il est montré à côté de celui du portail. */}
-        <Card label={t("dashboard.conversion")} value={rate(totals.leads, totals.views)}
+        <Card label={t("dashboard.conversion")} value={rate(totals.leads, totals.views, locale)}
               sub={t("dashboard.portalAverage", {
-                rate: rate(bench?.portalLeads ?? 0, bench?.portalViews ?? 0) })} />
+                rate: rate(bench?.portalLeads ?? 0, bench?.portalViews ?? 0, locale) })} />
         <Card label={t("dashboard.activeListings")} value={formatNumber(totals.activeListings, locale)}
               tone={totals.activeListings >= totals.quota ? "var(--color-danger)" : undefined}
               sub={t("dashboard.quotaUsed", { used: totals.activeListings, quota: totals.quota })} />
@@ -251,7 +251,7 @@ export default async function DashboardPage({
                   <td style={{ textAlign: "end" }}>{formatNumber(p.views, locale)}</td>
                   <td style={{ textAlign: "end", fontWeight: 600 }}>{p.leads}</td>
                   <td style={{ textAlign: "end", color: "var(--color-ink-soft)" }}>
-                    {rate(p.leads, p.views)}
+                    {rate(p.leads, p.views, locale)}
                   </td>
                   <td style={{ textAlign: "end", color: p.agencies > 1 ? "var(--color-gold)" : "var(--color-ink-faint)" }}>
                     {p.agencies}

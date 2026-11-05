@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTranslator, i18nField, isLocale, HTML_LANG, LOCALES, type Locale } from "@/lib/i18n";
-import { daysSince, daysUntil, formatDate, formatKhr, formatNumber, formatUsd } from "@/lib/format";
+import { colon, daysSince, daysUntil, formatDate, formatKhr, formatNumber, formatPercent, formatUsd } from "@/lib/format";
 import { getProperty, similarProperties } from "@/lib/search";
 import { estimate, pricePosition } from "@/lib/estimate";
 import { getMapProvider } from "@/lib/map-provider";
@@ -101,7 +101,7 @@ export default async function PropertyPage({
     ...(p.yearBuilt ? [[t("property.yearBuilt"), String(p.yearBuilt)] as [string, string]] : []),
     [t("filters.titleType"), t(`titleType.${p.titleType}`)],
     [t("filters.furnished"), p.furnished ? "✓" : "—"],
-    ...(area ? [[t("property.pricePerSqm", { price: "" }).trim() || "USD/m²",
+    ...(area ? [[t("compare.rowPerSqm"),
         formatUsd(min / Number(area), locale)] as [string, string]] : []),
   ];
 
@@ -237,7 +237,7 @@ export default async function PropertyPage({
               {grossYield !== null && rentEstimate && (
                 <span style={{ display: "block", fontSize: "0.8125rem", marginTop: "0.375rem" }}
                       title={t("estimate.yieldDisclaimer")}>
-                  <strong>{t("estimate.yieldTitle")} : {grossYield.toFixed(1)} %</strong>
+                  <strong>{t("estimate.yieldTitle")}{colon(locale)}{formatPercent(grossYield, locale)}</strong>
                   <span style={{ color: "var(--color-ink-soft)" }}>
                     {" "}· {t("estimate.yieldRent", { rent: formatUsd(rentEstimate.value, locale) })}
                     {" "}· {t("estimate.comparables", { n: rentEstimate.stats.n })}{" "}

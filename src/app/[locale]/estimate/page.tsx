@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { query } from "@/lib/db";
 import { getTranslator, i18nField, isLocale, LOCALES, type Locale } from "@/lib/i18n";
-import { formatNumber, formatUsd } from "@/lib/format";
+import { colon, formatNumber, formatPercent, formatUsd } from "@/lib/format";
 import { estimate, priceTrend, rentalYield, MIN_SAMPLE, type TrendPoint } from "@/lib/estimate";
 import { PROPERTY_TYPES } from "@/lib/search";
 
@@ -210,7 +210,7 @@ export default async function EstimatePage({
           </p>
 
           <p style={{ fontSize: "0.9375rem", color: "var(--color-ink-soft)", marginTop: "0.375rem" }}>
-            {t("estimate.range")} : {formatUsd(result.low, locale)} – {formatUsd(result.high, locale)}
+            {t("estimate.range")}{colon(locale)}{formatUsd(result.low, locale)} – {formatUsd(result.high, locale)}
             {" · "}
             {t("estimate.perSqm", { price: formatUsd(Math.round(result.stats.perSqmMedian), locale) })}
           </p>
@@ -275,7 +275,7 @@ export default async function EstimatePage({
                 </span>
                 <data value={yld.grossPct.toFixed(1)} data-yield
                       style={{ fontSize: "1.25rem", fontWeight: 800, color: "var(--color-brand)" }}>
-                  {yld.grossPct.toFixed(1)} %
+                  {formatPercent(yld.grossPct, locale)}
                 </data>
               </div>
               <p style={{ fontSize: "0.8125rem", color: "var(--color-ink-soft)", marginTop: "0.25rem" }}>

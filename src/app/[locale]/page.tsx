@@ -120,10 +120,12 @@ export default async function HomePage({
           display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(9rem, 1fr))",
           gap: "1.5rem", padding: "2rem 0", borderBottom: "1px solid var(--color-line-soft)",
         }}>
-          <Stat value={stats.properties} label={t("home.statProperties")} locale={locale} />
-          <Stat value={stats.listings} label={t("home.statListings")} locale={locale} />
-          <Stat value={stats.agencies} label={t("home.statAgencies")} locale={locale} />
-          <Stat value={stats.merged} label={t("home.statDedup")} locale={locale} />
+          {/* Le libellé s'accorde au chiffre : « 1 agences » s'affichait en
+              gros caractères sur le premier écran. */}
+          <Stat value={stats.properties} label={t("home.statProperties", { n: stats.properties })} locale={locale} />
+          <Stat value={stats.listings} label={t("home.statListings", { n: stats.listings })} locale={locale} />
+          <Stat value={stats.agencies} label={t("home.statAgencies", { n: stats.agencies })} locale={locale} />
+          <Stat value={stats.merged} label={t("home.statDedup", { n: stats.merged })} locale={locale} />
         </section>
 
         <section style={{ padding: "2.5rem 0" }}>

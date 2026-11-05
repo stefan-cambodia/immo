@@ -144,8 +144,9 @@ if (both) {
   // La page d'atterrissage achat × type du même quartier porte la statistique.
   const landing = await (await fetch(`${BASE}/en/buy/${both.slug}/${both.type}`)).text();
   check("la page d'atterrissage achat affiche le rendement du quartier",
-        landing.includes("Gross yield") && landing.includes(`${expectedYield} %`),
-        `attendu ${expectedYield} %`);
+        // Typographie anglaise du pourcentage (formatPercent) : « 6.5% ».
+        landing.includes("Gross yield") && landing.includes(`${expectedYield}%`),
+        `attendu ${expectedYield}%`);
 
   const { rows: [saleProp] } = await db.query(`
     SELECT p.reference FROM properties p

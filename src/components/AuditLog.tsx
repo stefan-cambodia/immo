@@ -23,7 +23,7 @@ function summarise(row: AuditRow, t: Translator): string | null {
   const d = row.details ?? {};
   switch (row.action) {
     case "dedup_merged": {
-      const moved = `${d.removedReference} → ${d.keptReference} · ${d.listingsMoved} ${t("home.statListings")}`;
+      const moved = `${d.removedReference} → ${d.keptReference} · ${d.listingsMoved} ${t("home.statListings", { n: Number(d.listingsMoved) })}`;
       // Une fusion qui a détruit des annonces doit le dire, sans avoir à
       // déplier le détail JSON.
       return Number(d.listingsDropped) > 0

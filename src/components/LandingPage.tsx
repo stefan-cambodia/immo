@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { formatNumber, formatUsd } from "@/lib/format";
+import { formatNumber, formatPercent, formatUsd } from "@/lib/format";
 import { getTranslator, i18nField, isLocale, type Locale } from "@/lib/i18n";
 import { parseFilters, searchProperties } from "@/lib/search";
 import { rentalYield } from "@/lib/estimate";
@@ -211,8 +211,8 @@ export async function LandingPage({ params }: { params: LandingParams }) {
             display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(8rem, 1fr))",
             gap: "0.75rem 1.25rem", marginBottom: "1.75rem",
           }}>
-            <Stat label={t("home.statProperties")} value={formatNumber(stats.properties, locale)} />
-            <Stat label={t("home.statAgencies")} value={String(stats.agencies)} />
+            <Stat label={t("home.statProperties", { n: stats.properties })} value={formatNumber(stats.properties, locale)} />
+            <Stat label={t("home.statAgencies", { n: stats.agencies })} value={String(stats.agencies)} />
             {stats.priceMin && (
               <Stat label={t("filters.priceRange")}
                     value={`${formatUsd(stats.priceMin, locale, true)} – ${formatUsd(stats.priceMax!, locale, true)}`} />
@@ -225,7 +225,7 @@ export async function LandingPage({ params }: { params: LandingParams }) {
               <Stat label={t("nav.foreignEligible")} value={String(stats.foreignEligible)} />
             )}
             {exactYield && (
-              <Stat label={t("estimate.yieldShort")} value={`${exactYield.grossPct.toFixed(1)} %`} />
+              <Stat label={t("estimate.yieldShort")} value={formatPercent(exactYield.grossPct, locale)} />
             )}
           </section>
         )}
