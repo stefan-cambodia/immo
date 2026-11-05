@@ -6,7 +6,7 @@
 // Google Maps demanderait un second moteur : `renderer` porte cette information
 // pour que la décision reste explicite et localisée ici.
 
-export type MapProviderId = "osm" | "maptiler" | "protomaps" | "google";
+export type MapProviderId = "openfreemap" | "osm" | "maptiler" | "protomaps" | "google";
 
 export interface MapProviderConfig {
   id: MapProviderId;
@@ -31,8 +31,32 @@ const OSM_RASTER_STYLE = {
   layers: [{ id: "osm", type: "raster", source: "osm" }],
 } as const;
 
-export function getMapProvider(): MapProviderConfig {
-  const id = (process.env.NEXT_PUBLIC_MAP_PROVIDER ?? "osm") as MapProviderId;
+const OSM_RASTER: MapProviderConfig = {
+  id: "osm", renderer: "maplibre",
+  style: OSM_RASTER_STYLE as unknown as Record<string, unknown>,
+  attribution: "© OpenStreetMap",
+  maxZoom: 19,
+};
+
+/**
+ * Le fournisseur pour une langue de page.
+ *
+ * Par défaut, OpenFreeMap : tuiles vectorielles OpenStreetMap, sans clé ni
+ * quota, dont les libellés se choisissent par langue
+ * (`src/lib/map-labels.ts`). Les tuiles raster d'openstreetmap.org dessinent
+ * les noms une fois pour toutes, dans l'écriture locale : une page française
+ * ou russe montrait une carte en khmer. Leur politique d'usage exclut en
+ * outre une application qui les sert à ses visiteurs.
+ *
+ * Sauf en khmer. MapLibre ne compose pas les écritures complexes : les
+ * voyelles khmères, placées avant ou autour de la consonne, et les
+ * consonnes souscrites s'afficheraient dans l'ordre de saisie, illisibles.
+ * Les tuiles raster, rendues côté serveur, les composent correctement, et
+ * leurs noms sont en khmer — ce que veut un lecteur khmérophone. Les tuiles
+ * vectorielles n'ont d'ailleurs pas de champ `name:km`.
+ */
+export function getMapProvider(locale?: string): MapProviderConfig {
+  const id = (process.env.NEXT_PUBLIC_MAP_PROVIDER ?? "openfreemap") as MapProviderId;
   const key = process.env.NEXT_PUBLIC_MAP_API_KEY ?? "";
 
   switch (id) {
@@ -60,11 +84,16 @@ export function getMapProvider(): MapProviderConfig {
         maxZoom: 21,
       };
     case "osm":
+      return OSM_RASTER;
+    case "openfreemap":
     default:
+      if (locale === "km") return OSM_RASTER;
       return {
-        id: "osm", renderer: "maplibre",
-        style: OSM_RASTER_STYLE as unknown as Record<string, unknown>,
-        attribution: "© OpenStreetMap",
+        id: "openfreemap", renderer: "maplibre",
+        style: "https://tiles.openfreemap.org/styles/liberty",
+        // Les tuiles déclarent elles-mêmes « OpenFreeMap © OpenMapTiles,
+        // données OpenStreetMap » : rien à ajouter.
+        attribution: "",
         maxZoom: 19,
       };
   }

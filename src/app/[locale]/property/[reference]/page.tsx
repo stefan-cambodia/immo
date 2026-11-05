@@ -64,7 +64,7 @@ export default async function PropertyPage({
   const agencyCount = new Set(offers.map((o) => o.agencyId)).size;
   const area = p.indoorArea ?? p.landArea;
   const similar = await similarProperties(p.id, transaction, 4);
-  const provider = getMapProvider();
+  const provider = getMapProvider(locale);
   // Position du prix par rapport à la médiane du secteur (phase 4) — muette
   // sous MIN_SAMPLE comparables plutôt que faussement précise.
   const position = await pricePosition(

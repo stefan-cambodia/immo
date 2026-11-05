@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Map as MlMap, GeoJSONSource } from "maplibre-gl";
 import { formatMessage } from "@/lib/message-format";
+import { localizedStyle } from "@/lib/map-labels";
 
 interface Point {
   id: string; reference: string; lng: number; lat: number;
@@ -89,12 +90,17 @@ export function ResultsMap({
       let maplibre;
       let m: MlMap;
       try {
-        maplibre = (await import("maplibre-gl")).default;
+        // Le style est lu en même temps que le module : ses libellés passent
+        // dans la langue de la page avant le premier rendu.
+        const [mod, mapStyle] = await Promise.all([
+          import("maplibre-gl"), localizedStyle(style, locale),
+        ]);
+        maplibre = mod.default;
         if (cancelled || !container.current || map.current) return;
 
         m = new maplibre.Map({
           container: container.current,
-          style: style as never,
+          style: mapStyle as never,
           center,
           zoom,
           maxZoom,
@@ -133,7 +139,9 @@ export function ResultsMap({
           id: "cluster-count", type: "symbol", source: "properties", filter: ["has", "point_count"],
           layout: {
             "text-field": ["get", "point_count_abbreviated"],
-            "text-size": 12, "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+            // La police du fond OpenFreeMap : « Open Sans » n'existe pas sur son
+            // serveur de glyphes et répondait 404 à chaque affichage.
+            "text-size": 12, "text-font": ["Noto Sans Bold"],
             "text-allow-overlap": true,
           },
           paint: { "text-color": "#ffffff" },
@@ -154,7 +162,7 @@ export function ResultsMap({
           layout: {
             "text-field": ["get", "label"], "text-size": 11,
             "text-offset": [0, 1.3], "text-anchor": "top",
-            "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+            "text-font": ["Noto Sans Bold"],
           },
           paint: { "text-color": "#14181d", "text-halo-color": "#ffffff", "text-halo-width": 1.5 },
         });

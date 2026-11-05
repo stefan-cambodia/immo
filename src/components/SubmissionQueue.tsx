@@ -102,6 +102,7 @@ export function SubmissionQueue({
               <input type="hidden" name="locale" value={locale} />
               <input type="hidden" name="submission_id" value={s.id} />
               <PinPicker
+                locale={locale}
                 style={provider.style}
                 attribution={provider.attribution}
                 maxZoom={provider.maxZoom}

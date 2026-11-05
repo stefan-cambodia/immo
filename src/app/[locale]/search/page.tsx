@@ -91,7 +91,7 @@ export default async function SearchPage({
     return `/${locale}/search${qs}${extra}`;
   };
 
-  const provider = getMapProvider();
+  const provider = getMapProvider(locale);
   const mapCenter: [number, number] = rows.length
     ? [rows[0].lng, rows[0].lat]
     : PHNOM_PENH.center;

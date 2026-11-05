@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Map as MlMap, Marker } from "maplibre-gl";
+import { localizedStyle } from "@/lib/map-labels";
 
 /**
  * Principe verrouillé n°2 : le pin de la carte est posé à la main, jamais
@@ -10,8 +11,9 @@ import type { Map as MlMap, Marker } from "maplibre-gl";
  * le formulaire ne peut pas être soumis tant que le pin n'est pas posé.
  */
 export function PinPicker({
-  style, attribution, maxZoom, center, zoom, labels,
+  style, attribution, maxZoom, center, zoom, labels, locale,
 }: {
+  locale: string;
   style: string | Record<string, unknown>;
   attribution: string;
   maxZoom: number;
@@ -27,12 +29,15 @@ export function PinPicker({
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const maplibre = (await import("maplibre-gl")).default;
+      const [mod, mapStyle] = await Promise.all([
+        import("maplibre-gl"), localizedStyle(style, locale),
+      ]);
+      const maplibre = mod.default;
       if (cancelled || !container.current || map.current) return;
 
       const m = new maplibre.Map({
         container: container.current,
-        style: style as never,
+        style: mapStyle as never,
         center, zoom, maxZoom,
         attributionControl: { compact: true, customAttribution: attribution },
       });

@@ -112,7 +112,7 @@ export default async function BackofficePage({
   if (!isLocale(raw)) notFound();
   const locale = raw as Locale;
   const t = await getTranslator(locale);
-  const provider = getMapProvider();
+  const provider = getMapProvider(locale);
 
   // Le layout a déjà refusé les visiteurs non authentifiés ; cette lecture sert
   // à moduler ce qui est affiché selon le rôle.
@@ -528,6 +528,7 @@ export default async function BackofficePage({
             </label>
 
             <PinPicker
+              locale={locale}
               style={provider.style}
               attribution={provider.attribution}
               maxZoom={provider.maxZoom}

@@ -1817,6 +1817,19 @@ définitifs — ils restent à confirmer avec les chiffres réels.
    `renderer` documente explicitement que Google exigerait un second moteur de
    rendu. Aucun composant ne connaît le fournisseur.
 
+   Le fond par défaut est **OpenFreeMap** : tuiles vectorielles OpenStreetMap,
+   sans clé ni quota. Les tuiles raster d'openstreetmap.org dessinaient les
+   noms une fois pour toutes, dans l'écriture locale : une page française ou
+   russe montrait une carte en khmer, et leur politique d'usage exclut une
+   application qui les sert à ses visiteurs. Les libellés vectoriels sont
+   réécrits dans la langue de la page avant le premier rendu
+   (`src/lib/map-labels.ts` : nom dans la langue, puis anglais, puis forme
+   latine). **La page khmère garde le raster** : MapLibre ne compose pas les
+   écritures complexes, et les voyelles khmères, placées avant ou autour de
+   leur consonne, s'afficheraient dans l'ordre de saisie. Les tuiles raster,
+   rendues côté serveur, les composent, et leurs noms sont déjà en khmer.
+   `NEXT_PUBLIC_MAP_PROVIDER=osm` rétablit le raster partout.
+
    Le même composant sert deux usages, distingués par `mode` : `search` sur la
    page de résultats — dessin de zone, « chercher dans cette zone », suivi du
    déplacement — et `locate` sur la fiche, où la carte ne fait que situer un
