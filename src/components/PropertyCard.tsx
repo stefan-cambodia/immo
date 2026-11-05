@@ -90,13 +90,23 @@ export function PropertyCardItem({
   );
 }
 
+/**
+ * `minColumn` : largeur minimale d'une carte. La valeur par défaut suit la
+ * fenêtre, ce qui convient aux grilles pleine largeur (accueil, biens
+ * comparables). Dans la colonne de résultats, prise entre les filtres et la
+ * carte, elle exigeait 300 px quand la colonne en offrait 557 : une seule
+ * carte par rangée, étirée, un bien et demi par écran. La recherche passe
+ * donc une largeur fixe, qui en loge deux.
+ */
 export function PropertyGrid({
-  items, locale, t, transaction,
-}: { items: Card[]; locale: Locale; t: Translator; transaction: "sale" | "rent" }) {
+  items, locale, t, transaction, minColumn = "clamp(240px, 30vw, 300px)",
+}: {
+  items: Card[]; locale: Locale; t: Translator; transaction: "sale" | "rent"; minColumn?: string;
+}) {
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "repeat(auto-fill, minmax(clamp(240px, 30vw, 300px), 1fr))",
+      gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${minColumn}), 1fr))`,
       gap: "1rem",
     }}>
       {items.map((item) => (

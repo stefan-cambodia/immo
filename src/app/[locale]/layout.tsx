@@ -119,23 +119,11 @@ export default async function LocaleLayout({
               <SearchBox locale={locale} placeholder={t("home.searchPlaceholder")} />
             </div>
 
-            {/* `flexWrap` : avec cinq langues et « Панель управления », le bloc
-                dépassait de l'écran d'un téléphone et faisait défiler la page
-                de côté. */}
-            <div style={{
-              marginInlineStart: "auto", display: "flex", alignItems: "center",
-              gap: "0.25rem 0.75rem", flexWrap: "wrap", justifyContent: "flex-end",
-            }}>
-              <Link href={`/${locale}/dashboard`} style={{
-                fontSize: "0.8125rem", color: "var(--color-ink-faint)", whiteSpace: "nowrap",
-              }}>
-                {t("dashboard.title")}
-              </Link>
-              <Link href={`/${locale}/backoffice`} style={{
-                fontSize: "0.8125rem", color: "var(--color-ink-faint)", whiteSpace: "nowrap",
-              }}>
-                {t("nav.backoffice")}
-              </Link>
+            {/* Le tableau de bord et le back-office servent les agences, pas
+                l'acheteur : ils sont dans le pied de page, sous « Pour les
+                agences ». Dans l'en-tête, ils le faisaient passer sur deux
+                lignes à toutes les largeurs d'ordinateur courantes. */}
+            <div style={{ marginInlineStart: "auto" }}>
               <LocaleSwitcher current={locale} />
             </div>
           </div>
@@ -161,6 +149,7 @@ export default async function LocaleLayout({
             <nav style={{ display: "flex", gap: "1.25rem", flexWrap: "wrap", fontSize: "0.875rem" }}>
               <Link href={`/${locale}/search`}>{t("home.browseAll")}</Link>
               <Link href={`/${locale}/backoffice`}>{t("footer.forAgencies")}</Link>
+              <Link href={`/${locale}/dashboard`}>{t("dashboard.title")}</Link>
             </nav>
           </div>
         </footer>

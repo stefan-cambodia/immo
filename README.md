@@ -1849,6 +1849,13 @@ définitifs — ils restent à confirmer avec les chiffres réels.
    Le cadrage n'a lieu qu'une fois : affiner un filtre ne ramène pas à la vue
    d'ensemble un visiteur qui a zoomé.
 
+   L'en-tête tient sur une ligne dès 1 180 px : le tableau de bord et le
+   back-office, qui servent les agences et non l'acheteur, sont passés dans le
+   pied de page, sous « Pour les agences ». Dans la colonne de résultats, les
+   cartes vont deux par rangée : leur largeur minimale suivait la fenêtre
+   (300 px) quand la colonne n'en offrait que 557, et une seule carte étirée
+   par rangée laissait voir un bien et demi par écran — quatre désormais.
+
    L'**en-tête ne colle pas** au haut de la fenêtre. Collant, il mesurait
    7,25 rem dès qu'il passait sur deux lignes — à 1280, 1366 et 1600 px —
    alors que filtres et carte se collaient à 4,5 rem : leurs 44 premiers

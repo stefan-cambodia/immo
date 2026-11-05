@@ -210,7 +210,7 @@ export default async function SearchPage({
             </p>
           </div>
         ) : (
-          <PropertyGrid items={rows} locale={locale} t={t} transaction={f.transaction} />
+          <PropertyGrid items={rows} locale={locale} t={t} transaction={f.transaction} minColumn="15rem" />
         )}
 
         {pages > 1 && (
