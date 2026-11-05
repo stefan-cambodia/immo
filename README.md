@@ -1834,6 +1834,12 @@ définitifs — ils restent à confirmer avec les chiffres réels.
    côté page : basculer, déplacer, « chercher dans cette zone », toucher un
    point, ouvrir la fiche.
 
+   L'**en-tête ne colle pas** au haut de la fenêtre. Collant, il mesurait
+   7,25 rem dès qu'il passait sur deux lignes — à 1280, 1366 et 1600 px —
+   alors que filtres et carte se collaient à 4,5 rem : leurs 44 premiers
+   pixels passaient dessous, « Dessiner une zone » et le zoom avec. Sur
+   téléphone, il gardait pour lui un cinquième de l'écran.
+
    MapLibre est un moteur **WebGL** : sans contexte WebGL — navigateur ancien,
    accélération matérielle coupée, pilote sur liste noire — il lève à la
    construction. L'exception est rattrapée et le panneau affiche « la carte ne
@@ -1864,6 +1870,13 @@ Mesuré sur la construction de production, réponses gzippées :
 | HTML page d'accueil | 11 ko | — |
 | HTML page de résultats | 43–50 ko | — |
 | MapLibre dans le bundle initial | **absent** — importé à la demande | — |
+
+Le **CLS** mesuré dans Chrome est nul sur l'accueil, les projets et la
+recherche, sur ordinateur comme sur téléphone (0,01 sur une fiche). Il valait
+0,127 sur les pages rendues statiquement : le sélecteur de langue, rendu à
+l'hydratation derrière une réserve vide, faisait passer l'en-tête sur deux
+lignes et poussait la page de 55 px. La réserve est désormais le sélecteur
+lui-même, sans les paramètres de la page.
 
 Ces chiffres viennent de la construction locale et ne prédisent pas le LCP sur
 4G réelle depuis le Cambodge — c'est pourtant lui que le brief vise. La mesure

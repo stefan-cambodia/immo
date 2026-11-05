@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Suspense, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Inter, Kantumruy_Pro } from "next/font/google";
@@ -65,10 +65,15 @@ export default async function LocaleLayout({
   return (
     <html lang={HTML_LANG[locale]} className={`${inter.variable} ${khmer.variable}`}>
       <body>
+        {/* L'en-tête défile avec la page. Collant, il couvrait la colonne de
+            filtres et la carte de la recherche, collées à 4,5 rem du haut
+            alors qu'il en mesure plus de 7 dès qu'il passe sur deux lignes —
+            à toutes les largeurs d'ordinateur courantes : « Dessiner une
+            zone » disparaissait dessous. Sur mobile, il gardait un cinquième
+            de l'écran pour lui. */}
         <header style={{
           borderBottom: "1px solid var(--color-line)",
           background: "var(--color-surface)",
-          position: "sticky", top: 0, zIndex: 30,
         }}>
           <div style={{
             maxWidth: "84rem", margin: "0 auto", padding: "0.625rem clamp(0.75rem, 3vw, 1.5rem)",
@@ -114,7 +119,13 @@ export default async function LocaleLayout({
               <SearchBox locale={locale} placeholder={t("home.searchPlaceholder")} />
             </div>
 
-            <div style={{ marginInlineStart: "auto", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            {/* `flexWrap` : avec cinq langues et « Панель управления », le bloc
+                dépassait de l'écran d'un téléphone et faisait défiler la page
+                de côté. */}
+            <div style={{
+              marginInlineStart: "auto", display: "flex", alignItems: "center",
+              gap: "0.25rem 0.75rem", flexWrap: "wrap", justifyContent: "flex-end",
+            }}>
               <Link href={`/${locale}/dashboard`} style={{
                 fontSize: "0.8125rem", color: "var(--color-ink-faint)", whiteSpace: "nowrap",
               }}>
@@ -125,11 +136,7 @@ export default async function LocaleLayout({
               }}>
                 {t("nav.backoffice")}
               </Link>
-              {/* useSearchParams impose une frontière de suspense pour que le
-                  reste de l'en-tête reste rendu statiquement. */}
-              <Suspense fallback={<span style={{ width: "9rem" }} />}>
-                <LocaleSwitcher current={locale} />
-              </Suspense>
+              <LocaleSwitcher current={locale} />
             </div>
           </div>
         </header>
