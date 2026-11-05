@@ -290,8 +290,12 @@ body {
   /* L'en-tête ne colle plus (layout de locale) : les panneaux collent au
      bord de la fenêtre et en prennent toute la hauteur. */
   .search-filters { align-self: start; position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; padding-inline-end: 0.25rem; }
-  .search-filters summary { display: none; }
-  .search-filters details > div { display: block !important; }
+}
+@supports selector(::details-content) {
+  @media (min-width: 900px) {
+    .search-filters summary { display: none; }
+    .search-filters details::details-content { content-visibility: visible; display: block; }
+  }
 }
 
 @media (min-width: 1180px) {

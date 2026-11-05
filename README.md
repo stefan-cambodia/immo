@@ -1834,6 +1834,14 @@ définitifs — ils restent à confirmer avec les chiffres réels.
    côté page : basculer, déplacer, « chercher dans cette zone », toucher un
    point, ouvrir la fiche.
 
+   En vue liste sur téléphone, les **filtres sont repliés** derrière un bouton
+   « Filtres » qui compte ceux en vigueur (« Filtres · 3 ») : dépliés, ils
+   repoussaient le premier résultat à 2 150 px, trois écrans plus bas ; il
+   arrive désormais à 569 px, dans le premier. Sur ordinateur, la colonne
+   reste ouverte sans l'attribut `open`, en stylant `::details-content` ; un
+   navigateur qui ignore ce pseudo-élément garde le bouton — un clic de plus,
+   jamais une colonne vide.
+
    L'**en-tête ne colle pas** au haut de la fenêtre. Collant, il mesurait
    7,25 rem dès qu'il passait sur deux lignes — à 1280, 1366 et 1600 px —
    alors que filtres et carte se collaient à 4,5 rem : leurs 44 premiers

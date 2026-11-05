@@ -96,6 +96,13 @@ export default async function SearchPage({
     ? [rows[0].lng, rows[0].lat]
     : PHNOM_PENH.center;
 
+  // Filtres du panneau en vigueur (la transaction n'en est pas un : c'est la
+  // bascule vente / location).
+  const activeFilters = f.types.length + f.titles.length + f.amenities.length
+    + [f.priceMin ?? f.priceMax, f.bedsMin, f.bathsMin, f.areaMin, f.floorMin, f.confirmedWithin]
+      .filter((v) => v !== null).length
+    + Number(f.foreignEligible) + Number(f.furnished);
+
   const heading = building
     ? i18nField(building.name, locale)
     : area
@@ -124,16 +131,19 @@ export default async function SearchPage({
       </div>
 
       <aside className="search-filters">
-        {/* `open` est porteur : au-delà de 900 px le résumé est masqué et le
-            panneau doit rester déplié. Les navigateurs récents cachent le
-            contenu d'un `<details>` fermé par `::details-content`, hors de
-            portée d'un `display: block` sur l'enfant — la colonne de filtres
-            serait vide sur ordinateur. Sur mobile en vue carte, c'est l'ordre
-            d'affichage qui règle le problème : la carte passe AVANT les
-            filtres (voir `.search-shell--map` dans globals.css). */}
-        <details open>
+        {/* Replié par défaut : sur un téléphone, le panneau déplié poussait le
+            premier résultat à trois écrans de défilement. Au-delà de 900 px,
+            la colonne de filtres reste ouverte — non par l'attribut `open`,
+            mais en stylant `::details-content`, par où les navigateurs
+            récents masquent le contenu d'un `<details>` fermé (un
+            `display: block` sur l'enfant n'y peut rien). Un navigateur qui
+            ne connaît pas ce pseudo-élément garde le bouton « Filtres » sur
+            ordinateur aussi : un clic de plus, jamais une colonne vide. Le
+            bouton compte les filtres actifs, pour qu'un panneau replié ne
+            les cache pas. */}
+        <details>
           <summary className="btn btn-outline" style={{ width: "100%", marginBottom: "0.75rem" }}>
-            {t("filters.title")}
+            {t("filters.title")}{activeFilters > 0 && ` · ${activeFilters}`}
           </summary>
           <div>
             <FilterPanel f={f} locale={locale} t={t} />
