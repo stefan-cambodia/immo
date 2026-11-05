@@ -8,6 +8,7 @@ const LOCALE_TAG: Record<Locale, string> = {
   en: "en-US",
   zh: "zh-CN",
   km: "km-KH",
+  ru: "ru-RU",
 };
 
 export function formatUsd(value: number | string, locale: Locale, compact = false): string {

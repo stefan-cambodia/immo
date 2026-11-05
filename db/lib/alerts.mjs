@@ -30,7 +30,7 @@ export const LIMITS = {
   perMessage: 20,       // biens détaillés par message ; au-delà, « et N de plus »
 };
 
-const LOCALE_TAG = { fr: "fr-FR", en: "en-US", zh: "zh-CN", km: "km-KH" };
+const LOCALE_TAG = { fr: "fr-FR", en: "en-US", zh: "zh-CN", km: "km-KH", ru: "ru-RU" };
 
 export const hashToken = (token) => createHash("sha256").update(token).digest("hex");
 export const newToken = () => randomBytes(24).toString("base64url");

@@ -1,7 +1,8 @@
 import "server-only";
 import { cache } from "react";
+import { formatMessage, type MessageVars } from "./message-format";
 
-export const LOCALES = ["fr", "en", "zh", "km"] as const;
+export const LOCALES = ["fr", "en", "zh", "km", "ru"] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = "en";
 
@@ -15,6 +16,7 @@ export const HTML_LANG: Record<Locale, string> = {
   en: "en",
   zh: "zh-Hans",
   km: "km",
+  ru: "ru",
 };
 
 export type Messages = Record<string, Record<string, string>>;
@@ -24,7 +26,7 @@ const load = cache(async (locale: Locale): Promise<Messages> => {
   return (mod.default ?? mod) as Messages;
 });
 
-export type Translator = ((key: string, vars?: Record<string, string | number>) => string) & {
+export type Translator = ((key: string, vars?: MessageVars) => string) & {
   locale: Locale;
   raw: Messages;
 };
@@ -33,14 +35,11 @@ export async function getTranslator(locale: Locale): Promise<Translator> {
   const messages = await load(locale);
   const fallback = locale === DEFAULT_LOCALE ? null : await load(DEFAULT_LOCALE);
 
-  const t = ((key: string, vars?: Record<string, string | number>) => {
+  const t = ((key: string, vars?: MessageVars) => {
     const [group, name] = key.split(".");
     const value = messages[group]?.[name] ?? fallback?.[group]?.[name];
     if (value === undefined) return key;
-    if (!vars) return value;
-    return value.replace(/\{(\w+)\}/g, (_, v: string) =>
-      vars[v] !== undefined ? String(vars[v]) : `{${v}}`
-    );
+    return formatMessage(value, vars, locale);
   }) as Translator;
 
   t.locale = locale;
@@ -62,6 +61,7 @@ export function negotiateLocale(header: string | null): Locale {
   for (const { tag } of ranked) {
     if (tag.startsWith("zh")) return "zh";
     if (tag.startsWith("km")) return "km";
+    if (tag.startsWith("ru")) return "ru";
     if (tag.startsWith("fr")) return "fr";
     if (tag.startsWith("en")) return "en";
   }

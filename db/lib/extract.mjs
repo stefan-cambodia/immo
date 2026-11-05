@@ -49,7 +49,7 @@ const EXTRACT_TOOL = {
       furnished: { type: ["boolean", "null"] },
       year_built: { type: ["integer", "null"] },
       description: { type: ["string", "null"] },
-      source_lang: { type: ["string", "null"], enum: ["en", "km", "zh", "fr", null] },
+      source_lang: { type: ["string", "null"], enum: ["en", "km", "zh", "fr", "ru", null] },
       missing: {
         type: "array",
         items: { type: "string" },

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const LOCALES = ["fr", "en", "zh", "km"];
+const LOCALES = ["fr", "en", "zh", "km", "ru"];
 
 // Dupliqué depuis lib/auth : le middleware ne doit pas importer de code serveur.
 const SESSION_COOKIE = "bo_session";
@@ -18,6 +18,7 @@ function negotiate(header: string | null): string {
   for (const { tag } of ranked) {
     if (tag.startsWith("zh")) return "zh";
     if (tag.startsWith("km")) return "km";
+    if (tag.startsWith("ru")) return "ru";
     if (tag.startsWith("fr")) return "fr";
     if (tag.startsWith("en")) return "en";
   }

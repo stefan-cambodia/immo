@@ -85,7 +85,7 @@ Fiches agrégées, triées par référence, paginées par curseur.
       "amenities": ["pool", "gym"],
       "geo": { "lng": 104.922, "lat": 11.556 },
       "location": { "slug": "bkk1", "level": "neighborhood",
-                    "name": { "fr": "…", "en": "…", "zh": "…", "km": "…" },
+                    "name": { "fr": "…", "en": "…", "zh": "…", "km": "…", "ru": "…" },
                     "parent": { "slug": "chamkarmon", "name": { … } } },
       "building": { "slug": "…", "name": { … } },
       "title_verified": { "at": "2026-08-12T04:10:00Z", "by": "BNG Legal" },
@@ -110,7 +110,7 @@ La même fiche, complétée par :
 
 - `listings[]` — les annonces actives : `transaction_type`, `price_usd`,
   `price_period`, `negotiable`, `last_confirmed_at`, `description`
-  (les 4 langues), `description_source_lang`, `machine_translated`, et
+  (les 5 langues), `description_source_lang`, `machine_translated`, et
   l'`agency` (slug, nom, statut de vérification). Pas d'agent.
 - `media[]` — `url`, `width`, `height`, dans l'ordre éditorial.
 
@@ -119,7 +119,7 @@ La même fiche, complétée par :
 ### `GET /api/partner/v1/locations`
 
 Le référentiel des localités : hiérarchie administrative complète
-(`slug`, `level`, `parent_slug`), noms en 4 langues, **alias de
+(`slug`, `level`, `parent_slug`), noms en 5 langues, **alias de
 romanisation** (§5.2), centre géographique et nombre d'annonces. C'est la
 table de correspondance à utiliser pour mapper des libellés libres
 (« Kampong Som », « 西哈努克 ») vers les slugs du portail.

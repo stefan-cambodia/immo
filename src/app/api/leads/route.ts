@@ -3,7 +3,7 @@ import { queryOne } from "@/lib/db";
 
 const CHANNELS = ["phone", "telegram", "whatsapp", "wechat", "form", "email"];
 const ACTIONS = ["reveal_phone", "call", "message", "form_submit", "save"];
-const LOCALES = ["fr", "en", "zh", "km"];
+const LOCALES = ["fr", "en", "zh", "km", "ru"];
 
 /**
  * Journalisation des leads (§8) : qui a cliqué sur quel numéro, sur quel bien,

@@ -3,7 +3,7 @@ import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-const LOCALES = ["fr", "en", "zh", "km"];
+const LOCALES = ["fr", "en", "zh", "km", "ru"];
 
 // Les robots consultent beaucoup et ne contactent jamais : les compter
 // gonflerait les vues sans gonfler les leads, donc écraserait le taux de

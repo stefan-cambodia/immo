@@ -8,7 +8,7 @@ import { PROPERTY_TYPES } from "./search";
  *
  * Le SEO multilingue est le canal d'acquisition majeur du portail (principe
  * n°5), mais la combinatoire est un piège : 77 quartiers × 8 types × 2
- * transactions × 4 langues = 4 928 URLs. En générer autant sur un inventaire
+ * transactions × 5 langues = 6 160 URLs. En générer autant sur un inventaire
  * de quelques centaines de biens produirait des milliers de pages quasi vides
  * et quasi identiques — contenu mince, budget d'exploration gaspillé, et un
  * risque de dévaluation qui retomberait sur tout le site.

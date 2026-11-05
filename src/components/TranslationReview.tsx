@@ -12,7 +12,7 @@ export interface PendingTranslation {
 
 /**
  * Relecture humaine des traductions, réservée aux annonces premium (§4.1).
- * Les quatre langues sont montrées côte à côte, la source repérée : ce qu'on
+ * Les langues du portail sont montrées côte à côte, la source repérée : ce qu'on
  * relit, c'est la fidélité, pas le style.
  */
 export function TranslationReview({
@@ -41,7 +41,7 @@ export function TranslationReview({
             <span className="chip" style={{
               background: "var(--color-gold-soft)", color: "var(--color-gold)",
             }}>
-              {item.sourceLang.toUpperCase()} → 4
+              {item.sourceLang.toUpperCase()} → {LOCALES.length}
             </span>
             <span style={{ fontSize: "0.8125rem", color: "var(--color-ink-soft)" }}>
               {item.agency} · {formatDate(item.translatedAt, locale)}

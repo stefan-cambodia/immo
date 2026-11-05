@@ -2,7 +2,7 @@
  * Description d'annonce engendrée depuis les champs structurés (§4.1).
  *
  * Le principe n°3 tient en une phrase : ce qui est structuré n'a pas à être
- * traduit. Les quatre langues sortent d'ici sans appel de modèle, et le
+ * traduit. Toutes les langues sortent d'ici sans appel de modèle, et le
  * traducteur automatique n'est sollicité que sur le texte libre — celui qu'une
  * agence a réellement écrit.
  *
@@ -11,35 +11,50 @@
  */
 
 export const TYPE_LABEL = {
-  condo: { fr: "Appartement", en: "Condo", zh: "公寓", km: "ខុនដូ" },
-  borey_house: { fr: "Maison en borey", en: "Borey house", zh: "别墅区住宅", km: "ផ្ទះក្នុងបុរី" },
-  villa: { fr: "Villa", en: "Villa", zh: "别墅", km: "វីឡា" },
-  flat_shophouse: { fr: "Flat / shophouse", en: "Flat / shophouse", zh: "排屋", km: "ផ្ទះល្វែង" },
-  land: { fr: "Terrain", en: "Land", zh: "土地", km: "ដីធ្លី" },
-  commercial: { fr: "Local commercial", en: "Commercial space", zh: "商铺", km: "អគារពាណិជ្ជកម្ម" },
-  warehouse: { fr: "Entrepôt", en: "Warehouse", zh: "仓库", km: "ឃ្លាំង" },
-  whole_building: { fr: "Immeuble entier", en: "Whole building", zh: "整栋楼", km: "អគារទាំងមូល" },
+  condo: { fr: "Appartement", en: "Condo", zh: "公寓", km: "ខុនដូ", ru: "квартира" },
+  borey_house: { fr: "Maison en borey", en: "Borey house", zh: "别墅区住宅", km: "ផ្ទះក្នុងបុរី", ru: "дом в борее" },
+  villa: { fr: "Villa", en: "Villa", zh: "别墅", km: "វីឡា", ru: "вилла" },
+  flat_shophouse: { fr: "Flat / shophouse", en: "Flat / shophouse", zh: "排屋", km: "ផ្ទះល្វែង", ru: "флэт / шопхаус" },
+  land: { fr: "Terrain", en: "Land", zh: "土地", km: "ដីធ្លី", ru: "земельный участок" },
+  commercial: { fr: "Local commercial", en: "Commercial space", zh: "商铺", km: "អគារពាណិជ្ជកម្ម", ru: "коммерческое помещение" },
+  warehouse: { fr: "Entrepôt", en: "Warehouse", zh: "仓库", km: "ឃ្លាំង", ru: "склад" },
+  whole_building: { fr: "Immeuble entier", en: "Whole building", zh: "整栋楼", km: "អគារទាំងមូល", ru: "здание целиком" },
 };
 
+// Le russe place le verbe en tête — « Продаётся квартира », la tournure des
+// petites annonces — et le type suit en minuscule.
 const VERB = {
-  sale: { fr: "à vendre", en: "for sale", zh: "出售", km: "សម្រាប់លក់" },
-  rent: { fr: "à louer", en: "for rent", zh: "出租", km: "សម្រាប់ជួល" },
+  sale: { fr: "à vendre", en: "for sale", zh: "出售", km: "សម្រាប់លក់", ru: "Продаётся" },
+  rent: { fr: "à louer", en: "for rent", zh: "出租", km: "សម្រាប់ជួល", ru: "Сдаётся" },
 };
+
+/** 1 спальня, 2 спальни, 5 спален — 11 à 14 prennent la forme de 5. */
+function bedroomsRu(n) {
+  const d = n % 10, dd = n % 100;
+  const form = d === 1 && dd !== 11 ? "спальня"
+    : d >= 2 && d <= 4 && (dd < 12 || dd > 14) ? "спальни" : "спален";
+  return `${n} ${form}`;
+}
 
 /**
  * @param {{property_type: string, bedrooms?: number, indoor_area_sqm?: number|null,
  *          land_area_sqm?: number|null, furnished?: boolean, floor?: number|null}} p
- * @param {{fr: string, en: string, zh: string, km: string}} hoodNames
+ * @param {{fr: string, en: string, zh: string, km: string, ru?: string}} hoodNames
  * @param {"sale"|"rent"} txn
  */
 export function describe(p, hoodNames, txn) {
   const t = TYPE_LABEL[p.property_type];
   const bd = p.bedrooms, ar = p.indoor_area_sqm ?? p.land_area_sqm;
   const verb = VERB[txn];
+  // Une localité sans nom russe garde son nom latin : jamais « undefined »
+  // dans une fiche. Le tiret évite de décliner le nom — « в Пномпене » — ce
+  // qu'un gabarit ne sait pas faire.
+  const hoodRu = hoodNames.ru || hoodNames.en;
   return {
     fr: `${t.fr} ${verb.fr} à ${hoodNames.fr}${bd ? `, ${bd} chambre${bd > 1 ? "s" : ""}` : ""}${ar ? `, ${ar} m²` : ""}.${p.furnished ? " Entièrement meublé." : ""}${p.floor ? ` Étage ${p.floor}.` : ""}`,
     en: `${t.en} ${verb.en} in ${hoodNames.en}${bd ? `, ${bd} bedroom${bd > 1 ? "s" : ""}` : ""}${ar ? `, ${ar} sqm` : ""}.${p.furnished ? " Fully furnished." : ""}${p.floor ? ` Floor ${p.floor}.` : ""}`,
     zh: `${hoodNames.zh}${t.zh}${verb.zh}${bd ? `，${bd}房` : ""}${ar ? `，${ar}平方米` : ""}。${p.furnished ? "全装修家具齐全。" : ""}${p.floor ? `${p.floor}层。` : ""}`,
     km: `${t.km}${verb.km}នៅ${hoodNames.km}${bd ? ` បន្ទប់គេង ${bd}` : ""}${ar ? ` ទំហំ ${ar} ម២` : ""}។${p.furnished ? " មានគ្រឿងសង្ហារិមគ្រប់គ្រាន់។" : ""}${p.floor ? ` ជាន់ទី ${p.floor}។` : ""}`,
+    ru: `${verb.ru} ${t.ru} — ${hoodRu}${bd ? `, ${bedroomsRu(bd)}` : ""}${ar ? `, ${ar} м²` : ""}.${p.furnished ? " С мебелью." : ""}${p.floor ? ` Этаж ${p.floor}.` : ""}`,
   };
 }

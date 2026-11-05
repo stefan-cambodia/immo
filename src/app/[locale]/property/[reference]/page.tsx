@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { getTranslator, i18nField, isLocale, HTML_LANG, type Locale } from "@/lib/i18n";
+import { getTranslator, i18nField, isLocale, HTML_LANG, LOCALES, type Locale } from "@/lib/i18n";
 import { daysSince, daysUntil, formatDate, formatKhr, formatNumber, formatUsd } from "@/lib/format";
 import { getProperty, similarProperties } from "@/lib/search";
 import { estimate, pricePosition } from "@/lib/estimate";
@@ -37,7 +37,7 @@ export async function generateMetadata(
       canonical: `/${locale}/property/${reference}`,
       languages: {
         ...Object.fromEntries(
-          (["fr", "en", "zh", "km"] as const).map((l) => [HTML_LANG[l], `/${l}/property/${reference}`])
+          LOCALES.map((l) => [HTML_LANG[l], `/${l}/property/${reference}`])
         ),
         "x-default": `/en/property/${reference}`,
       },
@@ -480,7 +480,7 @@ export default async function PropertyPage({
                   finishPolygon: t("map.finishDraw"),
                   autoSearch: t("map.autoSearch"),
                   loading: t("common.loading"),
-                  bedrooms: t("common.bedrooms"),
+                  bedroomCount: t("common.bedroomCount", { n: "{n}" }),
                   agencyCount: t("property.agencyCountShort", { n: "{n}" }),
                   unavailable: t("map.unavailable"),
                   unavailableHint: t("map.unavailableHint"),

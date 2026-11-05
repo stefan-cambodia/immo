@@ -33,7 +33,7 @@ npm run dev                    # http://localhost:3000
 |---|---|
 | `npm run db:up` | Démarre PostgreSQL 17 + PostGIS 3.5 (port hôte **5433**) |
 | `npm run db:migrate` | Applique `db/migrations/*.sql` (suivi dans `schema_migrations`) |
-| `npm run db:seed` | Charge 77 localités, 361 alias, 22 immeubles, 12 agences, 500 biens, ~1 200 annonces actives |
+| `npm run db:seed` | Charge 77 localités, 375 alias, 22 immeubles, 12 agences, 500 biens, ~1 200 annonces actives |
 | `npm run db:reset` | Repart de zéro (schéma + données) |
 
 Le jeu de données est **déterministe** : un même seed rejoué produit
@@ -226,10 +226,11 @@ bien sans pin), unicité d'une annonce active par (bien, agence, transaction),
 
 ### L'internationalisation (§4)
 
-Quatre locales complètes (`fr`, `en`, `zh`, `km`), 349 clés chacune, parité
-vérifiée. URLs préfixées, `hreflang` complet plus `x-default`, sitemap avec
-alternates par langue, négociation `Accept-Language` au premier passage puis
-cookie.
+Cinq locales complètes (`fr`, `en`, `zh`, `km`, `ru`), 619 clés chacune,
+parité vérifiée par `npm run check:messages` — mêmes clés, mêmes variables,
+accords en nombre complets. URLs préfixées, `hreflang` complet plus
+`x-default`, sitemap avec alternates par langue, négociation `Accept-Language`
+au premier passage puis cookie.
 
 Le khmer est traité comme un cas de première classe, pas comme un ajout :
 
@@ -240,7 +241,47 @@ Le khmer est traité comme un cas de première classe, pas comme un ajout :
   en plus que l'anglais ;
 - police Kantumruy Pro, sous-ensemble khmer chargé séparément, `display: swap`.
 
-Les descriptions d'annonces sont stockées dans les quatre langues avec la
+Le russe, arrivé en cinquième, a demandé ce que les quatre premières langues
+n'exigeaient pas :
+
+- **l'accord en nombre**. Le russe a trois formes — 1 спальня, 2 спальни,
+  5 спален — et la bonne dépend du dernier chiffre : 21 reprend la forme de 1,
+  11 à 14 celle de 5. Aucune chaîne unique ne tient. Les messages acceptent
+  donc un sous-ensemble de la syntaxe ICU,
+  `{n, plural, one {# спальня} few {# спальни} many {# спален} other {# спальни}}`,
+  résolu par `Intl.PluralRules` (`src/lib/message-format.ts`, copié dans
+  `db/lib/messages.mjs` pour les mails et le bot). La bulle de la carte reçoit
+  le gabarit non résolu et l'accorde elle-même. L'anglais et le français s'en
+  servent au passage pour les compteurs de résultats, de chambres et de
+  salles de bain : « 1 Bedrooms » a disparu ;
+- **aucune déclinaison des noms de lieux**. « в Пномпене » demande le
+  locatif, qu'un gabarit ne sait pas produire : titres et descriptions
+  engendrées placent le lieu après un tiret — « Продаётся квартира — Тул Кок,
+  2 спальни, 85 м² » ;
+- **la numérotation des étages**. En russe, « первый этаж » est le
+  rez-de-chaussée, alors que l'étage 1 cambodgien est le premier au-dessus.
+  Le rez-de-chaussée s'appelle donc « наземный этаж », et la règle des
+  étrangers dit « этаж 1 и выше », dans la numérotation que la fiche affiche.
+
+Les 77 localités portent un nom russe, qui devient terme de recherche —
+« пномпень », « бкк1 », « русский рынок » trouvent leur quartier — plus
+quelques graphies cyrilliques en alias. Les immeubles gardent leur nom propre.
+La police n'a rien coûté : le sous-ensemble cyrillique d'Inter était déjà
+déclaré par `unicode-range` et n'est téléchargé que par une page qui contient
+du cyrillique ; le compter parmi les sous-ensembles préchargés l'aurait imposé
+aux visiteurs de toutes les langues.
+
+Une base remplie avant l'arrivée d'une langue se complète par
+`npm run locales:fill` (`locales:fill-check` pour voir sans écrire) : noms
+des localités depuis `db/seed/locations.mjs`, descriptions des annonces
+collectées régénérées depuis leurs faits — sans jamais écraser une valeur
+présente. Sur la base de démonstration : 77 noms, 14 alias, 3 405
+descriptions, et un second passage qui ne change plus rien. Le texte libre
+d'une agence traduit avant l'ajout est seulement compté, la fiche lui prêtant
+l'anglais : le retraduire coûte des appels d'API, et une traduction relue par
+un humain ne doit pas être remplacée en douce.
+
+Les descriptions d'annonces sont stockées dans toutes les langues avec la
 langue source, et **marquées visuellement** quand la traduction est machine.
 
 ### L'ingestion (§6) — ce qui est en place en phase 1
@@ -753,7 +794,7 @@ et elle est autant juridique que technique :
 | Repris | prix, transaction, type, chambres, salles d'eau, surfaces, étage, commune, coordonnées, référence, URL d'origine, **adresse des photographies** |
 | Non repris | le titre et le texte de l'annonce, le nom, le téléphone et le courriel des agents |
 
-La description est **régénérée** dans les quatre langues depuis les seuls
+La description est **régénérée** dans toutes les langues depuis les seuls
 champs structurés (`db/lib/describe.mjs`, le même code que le seed) : c'est le
 principe n°3 appliqué à la lettre, et cela évite de recopier le travail
 éditorial d'un tiers. Une seule agence est créée par portail, sans
@@ -1210,7 +1251,7 @@ back-office fait disparaître le marqueur de la fiche.
 
 **La relecture humaine ne concerne que les annonces premium**, comme le
 demande §4.1. Elles passent devant dans la file — ce sont les seules où le
-délai coûte deux fois — et le back-office les présente dans les quatre langues
+délai coûte deux fois — et le back-office les présente dans toutes les langues
 côte à côte, la source repérée : ce qu'on relit est la fidélité, pas le style.
 La validation est journalisée comme action de modération, puisqu'elle engage le
 portail sur le contenu.
@@ -1441,8 +1482,8 @@ plausibilité du taux, et partage d'une vue entre agences co-listantes.
 
 Le SEO multilingue est le canal d'acquisition majeur du portail (principe n°5),
 mais la combinatoire est un piège : 77 quartiers × 8 types × 2 transactions ×
-4 langues font **4 928 URLs**. Sur l'inventaire actuel, seules 14 combinaisons
-portent au moins cinq biens et 143 n'en portent qu'un seul. Générer les 4 928
+5 langues font **6 160 URLs**. Sur l'inventaire actuel, seules 14 combinaisons
+portent au moins cinq biens et 143 n'en portent qu'un seul. Générer les 6 160
 produirait des milliers de pages quasi vides et quasi identiques — contenu
 mince, budget d'exploration gaspillé, et un risque de dévaluation qui
 retomberait sur tout le site.
@@ -1453,7 +1494,7 @@ qui suit un lien doit trouver quelque chose — mais porte `noindex, follow` et
 sort du sitemap. Le seuil se franchit tout seul à mesure que l'offre grossit :
 à l'objectif de 3 000 biens de la phase 2, la plupart des combinaisons utiles
 l'auront passé. Aujourd'hui, le sitemap annonce 57 pages d'atterrissage sur
-4 928 possibles.
+6 160 possibles.
 
 L'invariant qui compte : **le sitemap et la balise `robots` portent sur
 exactement le même ensemble**, tous deux dérivés de la même requête. Annoncer
@@ -1485,8 +1526,8 @@ un canonical par langue et des `hreflang` complets avec `x-default`.
 
 ### Un choix assumé sur les URLs
 
-Les segments de chemin restent en latin (`buy`, `rent`, `condo`) dans les
-quatre langues. Des segments localisés seraient meilleurs pour le référencement
+Les segments de chemin restent en latin (`buy`, `rent`, `condo`) dans toutes
+les langues. Des segments localisés seraient meilleurs pour le référencement
 français, mais le khmer et le chinois ne se romanisent pas proprement, et le
 percent-encoding produit des URLs illisibles. Le gain est marginal face au
 titre, au H1, au contenu et aux `hreflang`, qui eux sont bien localisés — la
@@ -1885,6 +1926,8 @@ ops/systemd/user/             Unités systemd d'utilisateur : serveur local, mod
   lib/alerts.mjs              Alertes : inscription, confirmation, envoi, rendu
   lib/mail.mjs                Transport email (file | resend | postmark) + double
   lib/messages.mjs            Messages traduits depuis les jobs Node
+  jobs/fill-locales.mjs       Complète une langue ajoutée : noms, descriptions engendrées
+  checks/messages.mjs         Parité des clés, variables, accords, deux formateurs
   jobs/send-alerts.mjs        Envoi des alertes dues
   checks/alerts.mjs           Parité SQL ↔ page, circuit complet, pages
   checks/bot-conversation.mjs Conversation complète, sans jeton
@@ -1899,10 +1942,11 @@ ops/
   send-alerts.sh              Lanceur — envoi des alertes
   expire-listings.sh          Lanceur — expiration des annonces
   audit-retention.sh          Lanceur — rétention du journal d'audit
-messages/                     fr · en · zh · km — 609 clés, parité vérifiée
+messages/                     fr · en · zh · km · ru — 619 clés, parité vérifiée (check:messages)
 src/lib/
   search.ts                   Filtres, requêtes, résolution d'alias, fiche bien
   i18n.ts                     Locales, traducteur, négociation, champs JSONB
+  message-format.ts           Substitution {var} et accord en nombre des messages
   map-provider.ts             Couche d'abstraction cartographique
   seo.ts                      Pages d'atterrissage : seuil, stats, maillage
   dashboard.ts                Mesures du tableau de bord agence

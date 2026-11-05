@@ -74,8 +74,8 @@ export function PropertyCardItem({
           display: "flex", gap: "0.75rem", flexWrap: "wrap",
           fontSize: "0.8125rem", color: "var(--color-ink-soft)",
         }}>
-          {item.bedrooms > 0 && <li>{item.bedrooms} {t("common.bedrooms")}</li>}
-          {item.bathrooms > 0 && <li>{item.bathrooms} {t("common.bathrooms")}</li>}
+          {item.bedrooms > 0 && <li>{t("common.bedroomCount", { n: item.bedrooms })}</li>}
+          {item.bathrooms > 0 && <li>{t("common.bathroomCount", { n: item.bathrooms })}</li>}
           {area && <li>{formatNumber(area, locale)} {t("common.sqm")}</li>}
           {item.floor !== null && item.floor > 0 && <li>{t("common.floor")} {item.floor}</li>}
         </ul>

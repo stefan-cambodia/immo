@@ -15,7 +15,7 @@
  *   node db/jobs/translate-listings.mjs [--limit N] [--retry] [--dry-run] [--json]
  */
 import pg from "pg";
-import { translateQueue } from "../lib/translate.mjs";
+import { translateQueue, LOCALES } from "../lib/translate.mjs";
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(`--${n}`);
@@ -34,7 +34,7 @@ const summary = await translateQueue(db, {
   limit: Number(opt("limit", 20)),
   retry: flag("retry"),
   dryRun,
-  onProgress: (p) => log(p.ok ? `  ✓ ${p.reference} (${p.sourceLang} → 4 langues)`
+  onProgress: (p) => log(p.ok ? `  ✓ ${p.reference} (${p.sourceLang} → ${LOCALES.length} langues)`
                               : `  ✗ ${p.reference} : ${p.error}`),
 });
 

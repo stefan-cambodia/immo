@@ -16,7 +16,7 @@ import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-const LOCALES = ["fr", "en", "zh", "km"];
+const LOCALES = ["fr", "en", "zh", "km", "ru"];
 const METRICS = ["lcp", "inp", "cls", "ttfb"];
 const ROUTES = ["home", "search", "property", "landing", "other"];
 

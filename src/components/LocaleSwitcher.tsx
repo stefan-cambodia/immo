@@ -8,12 +8,13 @@ const LOCALES = [
   { code: "fr", label: "FR" },
   { code: "zh", label: "中文" },
   { code: "km", label: "ខ្មែរ" },
+  { code: "ru", label: "РУС" },
 ] as const;
 
 export function LocaleSwitcher({ current }: { current: string }) {
   const pathname = usePathname();
   const search = useSearchParams();
-  const rest = pathname.replace(/^\/(fr|en|zh|km)/, "") || "";
+  const rest = pathname.replace(/^\/(fr|en|zh|km|ru)/, "") || "";
   const qs = search.toString();
 
   return (

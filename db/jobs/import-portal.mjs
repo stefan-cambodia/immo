@@ -7,9 +7,9 @@
  * la règle du pin manuel et le quota d'abonnement, comme n'importe quel autre
  * canal. Aucune annonce n'entre par une porte dérobée.
  *
- * La DESCRIPTION est fabriquée ici plutôt que reprise : engendrée dans les
- * quatre langues depuis les champs structurés (db/lib/describe.mjs). Le texte
- * de l'annonce d'origine n'est ni lu ni stocké.
+ * La DESCRIPTION est fabriquée ici plutôt que reprise : engendrée dans toutes
+ * les langues du portail depuis les champs structurés (db/lib/describe.mjs).
+ * Le texte de l'annonce d'origine n'est ni lu ni stocké.
  *
  * Les PHOTOS sont celles de l'annonce. `media.url` retient l'adresse de
  * l'image chez la source — c'est la référence, et la trace de provenance —
@@ -428,7 +428,7 @@ for (const rec of records) {
     const outcome = await ingest(db, input);
 
     if (outcome.status === "accepted") {
-      // La description sort des champs structurés, dans les quatre langues
+      // La description sort des champs structurés, dans toutes les langues
       // (§4.1). Rien à traduire : ce n'est pas du texte libre, donc
       // `not_needed` plutôt que la file du traducteur — et le marquage
       // « traduction automatique » de la fiche, qui découle de cet état,

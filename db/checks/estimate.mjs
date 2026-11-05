@@ -181,7 +181,7 @@ console.log("\nBalises et sitemap");
 const bare = await (await fetch(`${BASE}/en/estimate`)).text();
 check("canonical sans paramètres",
       bare.includes(`rel="canonical" href="http://localhost:3000/en/estimate"`), "");
-for (const lang of ["fr", "en", "zh-Hans", "km"]) {
+for (const lang of ["fr", "en", "zh-Hans", "km", "ru"]) {
   check(`hreflang ${lang}`, bare.includes(`hrefLang="${lang}"`), "");
 }
 const withParams = html.includes(`rel="canonical" href="http://localhost:3000/en/estimate"`);

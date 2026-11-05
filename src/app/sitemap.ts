@@ -15,8 +15,8 @@ export const revalidate = 3600;
 
 /**
  * Sitemap multilingue avec alternates par locale. Le SEO multilingue est un
- * canal d'acquisition majeur (principe n°5) : chaque fiche existe dans les
- * quatre langues et se déclare comme telle.
+ * canal d'acquisition majeur (principe n°5) : chaque fiche existe dans
+ * toutes les langues du portail et se déclare comme telle.
  *
  * Les pages d'atterrissage n'y figurent que si elles franchissent le seuil
  * d'inventaire — le sitemap et la balise `robots` doivent porter sur

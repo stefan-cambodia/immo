@@ -80,7 +80,7 @@ console.log("\nBalises par langue");
 const html = await (await fetch(`${BASE}/fr/buy/${rich.area}/${rich.type}`)).text();
 check("canonical pointe la version française",
       html.includes(`rel="canonical" href="http://localhost:3000/fr/buy/${rich.area}/${rich.type}"`), "");
-for (const lang of ["fr", "en", "zh-Hans", "km"]) {
+for (const lang of ["fr", "en", "zh-Hans", "km", "ru"]) {
   check(`hreflang ${lang}`, html.includes(`hrefLang="${lang}"`), "");
 }
 check("x-default présent", html.includes('hrefLang="x-default"'), "");

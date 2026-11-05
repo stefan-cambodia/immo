@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Map as MlMap, GeoJSONSource } from "maplibre-gl";
+import { formatMessage } from "@/lib/message-format";
 
 interface Point {
   id: string; reference: string; lng: number; lat: number;
@@ -17,8 +18,9 @@ interface Labels {
   finishPolygon: string;
   autoSearch: string;
   loading: string;
-  bedrooms: string;
-  /** Gabarit `{n} agences` : la substitution se fait dans la bulle. */
+  /** Gabarits `{n} chambres`, `{n} agences` : la bulle y place le nombre et
+   *  accorde le nom — le russe a trois formes selon le chiffre. */
+  bedroomCount: string;
   agencyCount: string;
   unavailable: string;
   unavailableHint: string;
@@ -186,8 +188,8 @@ export function ResultsMap({
           const beds = Number(p.beds) || 0;
           const agencies = Number(p.agencies) || 0;
           const facts = [
-            beds > 0 ? `${beds} ${labels.bedrooms}` : null,
-            agencies > 1 ? labels.agencyCount.replace("{n}", String(agencies)) : null,
+            beds > 0 ? formatMessage(labels.bedroomCount, { n: beds }, locale) : null,
+            agencies > 1 ? formatMessage(labels.agencyCount, { n: agencies }, locale) : null,
           ].filter(Boolean).join(" · ");
 
           new maplibre.Popup({ offset: 12, closeButton: false })

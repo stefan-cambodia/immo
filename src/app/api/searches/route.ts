@@ -22,7 +22,7 @@ import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-const LOCALES = ["fr", "en", "zh", "km"];
+const LOCALES = ["fr", "en", "zh", "km", "ru"];
 
 // Même liste que la mesure d'audience : un robot qui balaie les pages de
 // résultats gonflerait le dénominateur et ferait passer le taux d'échec pour

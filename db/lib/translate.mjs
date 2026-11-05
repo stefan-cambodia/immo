@@ -3,9 +3,9 @@ import Anthropic from "@anthropic-ai/sdk";
 /**
  * Traduction des descriptions d'annonces (§4.1).
  *
- * L'agent saisit dans une seule langue ; la fiche doit exister dans les
- * quatre. La traduction se fait à l'ingestion, une fois, pas à chaque
- * affichage — une fiche consultée mille fois ne doit pas coûter mille
+ * L'agent saisit dans une seule langue ; la fiche doit exister dans toutes
+ * celles du portail. La traduction se fait à l'ingestion, une fois, pas à
+ * chaque affichage — une fiche consultée mille fois ne doit pas coûter mille
  * traductions.
  *
  * Le volume à traduire est délibérément faible : le principe n°3 pousse tout
@@ -14,15 +14,15 @@ import Anthropic from "@anthropic-ai/sdk";
  */
 
 export const MODEL = "claude-opus-5";
-export const LOCALES = ["fr", "en", "zh", "km"];
+export const LOCALES = ["fr", "en", "zh", "km", "ru"];
 
 const LANG_NAMES = {
-  fr: "français", en: "anglais", zh: "chinois simplifié", km: "khmer",
+  fr: "français", en: "anglais", zh: "chinois simplifié", km: "khmer", ru: "russe",
 };
 
 const TRANSLATE_TOOL = {
   name: "record_translations",
-  description: "Enregistre la description d'annonce traduite dans les quatre langues du portail.",
+  description: "Enregistre la description d'annonce traduite dans les cinq langues du portail.",
   strict: true,
   input_schema: {
     type: "object",
@@ -31,13 +31,14 @@ const TRANSLATE_TOOL = {
       en: { type: "string", description: "Description en anglais." },
       zh: { type: "string", description: "Description en chinois simplifié." },
       km: { type: "string", description: "Description en khmer." },
+      ru: { type: "string", description: "Description en russe." },
     },
-    required: ["fr", "en", "zh", "km"],
+    required: ["fr", "en", "zh", "km", "ru"],
     additionalProperties: false,
   },
 };
 
-const SYSTEM = `Tu traduis des descriptions d'annonces immobilières cambodgiennes pour un portail public, vers le français, l'anglais, le chinois simplifié et le khmer.
+const SYSTEM = `Tu traduis des descriptions d'annonces immobilières cambodgiennes pour un portail public, vers le français, l'anglais, le chinois simplifié, le khmer et le russe.
 
 Ces textes engagent une agence auprès d'acheteurs. Traduis, n'embellis pas :
 
@@ -45,7 +46,7 @@ Ces textes engagent une agence auprès d'acheteurs. Traduis, n'embellis pas :
 - Ne jamais retirer un fait présent, y compris ce qui dessert le bien.
 - Les chiffres, surfaces, étages, prix et devises sont recopiés à l'identique.
 - Les termes de marché restent en l'état, ils sont compris tels quels au Cambodge : borey, hard title, soft title, strata title, flat, shophouse. Ne les traduis pas, ne les paraphrase pas.
-- Les noms de quartiers et d'immeubles ne sont pas traduits ; utilise la forme locale usuelle quand elle existe (BKK1, Toul Kork, ភ្នំពេញ, 西港).
+- Les noms de quartiers et d'immeubles ne sont pas traduits ; utilise la forme locale usuelle quand elle existe (BKK1, Toul Kork, ភ្នំពេញ, 西港, Пномпень).
 - Registre neutre et factuel, pas de langage promotionnel.
 - Pour la langue source, recopie le texte d'origine tel quel plutôt que de le reformuler.
 
@@ -53,9 +54,9 @@ Le khmer ne sépare pas les mots par des espaces : écris-le naturellement, sans
 
 /**
  * @param {string} text        description dans sa langue source
- * @param {string} sourceLang  'fr' | 'en' | 'zh' | 'km'
+ * @param {string} sourceLang  'fr' | 'en' | 'zh' | 'km' | 'ru'
  * @param {object} [options]   { client, model }
- * @returns {Promise<{fr:string,en:string,zh:string,km:string}>}
+ * @returns {Promise<{fr:string,en:string,zh:string,km:string,ru:string}>}
  */
 export async function translateDescription(text, sourceLang, options = {}) {
   const trimmed = (text ?? "").trim();

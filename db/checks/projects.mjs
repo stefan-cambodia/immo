@@ -105,7 +105,7 @@ check("projet inconnu → 404", missing.status === 404, String(missing.status));
 console.log("\nBalises par langue");
 const anyProject = buildings[0];
 const fr = await (await fetch(`${BASE}/fr/project/${anyProject.slug}`)).text();
-for (const lang of ["fr", "en", "zh-Hans", "km"]) {
+for (const lang of ["fr", "en", "zh-Hans", "km", "ru"]) {
   check(`hreflang ${lang}`, fr.includes(`hrefLang="${lang}"`), "");
 }
 check("x-default présent", fr.includes('hrefLang="x-default"'), "");

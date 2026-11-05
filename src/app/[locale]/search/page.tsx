@@ -149,7 +149,7 @@ export default async function SearchPage({
               {heading}
             </h1>
             <p style={{ fontSize: "0.875rem", color: "var(--color-ink-soft)", marginTop: "0.125rem" }}>
-              {formatNumber(total, locale)} {t(total === 1 ? "common.result" : "common.results")}
+              {t("common.results", { n: formatNumber(total, locale) })}
               {area?.parent && ` · ${i18nField(area.parent, locale)}`}
               {resolvedLabel && f.q && ` · « ${f.q} » → ${resolvedLabel}`}
               {f.polygon && ` · ${t("common.map")}`}
@@ -242,7 +242,7 @@ export default async function SearchPage({
             finishPolygon: t("map.finishDraw"),
             autoSearch: t("map.autoSearch"),
             loading: t("common.loading"),
-            bedrooms: t("common.bedrooms"),
+            bedroomCount: t("common.bedroomCount", { n: "{n}" }),
             // Le gabarit part tel quel : la bulle y substitue le nombre.
             agencyCount: t("property.agencyCountShort", { n: "{n}" }),
             unavailable: t("map.unavailable"),

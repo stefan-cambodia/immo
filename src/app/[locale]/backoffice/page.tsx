@@ -507,7 +507,7 @@ export default async function BackofficePage({
               <label style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)" }}>
                 {t("property.machineTranslated", { lang: "" }).split("{")[0].trim() || "Source"}
                 <select className="field" name="source_lang" defaultValue={locale} style={{ marginTop: "0.25rem" }}>
-                  {["en", "km", "zh", "fr"].map((l) => <option key={l} value={l}>{l.toUpperCase()}</option>)}
+                  {["en", "km", "zh", "fr", "ru"].map((l) => <option key={l} value={l}>{l.toUpperCase()}</option>)}
                 </select>
               </label>
             </div>
@@ -651,7 +651,7 @@ export default async function BackofficePage({
                       </Link>
                       <div style={{ color: "var(--color-ink-soft)", lineHeight: 1.5 }}>
                         {t(`propertyType.${d[keys[1]]}`)}<br />
-                        {d[keys[2]] ?? "—"} {t("common.sqm")} · {d[keys[3]]} {t("common.bedrooms")}
+                        {d[keys[2]] ?? "—"} {t("common.sqm")} · {t("common.bedroomCount", { n: d[keys[3]] })}
                         {d[keys[4]] !== null && ` · ${t("common.floor")} ${d[keys[4]]}`}<br />
                         <span style={{ fontSize: "0.75rem", color: "var(--color-ink-faint)" }}>
                           {d[keys[5]] ?? "—"}

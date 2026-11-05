@@ -29,6 +29,7 @@ const TRANSLATIONS = {
   en: "Villa for rent in Teuk Thla, 5 bedrooms, 508 sqm.",
   zh: "Teuk Thla 别墅出租，5 房，508 平方米。",
   km: "វីឡាសម្រាប់ជួលនៅទឹកថ្លា បន្ទប់គេង ៥ ទំហំ ៥០៨ ម២។",
+  ru: "Сдаётся вилла — Тык Тхла, 5 спален, 508 м².",
 };
 const client = new Anthropic({ apiKey: "k", fetch: async (url, init) => {
   captured = { url: String(url), body: JSON.parse(init.body) };
@@ -42,8 +43,8 @@ check(`modèle ${MODEL}`, b.model === MODEL, b.model);
 check("effort bas — la traduction n'est pas du raisonnement",
       b.output_config?.effort === "low", JSON.stringify(b.output_config));
 check("outil strict", b.tools?.[0]?.strict === true);
-check("les quatre langues sont requises",
-      b.tools[0].input_schema.required.join(",") === "fr,en,zh,km",
+check("les cinq langues sont requises",
+      b.tools[0].input_schema.required.join(",") === "fr,en,zh,km,ru",
       b.tools[0].input_schema.required.join(","));
 check("outil forcé", b.tool_choice?.name === "record_translations");
 check("la langue source est annoncée au modèle",
@@ -52,7 +53,7 @@ check("consigne de non-embellissement",
       b.system.includes("n'embellis pas") || b.system.includes("Traduis, n'embellis"), "");
 check("termes de marché préservés",
       b.system.includes("borey") && b.system.includes("strata"), "");
-check("les quatre langues sont renvoyées",
+check("les cinq langues sont renvoyées",
       LOCALES.every((l) => out[l]), JSON.stringify(Object.keys(out)));
 
 console.log("\nCas d'erreur");
@@ -92,7 +93,7 @@ const { rows: [empty] } = await db.query(
 const premium = await premiumListing(db);
 
 const fakeTranslate = async (text) =>
-  ({ fr: "FR:" + text, en: "EN:" + text, zh: "ZH:" + text, km: "KM:" + text });
+  ({ fr: "FR:" + text, en: "EN:" + text, zh: "ZH:" + text, km: "KM:" + text, ru: "RU:" + text });
 
 const order = [];
 const s1 = await translateQueue(db, { translate: fakeTranslate, limit: 5,
@@ -108,7 +109,7 @@ const { rows: [done] } = await db.query(
   `SELECT description_i18n AS d, description_source_lang::text AS lang,
           translation_status, machine_translated, translated_at
    FROM listings WHERE translation_status = 'machine' LIMIT 1`);
-check("les quatre langues sont remplies",
+check("les cinq langues sont remplies",
       LOCALES.every((l) => done.d[l]), JSON.stringify(Object.keys(done.d)));
 check("le texte source est conservé mot pour mot",
       !String(done.d[done.lang]).startsWith(done.lang.toUpperCase() + ":"),

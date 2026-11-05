@@ -455,7 +455,7 @@ for (let i = 0; i < TARGET; i++) {
        txn === "rent" ? "monthly" : "total", chance(0.7), status,
        pick(["backoffice", "backoffice", "backoffice", "csv", "xml_feed"]),
        isFeatured, isFeatured ? expires : null, expires, confirmed,
-       // describe() produit déjà les quatre langues : ces annonces sont
+       // describe() produit déjà toutes les langues : ces annonces sont
        // dans l'état où le worker de traduction les aurait laissées.
        describe(prop, meta.names, txn), srcLang, 'machine', created]);
 
